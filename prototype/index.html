@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heim Coffee POS Prototype</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        <h1>Heim</h1>
+        <p>COFFEE SHOP POS</p>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-section">MAIN</li>
+        <li class="nav-item active" data-target="pos-view">
+          <span class="nav-icon">☕</span> Point of Sale
+        </li>
+        <li class="nav-section">INVENTORY</li>
+        <li class="nav-item" data-target="inventory-view">
+          <span class="nav-icon">📦</span> Stock Overview
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-title" id="topbar-title">Point of Sale Terminal</div>
+        <div class="topbar-user">Cashier: Maria Santos</div>
+      </header>
+
+      <!-- VIEW: POS -->
+      <div id="pos-view" class="view active">
+        <div class="pos-layout">
+          <!-- Products Grid -->
+          <div class="products-section">
+            <div class="category-tabs">
+              <button class="cat-tab active">All Items</button>
+            </div>
+            <div class="products-grid" id="products-grid">
+              <!-- Products injected by JS -->
+            </div>
+          </div>
+          
+          <!-- Cart Panel -->
+          <div class="cart-panel">
+            <div class="cart-header">
+              <h2>Current Order</h2>
+              <button class="clear-btn" id="clear-cart-btn">Clear</button>
+            </div>
+            <div class="cart-items" id="cart-items">
+              <!-- Cart items injected by JS -->
+            </div>
+            <div class="cart-summary">
+              <div class="summary-row">
+                <span>Subtotal</span>
+                <span id="cart-subtotal">₱0.00</span>
+              </div>
+              <div class="summary-row">
+                <span>VAT (12% included)</span>
+                <span id="cart-vat">₱0.00</span>
+              </div>
+              <div class="summary-row total-row">
+                <span>TOTAL DUE</span>
+                <span id="cart-total">₱0.00</span>
+              </div>
+              <button class="checkout-btn" id="checkout-btn">Checkout</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: Inventory -->
+      <div id="inventory-view" class="view">
+        <div class="inventory-layout">
+          <div class="kpi-strip">
+            <div class="kpi-card">
+              <div class="kpi-label">ALL INGREDIENTS</div>
+              <div class="kpi-val" id="total-ingredients-kpi">0 Items</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">LOW STOCK ALERT</div>
+              <div class="kpi-val warning-text" id="low-stock-kpi">0 Warning</div>
+            </div>
+          </div>
+          <div class="table-container">
+            <h2>Raw Ingredient Stock Levels</h2>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>INGREDIENT</th>
+                  <th>UNIT</th>
+                  <th>CURRENT STOCK</th>
+                  <th>MIN STOCK</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-table-body">
+                <!-- Inventory rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

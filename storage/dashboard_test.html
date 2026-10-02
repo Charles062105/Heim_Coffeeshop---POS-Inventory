@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="2SAV75qd7uHf68H47oid7ekOOKJZNdH3B7NCgieA">
+    <title>Dashboard — Heim</title>
+    <link rel="icon" type="image/png" href="http://localhost/coffee-shop-system/public/images/favicon.png">
+    <link rel="shortcut icon" href="http://localhost/coffee-shop-system/public/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+        }
+    </script>
+    <link rel="preload" as="style" href="http://localhost/coffee-shop-system/public/build/assets/app-Dq6BadWD.css" /><link rel="modulepreload" as="script" href="http://localhost/coffee-shop-system/public/build/assets/app-e0wfXoiD.js" /><link rel="stylesheet" href="http://localhost/coffee-shop-system/public/build/assets/app-Dq6BadWD.css" /><script type="module" src="http://localhost/coffee-shop-system/public/build/assets/app-e0wfXoiD.js"></script>    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        [x-cloak] { display: none !important; }
+        body { font-family: 'Manrope', sans-serif; color: #17342d; }
+        .sidebar-shell {
+            background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.97) 100%);
+            border-right: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.02), 12px 0 30px -22px rgba(15, 23, 42, 0.35);
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.7rem 0.8rem;
+            border-radius: 0.9rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+            text-decoration: none;
+            transition: all 0.18s ease-out;
+            position: relative;
+            border: 1px solid transparent;
+        }
+        .nav-link:hover {
+            background: rgba(21, 93, 73, 0.04);
+            color: #0f172a;
+            border-color: rgba(21, 93, 73, 0.08);
+        }
+        .nav-link.active {
+            background: linear-gradient(135deg, #155d49 0%, #1d7a5b 100%);
+            color: #ffffff;
+            box-shadow: 0 8px 18px -12px rgba(21, 93, 73, 0.75);
+            border-color: rgba(255,255,255,0.08);
+        }
+        .nav-link svg {
+            width: 1rem;
+            height: 1rem;
+            stroke-width: 1.8;
+            flex-shrink: 0;
+            color: currentColor;
+        }
+        .nav-link.active svg {
+            color: #ffffff;
+        }
+        .nav-link .notif-badge {
+            margin-left: auto;
+            display: inline-flex;
+            min-width: 1.15rem;
+            height: 1.15rem;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            background-color: #ef4444;
+            padding: 0 0.35rem;
+            font-size: 10px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1;
+        }
+        .sidebar-section-label {
+            padding: 0.8rem 0.75rem 0.45rem;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #7c8a96;
+        }
+        .sidebar-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+        }
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.45);
+            border-radius: 9999px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.7);
+        }
+    </style>
+</head>
+<body class="h-full overflow-hidden bg-gray-50 antialiased font-sans">
+
+<div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="flex h-full w-full overflow-hidden bg-gray-50">
+
+    
+    <div 
+        x-show="sidebarOpen" 
+        x-cloak 
+        x-transition:enter="transition-opacity ease-linear duration-200" 
+        x-transition:enter-start="opacity-0" 
+        x-transition:enter-end="opacity-100" 
+        x-transition:leave="transition-opacity ease-linear duration-200" 
+        x-transition:leave-start="opacity-100" 
+        x-transition:leave-end="opacity-0" 
+        @click="sidebarOpen = false" 
+        class="fixed inset-0 z-40 bg-gray-900/60 backdrop-blur-sm lg:hidden"
+        aria-hidden="true"
+    ></div>
+
+    
+    <aside 
+        :class="sidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'"
+        class="sidebar-shell fixed inset-y-0 left-0 z-50 w-64 flex-shrink-0 text-slate-800 flex flex-col transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:z-20"
+    >
+
+        
+        <div class="flex items-center justify-between border-b border-slate-200/80 px-4 py-3.5">
+            <a href="http://localhost/coffee-shop-system/public/dashboard" class="flex items-center gap-3 group min-w-0">
+                <div class="flex h-11 px-2.5 items-center justify-center overflow-hidden rounded-xl border border-heim-100 bg-white shadow-xs ring-1 ring-slate-100 group-hover:border-heim-300 transition-colors">
+                    <img src="http://localhost/coffee-shop-system/public/images/logo.png" alt="Heim" class="h-7 w-auto max-w-[76px] object-contain">
+                </div>
+                <div class="min-w-0">
+                    <div class="text-sm font-extrabold tracking-tight text-slate-900 leading-tight">Heim</div>
+                    <div class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Operations</div>
+                </div>
+            </a>
+            <button @click="sidebarOpen = false" class="lg:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none" aria-label="Close sidebar">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        
+        <nav class="sidebar-scroll flex-1 overflow-y-auto py-3 px-3 pb-12 space-y-0.5">
+
+            
+            <p class="sidebar-section-label">Main</p>
+
+            <a href="http://localhost/coffee-shop-system/public/dashboard" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/pos" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span>Point of Sale</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/orders" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                <span>Orders</span>
+            </a>
+
+                        <a href="http://localhost/coffee-shop-system/public/refunds" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                <span>Refunds</span>
+            </a>
+            
+            
+            
+            <p class="sidebar-section-label pt-6">Menu Management</p>
+            <a href="http://localhost/coffee-shop-system/public/categories" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <span>Categories</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/products" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>Products</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/recipes" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Recipes</span>
+            </a>
+
+            
+            <p class="sidebar-section-label pt-6">Inventory</p>
+            <a href="http://localhost/coffee-shop-system/public/inventory" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8 4s8 1.79 8 4"/></svg>
+                <span>Stock Overview</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/ingredients" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                <span>Ingredients</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/inventory/stock-in" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Stock-In</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/inventory/waste" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Waste / Spoilage</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/inventory/adjustments" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                <span>Adjustments</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/inventory/transactions" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                <span>Inventory Transactions</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/consumption" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>Daily Consumption</span>
+            </a>
+
+            
+            <p class="sidebar-section-label pt-6">Reports</p>
+            <a href="http://localhost/coffee-shop-system/public/reports/sales" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <span>Sales Reports</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/reports/inventory" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Inventory Reports</span>
+            </a>
+            <a href="http://localhost/coffee-shop-system/public/consumption" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>Consumption Reports</span>
+            </a>
+
+            
+            
+            <p class="sidebar-section-label pt-6">Administration</p>
+                        <a href="http://localhost/coffee-shop-system/public/users" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <span>Users & Accounts</span>
+            </a>
+            
+                        <a href="http://localhost/coffee-shop-system/public/audit-logs" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span>Audit Logs</span>
+            </a>
+            
+            <a href="http://localhost/coffee-shop-system/public/notifications" class="nav-link ">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                <span>Notifications</span>
+                            </a>
+
+        </nav>
+
+        
+                <div class="border-t border-slate-200/80 bg-slate-50/70 p-3">
+            <div class="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/90 px-2.5 py-2 shadow-sm">
+                <a href="http://localhost/coffee-shop-system/public/profile" class="flex min-w-0 flex-1 items-center gap-2.5 hover:opacity-90 transition-opacity group" title="View profile">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-heim-600 to-heim-800 text-xs font-bold text-white shadow-sm">
+                        A
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-xs font-semibold text-slate-900">Admin Owner</p>
+                        <p class="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">owner</p>
+                    </div>
+                </a>
+                <button type="button" 
+                        onclick="confirmLogout(event)" 
+                        title="Log Out" 
+                        aria-label="Log Out"
+                        class="flex-shrink-0 rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+    </aside>
+
+    
+    <div class="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+
+        
+        <div class="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0 select-none" aria-hidden="true">
+            <img src="http://localhost/coffee-shop-system/public/images/logo.png" alt="" class="w-[44rem] max-w-[80vw] opacity-[0.038] filter blur-[0.2px] transform -rotate-6 select-none pointer-events-none">
+        </div>
+
+        
+        <header class="bg-white/95 backdrop-blur-md border-b border-gray-200/80 px-3 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 z-30 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            
+            
+            <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                <button 
+                    @click="sidebarOpen = !sidebarOpen" 
+                    type="button" 
+                    class="lg:hidden p-2 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-heim-500"
+                    aria-label="Toggle navigation"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2.5">
+                        <h1 class="text-lg sm:text-xl font-bold text-gray-800 tracking-tight leading-tight truncate">
+                            Dashboard                        </h1>
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-0.5 truncate">Real-time coffee shop performance, active sales metrics, and stock alerts</p>
+                                    </div>
+            </div>
+
+            
+            <div class="ml-auto flex items-center gap-2 sm:gap-3.5">
+                
+                
+                                    <div class="flex items-center gap-2 mr-1">
+                            <a href="http://localhost/coffee-shop-system/public/pos" class="brand-button gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        Open POS Terminal
+    </a>
+                    </div>
+                
+                
+                <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100/90 text-gray-600 text-xs font-medium border border-gray-200/60 shadow-xs">
+                    <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Sat, Sep 19, 2026</span>
+                </div>
+
+                
+                                <a href="http://localhost/coffee-shop-system/public/notifications" 
+                   title="Notifications"
+                   class="relative p-2 rounded-xl text-gray-500 hover:text-heim-700 hover:bg-heim-50/70 border border-transparent hover:border-heim-200/70 transition-all focus:outline-none focus:ring-2 focus:ring-heim-500"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                    </svg>
+                                    </a>
+                
+                
+                <div class="relative" @keydown.escape.stop="userMenuOpen = false">
+                    <button 
+                        @click="userMenuOpen = !userMenuOpen" 
+                        type="button" 
+                        class="flex items-center gap-2.5 rounded-xl border border-gray-200/90 bg-white pl-2 pr-2.5 py-1.5 shadow-xs transition hover:border-heim-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2"
+                        :class="userMenuOpen ? 'ring-2 ring-heim-500 border-transparent bg-gray-50/80' : ''"
+                        id="user-menu-button"
+                        aria-expanded="userMenuOpen"
+                        aria-haspopup="true"
+                    >
+                        <div class="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-heim-600 to-heim-800 text-sm font-bold text-white shadow-xs">
+                            A
+                            <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+                        </div>
+                        <div class="hidden text-left sm:block">
+                            <div class="text-xs font-semibold text-gray-800 leading-tight truncate max-w-[120px]">Admin Owner</div>
+                            <div class="text-[10px] font-medium text-heim-700 uppercase tracking-wider mt-0.5">Owner</div>
+                        </div>
+                        <svg class="h-3.5 w-3.5 text-gray-400 transition-transform duration-150" :class="userMenuOpen ? 'rotate-180 text-gray-600' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div 
+                        x-show="userMenuOpen" 
+                        x-cloak
+                        @click.away="userMenuOpen = false" 
+                        x-transition:enter="transition ease-out duration-150"
+                        x-transition:enter-start="opacity-0 scale-95 -translate-y-1"
+                        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                        x-transition:leave="transition ease-in duration-100"
+                        x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                        x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
+                        class="absolute right-0 z-40 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-xl ring-1 ring-black/5 divide-y divide-gray-100"
+                        role="menu"
+                    >
+                        <div class="px-4 py-3 bg-gray-50/70">
+                            <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Signed in as</p>
+                            <p class="text-sm font-semibold text-gray-900 truncate mt-0.5">Admin Owner</p>
+                            <span class="inline-flex items-center mt-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-heim-100 text-heim-800 capitalize">
+                                owner
+                            </span>
+                        </div>
+                        
+                        <div class="py-1">
+                            <a href="http://localhost/coffee-shop-system/public/profile" 
+                               class="group flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-heim-50 hover:text-heim-800 transition-colors"
+                               role="menuitem"
+                            >
+                                <svg class="w-4 h-4 text-gray-400 group-hover:text-heim-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                </svg>
+                                <span>Profile Settings</span>
+                            </a>
+                        </div>
+
+                        <div class="py-1">
+                            <form id="header-logout-form" method="POST" action="http://localhost/coffee-shop-system/public/logout" onsubmit="return confirmLogout(event, this);">
+                                <input type="hidden" name="_token" value="2SAV75qd7uHf68H47oid7ekOOKJZNdH3B7NCgieA" autocomplete="off">                                <button type="button" 
+                                        onclick="confirmLogout(event, this.closest('form'))"
+                                        class="group flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 transition-colors"
+                                        role="menuitem"
+                                >
+                                    <svg class="w-4 h-4 text-rose-400 group-hover:text-rose-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                                    </svg>
+                                    <span>Log Out</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        
+        <main id="main-content" class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 relative z-10">
+
+            
+                                                
+            
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
+    
+            
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Today's Sales</span>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+                <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">₱0.00</p>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+                    0 orders
+                </span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">0 paid orders today</p>
+        </div>
+
+        
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Sales</span>
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">₱0.00</p>
+            <p class="text-xs text-gray-400 mt-2">All-time completed sales</p>
+        </div>
+
+        
+        <a href="http://localhost/coffee-shop-system/public/inventory?stock_status=low_stock" class="block bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all group">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Low Stock</span>
+                <div class="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+                <p class="text-2xl sm:text-3xl font-bold text-gray-900">0</p>
+                            </div>
+            <p class="text-xs text-gray-400 mt-2">Below minimum threshold</p>
+        </a>
+
+        
+        <a href="http://localhost/coffee-shop-system/public/inventory?stock_status=out_of_stock" class="block bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all group">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Out of Stock</span>
+                <div class="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+                <p class="text-2xl sm:text-3xl font-bold text-gray-900">0</p>
+                            </div>
+            <p class="text-xs text-gray-400 mt-2">Zero ingredients left</p>
+        </a>
+    </div>
+
+
+<div class="mb-6">
+    <div class="flex items-center justify-between mb-3 px-1">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-heim-600"></div>
+            <h2 class="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Quick Actions</h2>
+        </div>
+        <span class="text-xs text-gray-400 font-medium">Daily operations shortcuts</span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        <a href="http://localhost/coffee-shop-system/public/pos" 
+           class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-gradient-to-br from-heim-700 via-heim-800 to-heim-900 text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 text-white group-hover:scale-105 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-bold text-sm text-white flex items-center justify-between">
+                    <span>🛒 New Order</span>
+                    <span class="text-white/60 group-hover:text-white transition-colors">→</span>
+                </p>
+                <p class="text-xs text-heim-200 mt-0.5 truncate">Open register terminal</p>
+            </div>
+        </a>
+
+        
+        <a href="http://localhost/coffee-shop-system/public/orders" 
+           class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-2xs hover:border-heim-300 hover:shadow-sm hover:-translate-y-0.5 transition-all">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-bold text-sm text-gray-900 flex items-center justify-between group-hover:text-heim-800 transition-colors">
+                    <span>📋 Orders</span>
+                    <span class="text-gray-300 group-hover:text-heim-600 transition-colors">→</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5 truncate">Review receipts & transactions</p>
+            </div>
+        </a>
+
+        
+                <a href="http://localhost/coffee-shop-system/public/inventory/stock-in" 
+           class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-2xs hover:border-heim-300 hover:shadow-sm hover:-translate-y-0.5 transition-all">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-bold text-sm text-gray-900 flex items-center justify-between group-hover:text-heim-800 transition-colors">
+                    <span>＋ Stock-In</span>
+                    <span class="text-gray-300 group-hover:text-heim-600 transition-colors">→</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5 truncate">Replenish kitchen stock</p>
+            </div>
+        </a>
+        
+        
+                <a href="http://localhost/coffee-shop-system/public/inventory" 
+           class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-2xs hover:border-heim-300 hover:shadow-sm hover:-translate-y-0.5 transition-all">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8 4s8 1.79 8 4"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-bold text-sm text-gray-900 flex items-center justify-between group-hover:text-heim-800 transition-colors">
+                    <span>◉ Stock Overview</span>
+                    <span class="text-gray-300 group-hover:text-heim-600 transition-colors">→</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5 truncate">Live ingredient inventory</p>
+            </div>
+        </a>
+            </div>
+</div>
+
+
+<div class="space-y-6">
+
+    
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        
+        <div class="lg:col-span-8 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between"
+             x-data="{
+                 activeTooltip: null,
+                 tooltipData: { label: '', date: '', total: '0.00', count: 0, x: 0, y: 0 }
+             }">
+            
+            
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-heim-50 text-heim-700 flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                        </div>
+                        <h2 class="font-bold text-gray-900 text-base">Sales Overview</h2>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-0.5">7-day revenue velocity and sales trajectory</p>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-heim-50 text-heim-800 border border-heim-200/60">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>This Week</span>
+                    </span>
+                    <a href="http://localhost/coffee-shop-system/public/reports/sales" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline">
+                        Full Report →
+                    </a>
+                </div>
+            </div>
+
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">7-Day Total</span>
+                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">₱0.00</span>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Completed Orders</span>
+                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">0</span>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Daily Average</span>
+                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">₱0.00</span>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Peak Day</span>
+                    <span class="text-base sm:text-lg font-black text-heim-700 block mt-0.5 truncate">
+                        None
+                    </span>
+                </div>
+            </div>
+
+            
+            
+            <div class="relative w-full aspect-[21/9] sm:aspect-[24/9] min-h-[190px] mt-2">
+                <svg viewBox="0 0 700 220" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="heimSalesGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#155d49" stop-opacity="0.32" />
+                            <stop offset="70%" stop-color="#3f947e" stop-opacity="0.08" />
+                            <stop offset="100%" stop-color="#3f947e" stop-opacity="0.0" />
+                        </linearGradient>
+                    </defs>
+
+                    
+                                                                    <line x1="60" y1="170" x2="640" y2="170" stroke="#f1f5f9" stroke-width="1.5" stroke-dasharray="4 4" />
+                        <text x="50" y="174" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
+                            ₱0
+                        </text>
+                                                                    <line x1="60" y1="125" x2="640" y2="125" stroke="#f1f5f9" stroke-width="1.5" stroke-dasharray="4 4" />
+                        <text x="50" y="129" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
+                            ₱167
+                        </text>
+                                                                    <line x1="60" y1="80" x2="640" y2="80" stroke="#f1f5f9" stroke-width="1.5" stroke-dasharray="4 4" />
+                        <text x="50" y="84" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
+                            ₱333
+                        </text>
+                                                                    <line x1="60" y1="35" x2="640" y2="35" stroke="#f1f5f9" stroke-width="1.5" stroke-dasharray="4 4" />
+                        <text x="50" y="39" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
+                            ₱500
+                        </text>
+                    
+                    
+                                        <path d="M 75 170 C 120.9 170, 120.9 170, 166.7 170 C 212.5 170, 212.5 170, 258.3 170 C 304.2 170, 304.2 170, 350 170 C 395.9 170, 395.9 170, 441.7 170 C 487.5 170, 487.5 170, 533.3 170 C 579.2 170, 579.2 170, 625 170 L 625 175 L 75 175 Z" fill="url(#heimSalesGradient)" />
+                    
+                    
+                                        <path d="M 75 170 C 120.9 170, 120.9 170, 166.7 170 C 212.5 170, 212.5 170, 258.3 170 C 304.2 170, 304.2 170, 350 170 C 395.9 170, 395.9 170, 441.7 170 C 487.5 170, 487.5 170, 533.3 170 C 579.2 170, 579.2 170, 625 170" fill="none" stroke="#155d49" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                    
+                    
+                                            
+                        <text x="75" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Sun
+                        </text>
+                        <text x="75" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 13
+                        </text>
+
+                        
+                        <rect x="47" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 0; tooltipData = { label: 'Sun', date: 'Sep 13', total: '0.00', count: 0, x: 75, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="75" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="75" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="166.7" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Mon
+                        </text>
+                        <text x="166.7" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 14
+                        </text>
+
+                        
+                        <rect x="138.7" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 1; tooltipData = { label: 'Mon', date: 'Sep 14', total: '0.00', count: 0, x: 166.7, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="166.7" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="166.7" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="258.3" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Tue
+                        </text>
+                        <text x="258.3" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 15
+                        </text>
+
+                        
+                        <rect x="230.3" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 2; tooltipData = { label: 'Tue', date: 'Sep 15', total: '0.00', count: 0, x: 258.3, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="258.3" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="258.3" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="350" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Wed
+                        </text>
+                        <text x="350" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 16
+                        </text>
+
+                        
+                        <rect x="322" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 3; tooltipData = { label: 'Wed', date: 'Sep 16', total: '0.00', count: 0, x: 350, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="350" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="350" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="441.7" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Thu
+                        </text>
+                        <text x="441.7" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 17
+                        </text>
+
+                        
+                        <rect x="413.7" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 4; tooltipData = { label: 'Thu', date: 'Sep 17', total: '0.00', count: 0, x: 441.7, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="441.7" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="441.7" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="533.3" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Fri
+                        </text>
+                        <text x="533.3" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 18
+                        </text>
+
+                        
+                        <rect x="505.3" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 5; tooltipData = { label: 'Fri', date: 'Sep 18', total: '0.00', count: 0, x: 533.3, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="533.3" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="533.3" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                            
+                        <text x="625" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                            Sat
+                        </text>
+                        <text x="625" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                            Sep 19
+                        </text>
+
+                        
+                        <rect x="597" y="15" width="56" height="175" fill="transparent" class="cursor-pointer"
+                              @mouseenter="activeTooltip = 6; tooltipData = { label: 'Sat', date: 'Sep 19', total: '0.00', count: 0, x: 625, y: 170 }"
+                              @mouseleave="activeTooltip = null" />
+
+                        
+                        <circle cx="625" cy="170" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle cx="625" cy="170" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                                    </svg>
+
+                
+                <div x-show="activeTooltip !== null"
+                     x-cloak
+                     class="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-3 px-3 py-2 rounded-xl bg-gray-900/95 text-white text-xs shadow-xl backdrop-blur-sm transition-all duration-75 border border-gray-700"
+                     :style="`left: ${(tooltipData.x / 700) * 100}%; top: ${(tooltipData.y / 220) * 100}%;`">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-heim-300" x-text="`${tooltipData.label} · ${tooltipData.date}`"></span>
+                    </div>
+                    <div class="text-sm font-extrabold text-white mt-0.5" x-text="`₱${tooltipData.total}`"></div>
+                    <div class="text-[10px] text-gray-400 mt-0.5" x-text="`${tooltipData.count} completed order(s)`"></div>
+                </div>
+            </div>
+
+                        <div class="text-center py-2 text-xs text-gray-400">
+                Waiting for completed orders this week to plot daily sales.
+            </div>
+                    </div>
+
+        
+        <div class="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-gray-900 text-sm uppercase tracking-wider">Payment Breakdown</h2>
+                            <p class="text-[11px] text-gray-400">All-time tender settlement</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-black text-heim-800 bg-heim-50 px-2.5 py-1 rounded-xl border border-heim-200/50">₱0.00</span>
+                </div>
+
+                <div class="space-y-4">
+                                                                <div class="text-center py-6 text-xs text-gray-400">
+                            No payment transactions recorded yet.
+                        </div>
+                                    </div>
+            </div>
+
+            <div class="pt-4 border-t border-gray-100 text-center">
+                <a href="http://localhost/coffee-shop-system/public/reports/sales" class="text-xs font-bold text-heim-700 hover:text-heim-800 hover:underline">
+                    Detailed Tender Breakdown & History →
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        
+        <div class="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-heim-50 text-heim-700 flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900 text-base">Recent Orders</h2>
+                        <p class="text-xs text-gray-400">Latest settled customer tickets</p>
+                    </div>
+                </div>
+                <a href="http://localhost/coffee-shop-system/public/orders" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline flex items-center gap-1">
+                    <span>View all orders</span>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+
+            <div class="overflow-x-auto flex-1">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50/80 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                        <tr>
+                            <th class="px-5 py-3 text-left">Order #</th>
+                            <th class="px-5 py-3 text-left">Cashier</th>
+                            <th class="px-5 py-3 text-right">Total</th>
+                            <th class="px-5 py-3 text-center">Status</th>
+                            <th class="px-5 py-3 text-right">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                                                <tr>
+                            <td colspan="5" class="px-5 py-12 text-center">
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-50 text-gray-400">
+                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h6"/>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-semibold text-gray-700">No orders recorded yet today</p>
+                                    <p class="mt-0.5 text-xs text-gray-400">Create a transaction in POS to start tracking sales.</p>
+                                    <a href="http://localhost/coffee-shop-system/public/pos" class="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-heim-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-heim-700">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                                        <span>New Order</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                                            </tbody>
+                </table>
+            </div>
+        </div>
+
+        
+        <div class="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900 text-xs uppercase tracking-wider">Recent Activity</h2>
+                        <p class="text-[11px] text-gray-400">Live chronological audit trail</p>
+                    </div>
+                </div>
+                <a href="http://localhost/coffee-shop-system/public/audit-logs" class="text-xs font-semibold text-heim-700 hover:underline">
+                    View logs →
+                </a>
+            </div>
+
+            <div class="divide-y divide-gray-50 flex-1 overflow-y-auto max-h-[380px]">
+                                    <div class="px-5 py-3 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/80 transition-colors">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                M
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-900 truncate">
+                                    Maria Santos
+                                                                            <span class="text-[10px] font-normal text-gray-400 capitalize">(manager)</span>
+                                                                    </p>
+                                <p class="text-gray-600 font-medium text-xs mt-0.5">Logged In</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap pt-0.5">
+                            Today, 12:08 AM
+                        </span>
+                    </div>
+                                    <div class="px-5 py-3 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/80 transition-colors">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                M
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-900 truncate">
+                                    Maria Santos
+                                                                            <span class="text-[10px] font-normal text-gray-400 capitalize">(manager)</span>
+                                                                    </p>
+                                <p class="text-gray-600 font-medium text-xs mt-0.5">Logged Out</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap pt-0.5">
+                            Today, 12:08 AM
+                        </span>
+                    </div>
+                                    <div class="px-5 py-3 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/80 transition-colors">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                M
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-900 truncate">
+                                    Maria Santos
+                                                                            <span class="text-[10px] font-normal text-gray-400 capitalize">(manager)</span>
+                                                                    </p>
+                                <p class="text-gray-600 font-medium text-xs mt-0.5">Logged In</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap pt-0.5">
+                            Today, 12:06 AM
+                        </span>
+                    </div>
+                                    <div class="px-5 py-3 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/80 transition-colors">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                P
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-900 truncate">
+                                    POS Cashier
+                                                                            <span class="text-[10px] font-normal text-gray-400 capitalize">(cashier)</span>
+                                                                    </p>
+                                <p class="text-gray-600 font-medium text-xs mt-0.5">Logged Out</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap pt-0.5">
+                            Today, 12:06 AM
+                        </span>
+                    </div>
+                                    <div class="px-5 py-3 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/80 transition-colors">
+                        <div class="flex items-start gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0 flex items-center justify-center mt-0.5">
+                                P
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-900 truncate">
+                                    POS Cashier
+                                                                            <span class="text-[10px] font-normal text-gray-400 capitalize">(cashier)</span>
+                                                                    </p>
+                                <p class="text-gray-600 font-medium text-xs mt-0.5">Logged In</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-gray-400 font-medium shrink-0 whitespace-nowrap pt-0.5">
+                            Today, 12:05 AM
+                        </span>
+                    </div>
+                            </div>
+
+            <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 text-right">
+                <a href="http://localhost/coffee-shop-system/public/audit-logs" class="text-xs font-bold text-heim-700 hover:underline">
+                    Full Audit History →
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        
+        <div class="lg:col-span-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-amber-50/40">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-amber-950 text-xs uppercase tracking-wider">Inventory Alerts</h2>
+                        <p class="text-[10px] text-amber-700">Reorder thresholds & stock health</p>
+                    </div>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">
+                    0
+                </span>
+            </div>
+
+            <div class="divide-y divide-gray-50 flex-1">
+                                    <div class="p-8 text-center flex flex-col items-center justify-center h-full">
+                        <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="font-bold text-gray-800 text-sm">All stock levels healthy</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Zero ingredients below reorder threshold.</p>
+                    </div>
+                            </div>
+
+            <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs">
+                <span class="text-gray-400">Total active catalog: 72 items</span>
+                <a href="http://localhost/coffee-shop-system/public/inventory" class="font-bold text-heim-700 hover:text-heim-800 hover:underline">
+                    View inventory →
+                </a>
+            </div>
+        </div>
+
+        
+        <div class="lg:col-span-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900 text-xs uppercase tracking-wider">Daily Consumption</h2>
+                        <p class="text-[11px] text-gray-400">Today's recipe ingredient deductions from POS sales</p>
+                    </div>
+                </div>
+                <a href="http://localhost/coffee-shop-system/public/consumption" class="text-xs font-semibold text-heim-700 hover:underline">
+                    View matrix →
+                </a>
+            </div>
+
+            <div class="divide-y divide-gray-50 flex-1">
+                                    <div class="p-8 text-center flex flex-col items-center justify-center h-full">
+                        <div class="w-10 h-10 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center mb-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </div>
+                        <p class="font-bold text-gray-700 text-sm">No recipe consumption recorded yet today</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Completed orders will automatically deduct recipe ingredients here.</p>
+                        <a href="http://localhost/coffee-shop-system/public/consumption" class="mt-3 text-xs font-bold text-heim-700 hover:underline">
+                            Inspect Daily Consumption matrix →
+                        </a>
+                    </div>
+                            </div>
+
+            <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs">
+                <span class="text-gray-400">Live POS recipe deductions</span>
+                <a href="http://localhost/coffee-shop-system/public/consumption" class="font-bold text-heim-700 hover:underline">
+                    View report →
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+            
+        </main>
+    </div>
+</div>
+
+
+<div id="auth-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4" style="display:none">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all">
+        <div class="flex items-center gap-3 p-6 border-b border-gray-100">
+            <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <div>
+                <h3 class="text-base font-semibold text-gray-900">Authorization Required</h3>
+                <p class="text-xs text-gray-500">Supervisor, Manager, or Owner only</p>
+            </div>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Authorizer Email</label>
+                <input id="auth-email" type="email" class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-transparent" placeholder="manager@heim.com">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                <input id="auth-password" type="password" class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-transparent" placeholder="••••••••">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Reason <span class="text-red-500">*</span></label>
+                <textarea id="auth-reason" rows="2" class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-transparent resize-none" placeholder="Reason for this action..."></textarea>
+            </div>
+            <p id="auth-error" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 hidden"></p>
+        </div>
+        <div class="flex gap-3 px-6 pb-6">
+            <button onclick="closeAuthModal()" class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+            <button id="auth-submit" onclick="submitAuth()" class="flex-1 px-4 py-2.5 bg-heim-600 text-white rounded-xl text-sm font-semibold hover:bg-heim-700 transition-colors disabled:opacity-60">Authorize</button>
+        </div>
+    </div>
+</div>
+
+
+<div id="confirm-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-gray-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5">
+        <div class="flex items-start gap-4 border-b border-gray-100 p-6">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            </div>
+            <div class="min-w-0"><h2 id="confirm-title" class="text-base font-bold text-gray-900">Please confirm</h2><p id="confirm-message" class="mt-1 text-sm leading-relaxed text-gray-500"></p></div>
+        </div>
+        <div class="flex flex-col-reverse gap-2 p-5 sm:flex-row sm:justify-end">
+            <button type="button" id="confirm-cancel" class="min-h-11 rounded-xl border border-gray-200 px-4 text-sm font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button type="button" id="confirm-accept" class="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">Confirm action</button>
+        </div>
+    </div>
+</div>
+
+
+<form id="global-logout-form" method="POST" action="http://localhost/coffee-shop-system/public/logout" class="hidden">
+    <input type="hidden" name="_token" value="2SAV75qd7uHf68H47oid7ekOOKJZNdH3B7NCgieA" autocomplete="off"></form>
+
+
+<div id="logout-modal" 
+     class="fixed inset-0 z-[70] hidden items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm transition-opacity duration-200" 
+     role="dialog" 
+     aria-modal="true" 
+     aria-labelledby="logout-modal-title">
+    <div class="w-full max-w-md transform overflow-hidden rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-black/5 transition-all">
+        <div class="flex items-start gap-4">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-xs">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h2 id="logout-modal-title" class="text-base sm:text-lg font-bold text-gray-900">Confirm Log Out</h2>
+                <p class="mt-1 text-sm text-gray-500 leading-relaxed">
+                    Are you sure you want to end your current session?
+                </p>
+                
+                                <div class="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-gray-50 p-3 border border-gray-100 text-xs">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-heim-700 text-white font-bold text-xs shadow-xs">
+                        A
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-bold text-gray-900 truncate">Admin Owner</p>
+                        <p class="text-gray-500 truncate capitalize">owner &bull; owner@coffeeshop.com</p>
+                    </div>
+                </div>
+                
+                
+                <div id="logout-pos-warning" class="mt-3 hidden rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900 leading-relaxed">
+                    <div class="flex items-center gap-2 font-bold text-amber-800">
+                        <svg class="h-4 w-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span>Active POS Ticket Detected</span>
+                    </div>
+                    <p class="mt-1 text-amber-700">You have items in your current POS cart. Logging out now will discard this unsaved ticket.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" 
+                    id="logout-cancel-btn"
+                    onclick="closeLogoutModal()" 
+                    class="min-h-11 rounded-xl border border-gray-200 px-4 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300">
+                Cancel
+            </button>
+            <button type="button" 
+                    id="logout-confirm-btn"
+                    onclick="proceedLogout()" 
+                    class="flex items-center justify-center gap-2 min-h-11 rounded-xl bg-rose-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-rose-700 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+                <span>Yes, Log Out</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let _authCallback = null;
+let _confirmAction = null;
+
+function ensureAuthModalHidden() {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    document.body.classList.remove('overflow-y-hidden');
+}
+
+function openAuthModal(callback) {
+    _authCallback = callback;
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    document.body.classList.remove('overflow-y-hidden');
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-reason').value = '';
+    document.getElementById('auth-error').classList.add('hidden');
+    setTimeout(() => document.getElementById('auth-email').focus(), 100);
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    document.body.classList.remove('overflow-y-hidden');
+    _authCallback = null;
+}
+
+function closeConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-y-hidden');
+    _confirmAction = null;
+}
+
+function openConfirmModal(message, title, action) {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) return;
+    document.getElementById('confirm-title').textContent = title || 'Please confirm';
+    document.getElementById('confirm-message').textContent = message || 'Are you sure you want to continue?';
+    _confirmAction = action;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-y-hidden');
+    setTimeout(() => document.getElementById('confirm-cancel').focus(), 50);
+}
+
+document.addEventListener('submit', function (event) {
+    const form = event.target.closest('form[data-confirm]');
+    if (!form || form.dataset.confirmed === 'true') return;
+    event.preventDefault();
+    openConfirmModal(form.dataset.confirm, form.dataset.confirmTitle, function () {
+        form.dataset.confirmed = 'true';
+        form.requestSubmit();
+    });
+});
+
+document.addEventListener('click', function (event) {
+    const link = event.target.closest('a[data-confirm]');
+    if (!link) return;
+    event.preventDefault();
+    openConfirmModal(link.dataset.confirm, link.dataset.confirmTitle, function () {
+        window.location.href = link.href;
+    });
+});
+
+document.getElementById('confirm-cancel')?.addEventListener('click', closeConfirmModal);
+document.getElementById('confirm-accept')?.addEventListener('click', function () {
+    const action = _confirmAction;
+    closeConfirmModal();
+    if (action) action();
+});
+document.getElementById('confirm-modal')?.addEventListener('click', function (event) {
+    if (event.target === this) closeConfirmModal();
+});
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+        closeConfirmModal();
+        closeLogoutModal();
+        closeAuthModal();
+    }
+});
+
+async function submitAuth() {
+    const email    = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const reason   = document.getElementById('auth-reason').value.trim();
+    const errorEl  = document.getElementById('auth-error');
+    const btn      = document.getElementById('auth-submit');
+
+    if (!email || !password || !reason) {
+        errorEl.textContent = 'All fields are required.';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.textContent = 'Verifying...';
+    btn.disabled = true;
+    errorEl.classList.add('hidden');
+
+    try {
+        const res = await fetch('http://localhost/coffee-shop-system/public/authorize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeAuthModal();
+            if (_authCallback) _authCallback({ authorizer_email: email, authorizer_password: password, reason });
+        } else {
+            errorEl.textContent = data.message || 'Authorization failed.';
+            errorEl.classList.remove('hidden');
+        }
+    } catch (e) {
+        errorEl.textContent = 'Network error. Please try again.';
+        errorEl.classList.remove('hidden');
+    } finally {
+        btn.textContent = 'Authorize';
+        btn.disabled = false;
+    }
+}
+
+const authModal = document.getElementById('auth-modal');
+if (authModal) {
+    authModal.addEventListener('click', function(e) {
+        if (e.target === this) closeAuthModal();
+    });
+}
+
+// ── Dedicated Logout Confirmation Handlers ─────────────────────────────────────
+let _logoutTargetForm = null;
+
+function openLogoutModal(targetForm) {
+    _logoutTargetForm = targetForm || document.getElementById('global-logout-form') || document.getElementById('header-logout-form');
+    const modal = document.getElementById('logout-modal');
+    if (!modal) {
+        if (confirm('Are you sure you want to log out?')) {
+            if (_logoutTargetForm) _logoutTargetForm.submit();
+        }
+        return;
+    }
+
+    // Check for active POS cart items if on POS screen
+    const posWarning = document.getElementById('logout-pos-warning');
+    if (posWarning) {
+        const hasPosItems = (typeof cart !== 'undefined' && Array.isArray(cart) && cart.length > 0);
+        if (hasPosItems) {
+            posWarning.classList.remove('hidden');
+        } else {
+            posWarning.classList.add('hidden');
+        }
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-y-hidden');
+
+    // Focus cancel button for safe keyboard usage
+    setTimeout(() => {
+        const cancelBtn = document.getElementById('logout-cancel-btn');
+        if (cancelBtn) cancelBtn.focus();
+    }, 50);
+}
+
+function closeLogoutModal() {
+    const modal = document.getElementById('logout-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-y-hidden');
+    _logoutTargetForm = null;
+}
+
+function proceedLogout() {
+    const btn = document.getElementById('logout-confirm-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Logging out...</span>
+        `;
+    }
+
+    const form = _logoutTargetForm || document.getElementById('global-logout-form') || document.getElementById('header-logout-form');
+    if (form) {
+        form.submit();
+    } else {
+        const fallbackForm = document.createElement('form');
+        fallbackForm.method = 'POST';
+        fallbackForm.action = 'http://localhost/coffee-shop-system/public/logout';
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (csrf) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = '_token';
+            input.value = csrf;
+            fallbackForm.appendChild(input);
+        }
+        document.body.appendChild(fallbackForm);
+        fallbackForm.submit();
+    }
+}
+
+function confirmLogout(event, form) {
+    if (event) {
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    }
+    const target = form || (event && event.target ? event.target.closest('form') : null);
+    openLogoutModal(target);
+    return false;
+}
+
+window.confirmLogout = confirmLogout;
+window.openLogoutModal = openLogoutModal;
+window.closeLogoutModal = closeLogoutModal;
+window.proceedLogout = proceedLogout;
+
+document.getElementById('logout-modal')?.addEventListener('click', function (event) {
+    if (event.target === this) closeLogoutModal();
+});
+
+if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+}
+
+function resetMainScroll() {
+    window.scrollTo(0, 0);
+    const main = document.getElementById('main-content') || document.querySelector('main');
+    if (main) main.scrollTop = 0;
+}
+
+window.addEventListener('pageshow', function () {
+    ensureAuthModalHidden();
+    closeLogoutModal();
+    resetMainScroll();
+});
+
+window.addEventListener('DOMContentLoaded', function () {
+    ensureAuthModalHidden();
+    closeLogoutModal();
+    resetMainScroll();
+    requestAnimationFrame(resetMainScroll);
+});
+
+window.addEventListener('load', function () {
+    resetMainScroll();
+});
+
+// Auto-dismiss flash messages after 4s
+['flash-success','flash-error','flash-warning'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) setTimeout(() => el && el.remove(), 4000);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heim Design System</title>
+<style>
+  /* ─── Reset & Base ────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --brand:        #155d49;
+    --brand-dark:   #0f4435;
+    --brand-light:  #2c7865;
+    --brand-surf:   #f4faf7;
+    --heim-500:     #3f947e;
+    --heim-200:     #bee1d5;
+    --heim-100:     #dcf0e9;
+    --heim-50:      #f0f8f5;
+    --sidebar-bg:   #0c352a;
+    --white:        #ffffff;
+    --gray-50:      #f9fafb;
+    --gray-100:     #f3f4f6;
+    --gray-200:     #e5e7eb;
+    --gray-300:     #d1d5db;
+    --gray-400:     #9ca3af;
+    --gray-500:     #6b7280;
+    --gray-700:     #374151;
+    --gray-800:     #1f2937;
+    --gray-900:     #111827;
+    --error:        #dc2626;
+    --warning:      #f59e0b;
+    --success:      #16a34a;
+    --radius-sm:    8px;
+    --radius:       12px;
+    --radius-lg:    16px;
+    --radius-xl:    24px;
+  }
+
+  html, body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: var(--gray-800);
+    background: var(--gray-50);
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ─── Layout ──────────────────────────────────────────────────── */
+  .plugin-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Header ──────────────────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+  }
+  .header-logo {
+    width: 32px; height: 32px;
+    background: var(--brand);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px; color: #fff;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+  .header-text h1 {
+    font-size: 14px; font-weight: 700; color: #fff; line-height: 1;
+    letter-spacing: -0.2px;
+  }
+  .header-text p {
+    font-size: 10px; color: var(--heim-500); margin-top: 2px;
+    text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+  }
+
+  /* ─── Tab Bar ─────────────────────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    background: var(--sidebar-bg);
+    padding: 0 8px 0;
+    gap: 2px;
+    border-bottom: 2px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 8px 10px;
+    font-size: 11px; font-weight: 600;
+    color: rgba(255,255,255,0.45);
+    background: none; border: none; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: rgba(255,255,255,0.8); }
+  .tab-btn.active {
+    color: #fff;
+    border-bottom-color: var(--brand-light);
+  }
+
+  /* ─── Panel Body ──────────────────────────────────────────────── */
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-200) transparent;
+  }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-thumb {
+    background: var(--gray-200); border-radius: 4px;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ─── Section Labels ──────────────────────────────────────────── */
+  .section-label {
+    font-size: 10px; font-weight: 700;
+    color: var(--gray-400);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin: 16px 0 8px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* ─── Color Grid ──────────────────────────────────────────────── */
+  .color-group-title {
+    font-size: 11px; font-weight: 600;
+    color: var(--gray-500);
+    margin: 12px 0 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .color-group-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--gray-200);
+  }
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .color-swatch {
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.08);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .color-swatch:hover {
+    transform: scale(1.06);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 2;
+  }
+  .swatch-color {
+    height: 36px;
+    width: 100%;
+  }
+  .swatch-info {
+    padding: 4px 6px 5px;
+    background: #fff;
+  }
+  .swatch-name {
+    font-size: 9px; font-weight: 600; color: var(--gray-700);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .swatch-hex {
+    font-size: 9px; color: var(--gray-400); font-family: monospace;
+    margin-top: 1px;
+  }
+  .swatch-actions {
+    display: none;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .color-swatch:hover .swatch-actions { display: flex; }
+  .swatch-btn {
+    flex: 1; padding: 3px 0;
+    font-size: 9px; font-weight: 700;
+    border: 1px solid var(--gray-200);
+    border-radius: 4px;
+    background: var(--gray-50);
+    color: var(--gray-600);
+    cursor: pointer; text-align: center;
+    transition: all 0.1s;
+  }
+  .swatch-btn:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .swatch-btn.copy-btn:hover { background: var(--gray-700); color: #fff; border-color: var(--gray-700); }
+
+  /* ─── Action Buttons (full-width) ─────────────────────────────── */
+  .action-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 14px;
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    cursor: pointer; text-align: left;
+    transition: all 0.15s;
+    margin-bottom: 8px;
+    color: var(--gray-800);
+    font-size: 13px; font-weight: 500;
+  }
+  .action-btn:hover {
+    background: var(--brand-surf);
+    border-color: var(--heim-200);
+    color: var(--brand);
+  }
+  .action-btn .btn-icon {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+    background: var(--gray-100);
+  }
+  .action-btn:hover .btn-icon { background: var(--heim-100); }
+  .action-btn .btn-text { flex: 1; }
+  .action-btn .btn-label { font-weight: 600; font-size: 13px; }
+  .action-btn .btn-desc { font-size: 11px; color: var(--gray-400); margin-top: 1px; }
+  .action-btn:hover .btn-desc { color: var(--heim-500); }
+  .action-btn .btn-arrow { color: var(--gray-300); font-size: 12px; }
+  .action-btn:hover .btn-arrow { color: var(--brand); }
+
+  /* ─── Typography Cards ────────────────────────────────────────── */
+  .type-card {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); padding: 12px 14px;
+    margin-bottom: 8px; cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .type-card:hover {
+    border-color: var(--heim-200);
+    background: var(--brand-surf);
+  }
+  .type-sample { flex: 1; min-width: 0; }
+  .type-name { font-size: 11px; font-weight: 600; color: var(--gray-400); margin-bottom: 4px; }
+  .type-preview { color: var(--gray-800); line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .type-meta { font-size: 10px; color: var(--gray-400); margin-top: 3px; font-family: monospace; }
+  .type-apply-btn {
+    padding: 5px 12px;
+    background: var(--brand);
+    color: #fff; border: none;
+    border-radius: var(--radius-sm);
+    font-size: 11px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.1s;
+  }
+  .type-apply-btn:hover { background: var(--brand-dark); }
+
+  /* ─── Component Grid ──────────────────────────────────────────── */
+  .component-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .comp-card {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius); padding: 12px;
+    cursor: pointer; text-align: center;
+    transition: all 0.15s;
+  }
+  .comp-card:hover {
+    border-color: var(--heim-200);
+    background: var(--brand-surf);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(21, 93, 73, 0.1);
+  }
+  .comp-icon {
+    font-size: 24px; margin-bottom: 6px;
+    height: 36px; display: flex; align-items: center; justify-content: center;
+  }
+  .comp-name { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+  .comp-desc { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+  .comp-card:hover .comp-name { color: var(--brand); }
+
+  /* ─── Spacing preview ─────────────────────────────────────────── */
+  .spacing-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px; padding: 8px 10px;
+    background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+  }
+  .spacing-bar-wrap {
+    width: 160px; height: 20px; display: flex; align-items: center;
+  }
+  .spacing-bar {
+    height: 12px; background: var(--brand);
+    border-radius: 3px; opacity: 0.7;
+    min-width: 4px;
+  }
+  .spacing-label { font-size: 11px; font-weight: 600; color: var(--gray-600); width: 36px; }
+  .spacing-px { font-size: 10px; color: var(--gray-400); font-family: monospace; }
+
+  .radius-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px; padding: 8px 12px;
+    background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+  }
+  .radius-preview {
+    width: 36px; height: 36px;
+    background: var(--heim-100);
+    border: 2px solid var(--brand);
+    flex-shrink: 0;
+  }
+  .radius-info { flex: 1; }
+  .radius-name { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+  .radius-val { font-size: 10px; color: var(--gray-400); font-family: monospace; }
+
+  /* ─── Screen Scaffold Cards ───────────────────────────────────── */
+  .screen-card {
+    background: #fff; border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg); padding: 0; overflow: hidden;
+    cursor: pointer; margin-bottom: 10px;
+    transition: all 0.15s;
+  }
+  .screen-card:hover {
+    border-color: var(--heim-200);
+    box-shadow: 0 6px 20px rgba(21, 93, 73, 0.12);
+    transform: translateY(-2px);
+  }
+  .screen-preview {
+    height: 80px; background: var(--gray-100);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .screen-preview-sidebar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 28%;
+    background: var(--sidebar-bg);
+  }
+  .screen-preview-topbar {
+    position: absolute; left: 28%; top: 0; right: 0; height: 22%;
+    background: #fff; border-bottom: 1px solid var(--gray-100);
+  }
+  .screen-preview-content {
+    position: absolute; left: 28%; top: 22%; right: 0; bottom: 0;
+    background: var(--gray-50);
+  }
+  .screen-preview-grid {
+    position: absolute; left: 28%; top: 22%; width: 52%; bottom: 0;
+    background: var(--gray-100);
+  }
+  .screen-preview-cart {
+    position: absolute; right: 0; top: 22%; width: 20%; bottom: 0;
+    background: #fff; border-left: 1px solid var(--gray-100);
+  }
+  .screen-preview-cards {
+    position: absolute; left: calc(28% + 8px); top: calc(22% + 8px); right: 8px;
+    display: flex; gap: 4px;
+  }
+  .preview-stat-card {
+    flex: 1; height: 32px; background: #fff;
+    border-radius: 6px; border: 1px solid var(--gray-100);
+  }
+  .screen-info { padding: 10px 14px; }
+  .screen-name { font-size: 13px; font-weight: 700; color: var(--gray-800); }
+  .screen-desc { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .screen-card:hover .screen-name { color: var(--brand); }
+
+  /* ─── Flash sub-buttons ───────────────────────────────────────── */
+  .flash-variants {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .flash-btn {
+    flex: 1; padding: 8px 6px;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 11px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+    color: #fff;
+  }
+  .flash-btn.success { background: var(--success); }
+  .flash-btn.error   { background: var(--error); }
+  .flash-btn.warning { background: var(--warning); }
+  .flash-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+  /* ─── Bottom Bar ──────────────────────────────────────────────── */
+  .bottom-bar {
+    border-top: 1px solid var(--gray-200);
+    padding: 8px 16px;
+    background: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .bottom-brand {
+    font-size: 10px; font-weight: 700; color: var(--brand);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .close-btn {
+    padding: 4px 12px;
+    font-size: 11px; font-weight: 600;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px; cursor: pointer;
+    background: var(--gray-50); color: var(--gray-500);
+  }
+  .close-btn:hover { background: var(--error); color: #fff; border-color: var(--error); }
+
+  /* ─── Tip Box ─────────────────────────────────────────────────── */
+  .tip-box {
+    background: var(--brand-surf); border: 1px solid var(--heim-200);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    font-size: 11px; color: var(--brand); margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  .tip-box strong { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="plugin-wrap">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">H</div>
+    <div class="header-text">
+      <h1>Heim Design System</h1>
+      <p>Coffee Shop POS</p>
+    </div>
+  </header>
+
+  <!-- Tab Bar -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="colors">🎨 Colors</button>
+    <button class="tab-btn" data-tab="typography">✏️ Type</button>
+    <button class="tab-btn" data-tab="components">🧩 Components</button>
+    <button class="tab-btn" data-tab="spacing">📐 Spacing</button>
+    <button class="tab-btn" data-tab="screens">🗂️ Screens</button>
+  </nav>
+
+  <!-- Panel Body -->
+  <div class="panel-body">
+
+    <!-- ═══ COLORS TAB ════════════════════════════════════════════ -->
+    <div id="tab-colors" class="tab-panel active">
+
+      <div class="tip-box">
+        <strong>Tip:</strong> Select a layer, then click <strong>Fill</strong> or <strong>Stroke</strong> on any swatch to apply. Click the hex code to copy it.
+      </div>
+
+      <!-- Generate sheet button -->
+      <button class="action-btn" onclick="send('create-color-sheet')">
+        <span class="btn-icon">🎨</span>
+        <span class="btn-text">
+          <div class="btn-label">Generate Color Swatch Sheet</div>
+          <div class="btn-desc">Creates a Figma frame with all 27 color tokens</div>
+        </span>
+        <span class="btn-arrow">→</span>
+      </button>
+
+      <!-- Heim Palette -->
+      <div class="color-group-title">Heim Brand Palette</div>
+      <div class="color-grid" id="heim-palette"></div>
+
+      <div class="color-group-title">Brand Aliases</div>
+      <div class="color-grid" id="brand-palette"></div>
+
+      <div class="color-group-title">Semantic UI Colors</div>
+      <div class="color-grid" id="semantic-palette"></div>
+
+      <div class="color-group-title">Neutrals (Gray Scale)</div>
+      <div class="color-grid" id="neutral-palette"></div>
+    </div>
+
+    <!-- ═══ TYPOGRAPHY TAB ════════════════════════════════════════ -->
+    <div id="tab-typography" class="tab-panel">
+
+      <div class="tip-box">
+        <strong>Tip:</strong> Select a <strong>text layer</strong> in Figma, then click <strong>Apply</strong> on any style below.
+      </div>
+
+      <button class="action-btn" onclick="send('create-type-sheet')">
+        <span class="btn-icon">📄</span>
+        <span class="btn-text">
+          <div class="btn-label">Generate Typography Sheet</div>
+          <div class="btn-desc">Creates all 10 text styles as a Figma frame</div>
+        </span>
+        <span class="btn-arrow">→</span>
+      </button>
+
+      <div id="type-cards"></div>
+    </div>
+
+    <!-- ═══ COMPONENTS TAB ════════════════════════════════════════ -->
+    <div id="tab-components" class="tab-panel">
+
+      <div class="tip-box">
+        <strong>Tip:</strong> Click any component to insert it directly onto the current Figma canvas.
+      </div>
+
+      <p class="section-label">POS & Checkout Components</p>
+      <div class="component-grid">
+        <div class="comp-card" onclick="send('create-pos-card')">
+          <div class="comp-icon">☕</div>
+          <div class="comp-name">POS Product Card</div>
+          <div class="comp-desc">Menu tile with price & tag</div>
+        </div>
+        <div class="comp-card" onclick="send('create-receipt')">
+          <div class="comp-icon">🧾</div>
+          <div class="comp-name">Thermal Receipt</div>
+          <div class="comp-desc">Branded thermal slip with VAT</div>
+        </div>
+        <div class="comp-card" onclick="send('create-cart')">
+          <div class="comp-icon">🛒</div>
+          <div class="comp-name">Order Cart Panel</div>
+          <div class="comp-desc">Items with steppers & total</div>
+        </div>
+        <div class="comp-card" onclick="send('create-payment-modal')">
+          <div class="comp-icon">💳</div>
+          <div class="comp-name">Payment Modal</div>
+          <div class="comp-desc">Cash tender, GCash, Card & change</div>
+        </div>
+        <div class="comp-card" onclick="send('create-customizer')">
+          <div class="comp-icon">🎛️</div>
+          <div class="comp-name">Item Customizer</div>
+          <div class="comp-desc">Size, milk & add-ons modal</div>
+        </div>
+        <div class="comp-card" onclick="send('create-category-tabs')">
+          <div class="comp-icon">🏷️</div>
+          <div class="comp-name">Category Tabs</div>
+          <div class="comp-desc">Horizontal pill filter bar</div>
+        </div>
+      </div>
+
+      <p class="section-label">Cards & Analytics</p>
+      <div class="component-grid">
+        <div class="comp-card" onclick="send('create-stat-card')">
+          <div class="comp-icon">📊</div>
+          <div class="comp-name">Stat Card</div>
+          <div class="comp-desc">KPI metric widget</div>
+        </div>
+        <div class="comp-card" onclick="send('create-kpi-card')">
+          <div class="comp-icon">📈</div>
+          <div class="comp-name">KPI Trend Card</div>
+          <div class="comp-desc">Metric with % delta badge</div>
+        </div>
+      </div>
+
+      <p class="section-label">Navigation & Header</p>
+      <div class="component-grid">
+        <div class="comp-card" onclick="send('create-sidebar')">
+          <div class="comp-icon">🗂️</div>
+          <div class="comp-name">Sidebar Nav</div>
+          <div class="comp-desc">Full 4-tier navigation</div>
+        </div>
+        <div class="comp-card" onclick="send('create-notif-badge')">
+          <div class="comp-icon">🔔</div>
+          <div class="comp-name">Notif Badge</div>
+          <div class="comp-desc">Bell + red counter dot</div>
+        </div>
+      </div>
+
+      <p class="section-label">Modals & Feedback</p>
+      <div class="component-grid">
+        <div class="comp-card" onclick="send('create-auth-modal')">
+          <div class="comp-icon">🔒</div>
+          <div class="comp-name">Auth Modal</div>
+          <div class="comp-desc">Manager or owner authorization</div>
+        </div>
+        <div class="comp-card" onclick="send('create-stock-modal')">
+          <div class="comp-icon">📦</div>
+          <div class="comp-name">Stock Movement Modal</div>
+          <div class="comp-desc">Delivery & waste logging</div>
+        </div>
+        <div class="comp-card" onclick="send('create-role-badges')" style="grid-column:span 2">
+          <div class="comp-icon">🏅</div>
+          <div class="comp-name">Role Badges</div>
+          <div class="comp-desc">Owner, Manager, Cashier pills</div>
+        </div>
+      </div>
+
+      <p class="section-label">Flash Messages</p>
+      <div class="flash-variants">
+        <button class="flash-btn success" onclick="send('create-flash', { options: { type: 'success' } })">✓ Success</button>
+        <button class="flash-btn error"   onclick="send('create-flash', { options: { type: 'error' } })">✕ Error</button>
+        <button class="flash-btn warning" onclick="send('create-flash', { options: { type: 'warning' } })">⚠ Warning</button>
+      </div>
+
+      <p class="section-label">Data & Tables</p>
+      <div class="component-grid">
+        <div class="comp-card" onclick="send('create-table')" style="grid-column:span 2">
+          <div class="comp-icon">📋</div>
+          <div class="comp-name">Data Table</div>
+          <div class="comp-desc">Header row + data row with status indicators</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SPACING & RADIUS TAB ══════════════════════════════════ -->
+    <div id="tab-spacing" class="tab-panel">
+
+      <button class="action-btn" onclick="send('create-spacing-sheet')">
+        <span class="btn-icon">📐</span>
+        <span class="btn-text">
+          <div class="btn-label">Generate Spacing & Radius Sheet</div>
+          <div class="btn-desc">Creates a full token reference frame</div>
+        </span>
+        <span class="btn-arrow">→</span>
+      </button>
+
+      <p class="section-label">Spacing Scale</p>
+      <div id="spacing-list"></div>
+
+      <p class="section-label">Border Radius Scale</p>
+      <div id="radius-list"></div>
+    </div>
+
+    <!-- ═══ SCREENS TAB ═══════════════════════════════════════════ -->
+    <div id="tab-screens" class="tab-panel">
+
+      <div class="tip-box">
+        <strong>Tip:</strong> Click any screen card to scaffold a complete <strong>1440×900 wireframe frame</strong> directly into Figma.
+      </div>
+
+      <!-- 1. Dashboard -->
+      <div class="screen-card" onclick="send('scaffold-dashboard')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+          <div class="screen-preview-cards">
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+          </div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">📊 Dashboard</div>
+          <div class="screen-desc">4 KPI cards · 7-Day sales trend · Best sellers ranking · Recent orders table</div>
+        </div>
+      </div>
+
+      <!-- 2. POS Terminal -->
+      <div class="screen-card" onclick="send('scaffold-pos')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-grid"></div>
+          <div class="screen-preview-cart"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">🛒 POS Terminal</div>
+          <div class="screen-desc">Product grid tiles · Categories bar · Order cart · Fast tender</div>
+        </div>
+      </div>
+
+      <!-- 3. Orders Screen -->
+      <div class="screen-card" onclick="send('scaffold-orders')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">📋 Orders Management</div>
+          <div class="screen-desc">Search, status & date filters · Orders data table · Refund & cancel actions</div>
+        </div>
+      </div>
+
+      <!-- 4. Inventory Screen -->
+      <div class="screen-card" onclick="send('scaffold-inventory')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-cards">
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+            <div class="preview-stat-card"></div>
+          </div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">📦 Inventory & Stock Overview</div>
+          <div class="screen-desc">Health KPIs · Stock-In / Waste / Adjustment buttons · Ingredients ledger</div>
+        </div>
+      </div>
+
+      <!-- 5. Daily Consumption Screen -->
+      <div class="screen-card" onclick="send('scaffold-consumption')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">⚖️ Daily Consumption Reconciliation</div>
+          <div class="screen-desc">Date auditor · [Opening + In − Sold − Waste ± Adj = Closing] matrix table</div>
+        </div>
+      </div>
+
+      <!-- 6. Reports Screen -->
+      <div class="screen-card" onclick="send('scaffold-reports')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">📈 Sales & Revenue Analytics</div>
+          <div class="screen-desc">Period selector · Revenue charts · Payment breakdown · Cashier ranking</div>
+        </div>
+      </div>
+
+      <!-- 7. Recipes & BOM Screen -->
+      <div class="screen-card" onclick="send('scaffold-recipes')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">🥣 Recipes & Bill of Materials</div>
+          <div class="screen-desc">Product variant selector · Ingredient portions · Recipe cost tracking</div>
+        </div>
+      </div>
+
+      <!-- 8. Users & Access Screen -->
+      <div class="screen-card" onclick="send('scaffold-users')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">👥 Staff & Role-Based Access</div>
+          <div class="screen-desc">Role hierarchy · User accounts grid · Status switches & permissions</div>
+        </div>
+      </div>
+
+      <!-- 9. Products Menu Management -->
+      <div class="screen-card" onclick="send('scaffold-products')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">🏷️ Products & Menu Management</div>
+          <div class="screen-desc">Categories · Product variants · Pricing & activation controls</div>
+        </div>
+      </div>
+
+      <!-- 10. Audit Logs Screen -->
+      <div class="screen-card" onclick="send('scaffold-audit-logs')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">📜 Audit Logs</div>
+          <div class="screen-desc">Accountability history · Actions · Authorizations · Timestamps</div>
+        </div>
+      </div>
+
+      <!-- 11. Settings Screen -->
+      <div class="screen-card" onclick="send('scaffold-settings')">
+        <div class="screen-preview">
+          <div class="screen-preview-sidebar"></div>
+          <div class="screen-preview-topbar"></div>
+          <div class="screen-preview-content"></div>
+        </div>
+        <div class="screen-info">
+          <div class="screen-name">⚙️ System Settings</div>
+          <div class="screen-desc">Shop configuration · Taxes · Receipt settings · Device preferences</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /panel-body -->
+
+  <!-- Bottom Bar -->
+  <div class="bottom-bar">
+    <span class="bottom-brand">Heim · #155d49</span>
+    <button class="close-btn" onclick="send('close')">Close</button>
+  </div>
+
+</div><!-- /plugin-wrap -->
+
+<script>
+// ─── Design Token Data ─────────────────────────────────────────────────────
+
+const COLOR_GROUPS = {
+  'heim-palette': [
+    { name: 'heim-50',  hex: '#f0f8f5' },
+    { name: 'heim-100', hex: '#dcf0e9' },
+    { name: 'heim-200', hex: '#bee1d5' },
+    { name: 'heim-300', hex: '#93cbb9' },
+    { name: 'heim-400', hex: '#64b09a' },
+    { name: 'heim-500', hex: '#3f947e' },
+    { name: 'heim-600', hex: '#2c7865' },
+    { name: 'heim-700', hex: '#155d49' },
+    { name: 'heim-800', hex: '#114a3b' },
+    { name: 'heim-900', hex: '#0c352a' },
+    { name: 'heim-950', hex: '#061f19' },
+  ],
+  'brand-palette': [
+    { name: 'brand',         hex: '#155d49' },
+    { name: 'brand-dark',    hex: '#0f4435' },
+    { name: 'brand-light',   hex: '#2c7865' },
+    { name: 'brand-surface', hex: '#f4faf7' },
+  ],
+  'semantic-palette': [
+    { name: 'success',     hex: '#16a34a' },
+    { name: 'error',       hex: '#dc2626' },
+    { name: 'warning',     hex: '#f59e0b' },
+    { name: 'info',        hex: '#3b82f6' },
+    { name: 'notif-badge', hex: '#ef4444' },
+    { name: 'online-dot',  hex: '#10b981' },
+  ],
+  'neutral-palette': [
+    { name: 'gray-50',  hex: '#f9fafb' },
+    { name: 'gray-100', hex: '#f3f4f6' },
+    { name: 'gray-200', hex: '#e5e7eb' },
+    { name: 'gray-300', hex: '#d1d5db' },
+    { name: 'gray-400', hex: '#9ca3af' },
+    { name: 'gray-500', hex: '#6b7280' },
+    { name: 'gray-700', hex: '#374151' },
+    { name: 'gray-800', hex: '#1f2937' },
+    { name: 'gray-900', hex: '#111827' },
+  ],
+};
+
+const TYPE_STYLES = [
+  { name: 'Display',     family: 'Manrope', style: 'ExtraBold', size: 32, lh: 40 },
+  { name: 'H1 Page',     family: 'Manrope', style: 'Bold',      size: 24, lh: 32 },
+  { name: 'H2 Section',  family: 'Manrope', style: 'SemiBold',  size: 18, lh: 28 },
+  { name: 'H3 Card',     family: 'Manrope', style: 'SemiBold',  size: 16, lh: 24 },
+  { name: 'Body',        family: 'Manrope', style: 'Regular',   size: 14, lh: 22 },
+  { name: 'Body Medium', family: 'Manrope', style: 'Medium',    size: 14, lh: 22 },
+  { name: 'Caption',     family: 'Manrope', style: 'Medium',    size: 12, lh: 18 },
+  { name: 'Label',       family: 'Manrope', style: 'SemiBold',  size: 11, lh: 16 },
+  { name: 'Stat Value',  family: 'Manrope', style: 'ExtraBold', size: 28, lh: 36 },
+  { name: 'Mono Code',   family: 'Roboto Mono', style: 'Regular', size: 12, lh: 18 },
+];
+
+const SPACING = [4, 8, 12, 16, 20, 24, 32, 40, 48, 64];
+const RADII = [
+  { name: 'xs',   value: 4,    label: '4px' },
+  { name: 'sm',   value: 8,    label: '8px' },
+  { name: 'md',   value: 12,   label: '12px' },
+  { name: 'xl',   value: 16,   label: '16px' },
+  { name: '2xl',  value: 24,   label: '24px' },
+  { name: 'pill', value: 9999, label: '9999px (pill)' },
+];
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function send(type, extra = {}) {
+  parent.postMessage({ pluginMessage: { type, ...extra } }, '*');
+}
+
+function isDark(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return (r*299 + g*587 + b*114) / 1000 < 140;
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  } else {
+    const el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el);
+    el.select(); document.execCommand('copy');
+    document.body.removeChild(el);
+  }
+}
+
+// ─── Render Color Groups ─────────────────────────────────────────────────
+
+Object.entries(COLOR_GROUPS).forEach(([id, colors]) => {
+  const grid = document.getElementById(id);
+  if (!grid) return;
+  colors.forEach(({ name, hex }) => {
+    const dark = isDark(hex);
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.title = `${name}: ${hex}`;
+    swatch.innerHTML = `
+      <div class="swatch-color" style="background:${hex}"></div>
+      <div class="swatch-info">
+        <div class="swatch-name" title="${name}">${name}</div>
+        <div class="swatch-hex">${hex}</div>
+        <div class="swatch-actions">
+          <button class="swatch-btn" onclick="applyColor('${hex}','fill')">Fill</button>
+          <button class="swatch-btn" onclick="applyColor('${hex}','stroke')">Stroke</button>
+          <button class="swatch-btn copy-btn" onclick="copyHex('${hex}')">Copy</button>
+        </div>
+      </div>`;
+    grid.appendChild(swatch);
+  });
+});
+
+function applyColor(hex, target) {
+  send('apply-color', { hex, target });
+}
+function copyHex(hex) {
+  copyToClipboard(hex);
+  // brief visual feedback
+  const btns = document.querySelectorAll('.copy-btn');
+  btns.forEach(b => { if (b.getAttribute('onclick')?.includes(hex)) { b.textContent = '✓'; setTimeout(() => b.textContent = 'Copy', 1200); } });
+}
+
+// ─── Render Typography Cards ─────────────────────────────────────────────
+
+const typeContainer = document.getElementById('type-cards');
+TYPE_STYLES.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'type-card';
+  card.innerHTML = `
+    <div class="type-sample">
+      <div class="type-name">${s.name}</div>
+      <div class="type-preview" style="font-size:${Math.min(s.size, 22)}px;font-weight:${styleToWeight(s.style)}">Heim Coffee Shop POS</div>
+      <div class="type-meta">${s.family} ${s.style} · ${s.size}px / ${s.lh}px</div>
+    </div>
+    <button class="type-apply-btn" onclick='applyType(${JSON.stringify(s)})'>Apply</button>`;
+  typeContainer.appendChild(card);
+});
+
+function styleToWeight(style) {
+  const map = { 'ExtraBold': 800, 'Bold': 700, 'SemiBold': 600, 'Medium': 500, 'Regular': 400 };
+  return map[style] || 400;
+}
+function applyType(style) {
+  send('apply-typography', { style });
+}
+
+// ─── Render Spacing ─────────────────────────────────────────────────────
+
+const spacingList = document.getElementById('spacing-list');
+SPACING.forEach(sp => {
+  const row = document.createElement('div');
+  row.className = 'spacing-row';
+  row.innerHTML = `
+    <span class="spacing-label">${sp}px</span>
+    <div class="spacing-bar-wrap"><div class="spacing-bar" style="width:${sp * 2}px"></div></div>
+    <span class="spacing-px">0.${sp/4}rem · ${sp}px</span>`;
+  spacingList.appendChild(row);
+});
+
+// ─── Render Radii ───────────────────────────────────────────────────────
+
+const radiusList = document.getElementById('radius-list');
+RADII.forEach(r => {
+  const row = document.createElement('div');
+  row.className = 'radius-row';
+  row.innerHTML = `
+    <div class="radius-preview" style="border-radius:${Math.min(r.value,18)}px"></div>
+    <div class="radius-info">
+      <div class="radius-name">${r.name}</div>
+      <div class="radius-val">${r.label}</div>
+    </div>`;
+  radiusList.appendChild(row);
+});
+
+// ─── Tab Navigation ──────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${tab}`)?.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

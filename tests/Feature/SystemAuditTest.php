@@ -1,0 +1,336 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\AuditLog;
+use App\Models\Category;
+use App\Models\Ingredient;
+use App\Models\Inventory;
+use App\Models\InventoryTransaction;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\ProductSize;
+use App\Models\User;
+use App\Services\AuditService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
+
+class SystemAuditTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_audit_log_records_reason_and_ip_address(): void
+    {
+        $user = User::factory()->create(['name' => 'Alice Manager', 'role' => 'manager']);
+
+        $log = AuditService::logFromUser(
+            $user,
+            'updated_user',
+            'Users',
+            ['user' => $user->name],
+            $user,
+            'Customer profile updated during manual verification.',
+            '203.0.113.42'
+        );
+
+        $this->assertSame('Customer profile updated during manual verification.', $log->reason);
+        $this->assertSame('203.0.113.42', $log->ip_address);
+        $this->assertDatabaseHas('audit_logs', [
+            'actor_name' => 'Alice Manager',
+            'reason' => 'Customer profile updated during manual verification.',
+            'ip_address' => '203.0.113.42',
+        ]);
+    }
+
+    public function test_inventory_filter_maintains_summary_counters(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+
+        // Ingredient 1: good stock
+        $ing1 = Ingredient::create(['name' => 'Beans', 'unit' => 'g', 'minimum_stock' => 100, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ing1->id, 'current_stock' => 500]);
+
+        // Ingredient 2: low stock
+        $ing2 = Ingredient::create(['name' => 'Milk', 'unit' => 'ml', 'minimum_stock' => 200, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ing2->id, 'current_stock' => 50]);
+
+        // Ingredient 3: out of stock
+        $ing3 = Ingredient::create(['name' => 'Syrup', 'unit' => 'ml', 'minimum_stock' => 50, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ing3->id, 'current_stock' => 0]);
+
+        // When filtered by low_stock
+        $response = $this->actingAs($manager)->get(route('inventory.index', ['stock_status' => 'low_stock']));
+        $response->assertOk();
+
+        // The view should receive correct counts for all categories
+        $response->assertViewHas('good', 1);
+        $response->assertViewHas('low', 1);
+        $response->assertViewHas('outOfStock', 1);
+
+        // But the filtered ingredients collection only contains the low stock item
+        $ingredients = $response->viewData('ingredients');
+        $this->assertCount(1, $ingredients);
+        $this->assertEquals('Milk', $ingredients->first()->name);
+    }
+
+    public function test_historical_consumption_opens_filtered_stock_movement_ledger(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $pastDate = '2026-09-01';
+
+        $ing = Ingredient::create(['name' => 'Espresso Beans', 'unit' => 'g', 'minimum_stock' => 50, 'status' => 'active']);
+        // Live stock today is 10
+        Inventory::create(['ingredient_id' => $ing->id, 'current_stock' => 10]);
+
+        // On 2026-09-01: started at 100, sold 30, remaining at end of day was 70
+        $tx = new InventoryTransaction([
+            'ingredient_id' => $ing->id,
+            'type' => 'sales_consumption',
+            'quantity' => 30,
+            'previous_stock' => 100,
+            'new_stock' => 70,
+            'performed_by' => 'Cashier',
+            'performed_role' => 'cashier',
+        ]);
+        $tx->created_at = "{$pastDate} 10:00:00";
+        $tx->updated_at = "{$pastDate} 10:00:00";
+        $tx->save();
+
+        $response = $this->actingAs($manager)->get(route('consumption.index', ['date' => $pastDate]));
+        $response->assertRedirect(route('adjustments.index', [
+            'from' => $pastDate,
+            'to' => $pastDate,
+            'type' => 'sales_consumption',
+        ]));
+
+        $ledger = $this->actingAs($manager)->get(route('adjustments.index', [
+            'from' => $pastDate,
+            'to' => $pastDate,
+            'type' => 'sales_consumption',
+        ]));
+        $ledger->assertOk();
+        $this->assertCount(1, $ledger->viewData('transactions'));
+        $this->assertEquals(70, $ledger->viewData('transactions')->first()->new_stock);
+        $this->assertEquals(30, $ledger->viewData('summary')['deductions']->first()->total);
+    }
+
+    public function test_cashier_can_submit_refund_with_manager_authorization(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Cashier One']);
+        $this->actingAs($cashier)->postJson(route('shifts.start'), ['beginning_cash' => 500])->assertOk();
+        $manager = User::factory()->create([
+            'role' => 'manager',
+            'name' => 'Manager Bob',
+            'email' => 'manager.auth@example.com',
+            'password' => Hash::make('supersecret123'),
+        ]);
+
+        $order = Order::create([
+            'order_number' => 'ORD-TEST-001',
+            'cashier_name' => 'Cashier One',
+            'subtotal' => 150,
+            'discount' => 0,
+            'total' => 150,
+            'status' => 'completed',
+        ]);
+
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => 'cash',
+            'amount_received' => 200,
+            'amount_paid' => 150,
+            'change_amount' => 50,
+            'status' => 'paid',
+        ]);
+
+        $response = $this->actingAs($cashier)->post(route('refunds.refund', $order), [
+            'authorizer_email' => 'manager.auth@example.com',
+            'authorizer_password' => 'supersecret123',
+            'reason' => 'Customer requested refund for spilled drink.',
+            'restore_stock' => 0,
+        ]);
+
+        $response->assertRedirect(route('orders.show', $order));
+        $this->assertEquals('refunded', $order->fresh()->status);
+        $this->assertDatabaseHas('refunds', [
+            'order_id' => $order->id,
+            'authorized_by' => 'Manager Bob',
+        ]);
+    }
+
+    public function test_cashier_cannot_submit_refund_with_invalid_credentials(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->actingAs($cashier)->postJson(route('shifts.start'), ['beginning_cash' => 500])->assertOk();
+
+        $order = Order::create([
+            'order_number' => 'ORD-TEST-002',
+            'cashier_name' => 'Cashier One',
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => 'cash',
+            'amount_received' => 100,
+            'amount_paid' => 100,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $response = $this->actingAs($cashier)->post(route('refunds.refund', $order), [
+            'authorizer_email' => 'wrong@example.com',
+            'authorizer_password' => 'wrongpass',
+            'reason' => 'Customer requested refund for drink.',
+        ]);
+
+        $response->assertSessionHas('error');
+        $this->assertEquals('completed', $order->fresh()->status);
+    }
+
+    public function test_owner_can_archive_and_unarchive_staff_accounts_and_filter_them_by_status(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner', 'status' => 'active']);
+        $staff = User::factory()->create(['role' => 'cashier', 'status' => 'active']);
+
+        $this->actingAs($owner)
+            ->get(route('users.index', ['status' => 'active']))
+            ->assertOk()
+            ->assertSee('Archive')
+            ->assertSee('text-green-700', false);
+
+        $this->from(route('users.index', ['status' => 'active']))
+            ->patch(route('users.toggle', $staff))
+            ->assertRedirect(route('users.index', ['status' => 'active']));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $staff->id,
+            'status' => 'inactive',
+        ]);
+        $archivedLog = AuditLog::where('action', 'toggled_user_status')->orderByDesc('id')->firstOrFail();
+        $this->assertSame($owner->id, $archivedLog->actor_user_id);
+        $this->assertSame($staff->id, $archivedLog->reference_id);
+        $this->assertSame(['user' => $staff->name, 'status' => 'inactive'], $archivedLog->details);
+
+        $this->get(route('users.index', ['status' => 'inactive']))
+            ->assertOk()
+            ->assertSee($staff->email)
+            ->assertSee('Unarchive')
+            ->assertSee('text-red-700', false);
+
+        $this->from(route('users.index', ['status' => 'inactive']))
+            ->patch(route('users.toggle', $staff))
+            ->assertRedirect(route('users.index', ['status' => 'inactive']));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $staff->id,
+            'status' => 'active',
+        ]);
+        $unarchivedLog = AuditLog::where('action', 'toggled_user_status')->orderByDesc('id')->firstOrFail();
+        $this->assertSame($owner->id, $unarchivedLog->actor_user_id);
+        $this->assertSame($staff->id, $unarchivedLog->reference_id);
+        $this->assertSame(['user' => $staff->name, 'status' => 'active'], $unarchivedLog->details);
+    }
+
+    public function test_owner_cannot_archive_their_own_account(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner', 'status' => 'active']);
+
+        $this->actingAs($owner)
+            ->patch(route('users.toggle', $owner))
+            ->assertRedirect()
+            ->assertSessionHas('error', 'You cannot archive your own account.');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $owner->id,
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'toggled_user_status',
+            'target_id' => $owner->id,
+        ]);
+    }
+
+    public function test_dashboard_top_products_only_counts_completed_orders(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner']);
+        $cat = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $prod = Product::create(['category_id' => $cat->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $prod->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        // Cancelled order with 50 units
+        $cancelledOrder = Order::create([
+            'order_number' => 'ORD-CANCELLED',
+            'cashier_name' => 'Cashier',
+            'subtotal' => 5000,
+            'discount' => 0,
+            'total' => 5000,
+            'status' => 'cancelled',
+        ]);
+        OrderItem::create([
+            'order_id' => $cancelledOrder->id,
+            'product_id' => $prod->id,
+            'product_size_id' => $size->id,
+            'quantity' => 50,
+            'unit_price' => 100,
+            'subtotal' => 5000,
+        ]);
+
+        // Completed order with 2 units
+        $completedOrder = Order::create([
+            'order_number' => 'ORD-COMPLETED',
+            'cashier_name' => 'Cashier',
+            'subtotal' => 200,
+            'discount' => 0,
+            'total' => 200,
+            'status' => 'completed',
+        ]);
+        OrderItem::create([
+            'order_id' => $completedOrder->id,
+            'product_id' => $prod->id,
+            'product_size_id' => $size->id,
+            'quantity' => 2,
+            'unit_price' => 100,
+            'subtotal' => 200,
+        ]);
+        OrderItem::create([
+            'order_id' => $completedOrder->id,
+            'product_id' => $prod->id,
+            'product_size_id' => $size->id,
+            'quantity' => 3,
+            'unit_price' => 100,
+            'subtotal' => 300,
+            'status' => 'voided',
+        ]);
+
+        $response = $this->actingAs($owner)->get(route('dashboard'));
+        $response->assertOk();
+
+        $topProducts = $response->viewData('topProducts');
+        $this->assertCount(1, $topProducts);
+        $this->assertEquals(2, $topProducts->first()['sold']);
+    }
+
+    public function test_ingredient_controller_stock_status_filter(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+
+        $ing1 = Ingredient::create(['name' => 'Ingredient In Stock', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ing1->id, 'current_stock' => 100]);
+
+        $ing2 = Ingredient::create(['name' => 'Ingredient Out Of Stock', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ing2->id, 'current_stock' => 0]);
+
+        $response = $this->actingAs($manager)->get(route('ingredients.index', ['stock_status' => 'out_of_stock']));
+        $response->assertOk();
+        $ingredients = $response->viewData('ingredients');
+        $this->assertEquals(1, $ingredients->total());
+        $this->assertEquals('Ingredient Out Of Stock', $ingredients->first()->name);
+    }
+}

@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --brand-green-50: #f0f8f5;
+    --brand-green-100: #dcf0e9;
+    --brand-green-200: #bee1d5;
+    --brand-green-500: #3f947e;
+    --brand-green-600: #2c7865;
+    --brand-green-700: #155d49;
+    --brand-green-800: #114a3b;
+    --brand-ink: #17342d;
+}
+
+@layer base {
+    body {
+        @apply bg-heim-50 text-slate-900;
+        color: var(--brand-ink);
+        font-family: 'Manrope', 'Inter', sans-serif;
+    }
+}
+
+@layer components {
+    .brand-card {
+        @apply bg-white border border-heim-100 shadow-sm;
+    }
+
+    .brand-label {
+        @apply block text-xs font-bold uppercase tracking-wider text-heim-800;
+    }
+
+    .brand-input {
+        @apply w-full rounded-xl border border-heim-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition;
+        @apply focus:border-heim-500 focus:ring-2 focus:ring-heim-500/20;
+    }
+
+    .brand-button,
+    .brand-btn-primary {
+        @apply inline-flex items-center justify-center rounded-xl bg-heim-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition;
+        @apply hover:bg-heim-800 focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2;
+    }
+
+    .brand-btn-cancel {
+        @apply inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition;
+        @apply hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2;
+    }
+
+    .brand-btn-filter {
+        @apply inline-flex items-center gap-1.5 rounded-xl bg-heim-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors;
+        @apply hover:bg-heim-700 focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2;
+    }
+
+    .brand-btn-reset {
+        @apply inline-flex items-center justify-center rounded-xl border border-gray-200 px-3.5 py-2 text-sm font-medium text-gray-600 transition-colors;
+        @apply hover:bg-gray-50 hover:text-gray-900;
+    }
+
+    .overflow-x-auto {
+        scrollbar-color: #93cbb9 transparent;
+        scrollbar-width: thin;
+    }
+
+    .overflow-x-auto::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .overflow-x-auto::-webkit-scrollbar-thumb {
+        background: #93cbb9;
+        border-radius: 9999px;
+    }
+
+    .overflow-x-auto > table {
+        min-width: 42rem;
+    }
+}
+
+@layer utilities {
+    .shadow-xs {
+        @apply shadow-sm;
+    }
+}
+
+@media (max-width: 639px) {
+    button,
+    [role='button'],
+    a.inline-flex {
+        min-height: 2.75rem;
+    }
+}
