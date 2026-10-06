@@ -9,7 +9,7 @@ class ConsumptionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->query();
-        $date = $filters['date'] ?? now()->toDateString();
+        $date = $filters['date'] ?? now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         unset($filters['date']);
 
         return redirect()->route('adjustments.index', array_merge($filters, [

@@ -539,7 +539,7 @@
                             <td class="px-5 py-3.5 text-center">
                                 @include('components.status-badge', ['status' => $order->status])
                             </td>
-                            <td class="px-5 py-3.5 text-right text-gray-400 text-xs font-medium">{{ $order->created_at->format('h:i A') }}</td>
+                            <td class="px-5 py-3.5 text-right text-gray-400 text-xs font-medium">{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') }}</td>
                         </tr>
                         @empty
                         <tr>
@@ -714,7 +714,7 @@
                             </div>
                         </div>
                         <div class="text-right">
-                            <span class="font-black text-gray-900 text-sm">{{ number_format($consumed->consumed, 2) }} {{ $consumed->unit }}</span>
+                            <span class="font-black text-gray-900 text-sm">{{ number_format($consumed->consumed, 3) }} {{ $consumed->unit }}</span>
                             <span class="block text-[10px] font-semibold text-teal-600">Deducted today</span>
                         </div>
                     </div>

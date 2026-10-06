@@ -45,7 +45,7 @@ class RecipeController extends Controller
             'name' => 'nullable|string|max:150',
             'ingredients' => 'array',
             'ingredients.*.ingredient_id' => 'required|distinct|exists:ingredients,id',
-            'ingredients.*.quantity' => 'required|numeric|min:0.001',
+            'ingredients.*.quantity' => 'required|numeric|decimal:0,3|min:0.001',
         ]);
 
         DB::transaction(function () use ($request, $productSize) {

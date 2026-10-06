@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Order #' . $order->order_number)
 @section('header', 'Order #' . $order->order_number)
-@section('subheader', 'Settled ticket record • ' . $order->created_at->format('l, F d, Y \a\t h:i A'))
+@section('subheader', 'Settled ticket record • ' . $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('l, F d, Y \a\t h:i A'))
 
 @section('header-badge')
     @include('components.status-badge', ['status' => $order->status])
@@ -86,7 +86,7 @@
                 <div class="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-heim-200">
                     <span>Cashier: <strong class="text-white">{{ $order->cashier_name }}</strong></span>
                     <span>•</span>
-                    <span>{{ $order->created_at->format('M d, Y h:i A') }}</span>
+                    <span>{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}</span>
                 </div>
             </div>
             <div class="text-right">
@@ -127,9 +127,14 @@
                         <p class="font-bold text-gray-900 {{ $item->isVoided() ? 'line-through text-gray-400' : '' }}">₱{{ number_format($item->subtotal, 2) }}</p>
                         <p class="text-xs text-gray-400">×{{ $item->quantity }} @ ₱{{ number_format($item->unit_price, 2) }}</p>
                         @if(!$item->isVoided() && !in_array($order->status, ['voided', 'refunded', 'cancelled']))
-                            <button type="button" onclick="triggerVoidItem({{ $item->id }}, '{{ addslashes($item->product->name ?? 'Item') }}')" class="mt-1 text-[11px] font-bold text-rose-500 hover:text-rose-700">
-                                Void Item
-                            </button>
+                            <details class="relative mt-1">
+                                <summary class="cursor-pointer list-none text-[11px] font-bold text-gray-500 hover:text-gray-700">More ⋮</summary>
+                                <div class="absolute right-0 z-20 mt-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+                                    <button type="button" onclick="triggerVoidItem({{ $item->id }}, '{{ addslashes($item->product->name ?? 'Item') }}')" class="whitespace-nowrap rounded-md px-3 py-2 text-[11px] font-bold text-rose-700 hover:bg-rose-50">
+                                        Void Item
+                                    </button>
+                                </div>
+                            </details>
                         @endif
                     </div>
                 </div>
@@ -240,7 +245,7 @@
                         @include('components.status-badge', ['status' => $payment->status])
                         @if($payment->reference_number)<span>Ref: {{ $payment->reference_number }}</span>@endif
                         @if($payment->comment)<span>{{ $payment->comment }}</span>@endif
-                        <span>{{ $payment->created_at->format('M d, Y h:i A') }}</span>
+                        <span>{{ $payment->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}</span>
                     </div>
                 </div>
                 @endforeach
@@ -347,7 +352,7 @@
                     <div class="flex justify-between"><span class="text-blue-800/70">Amount · {{ ucfirst($refund->method) }}</span><span class="font-bold text-blue-800">₱{{ number_format($refund->amount, 2) }} · {{ ucfirst($refund->status) }}</span></div>
                     <div class="flex justify-between"><span class="text-blue-800/70">Authorized By</span><span class="font-semibold text-blue-900">{{ $refund->authorized_by }} ({{ $refund->authorized_role }})</span></div>
                     <div class="flex justify-between"><span class="text-blue-800/70">Reason</span><span class="text-gray-700">{{ $refund->reason }}</span></div>
-                    <div class="flex justify-between"><span class="text-blue-800/70">Timestamp</span><span class="text-gray-600">{{ $refund->refunded_at ? $refund->refunded_at->format('M d, Y h:i A') : 'Processing' }}</span></div>
+                    <div class="flex justify-between"><span class="text-blue-800/70">Timestamp</span><span class="text-gray-600">{{ $refund->refunded_at ? $refund->refunded_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') : 'Processing' }}</span></div>
                 </div>
                 @endforeach
             </div>
@@ -384,9 +389,14 @@
                 </button>
             @endif
 
-            <button onclick="triggerVoidOrder()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors">
-                Void Full Order
-            </button>
+            <details class="relative">
+                <summary class="cursor-pointer list-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">More ⋮</summary>
+                <div class="absolute bottom-full right-0 z-20 mb-1 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                    <button type="button" onclick="triggerVoidOrder()" class="whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-bold text-rose-700 hover:bg-rose-50">
+                        Void Full Order
+                    </button>
+                </div>
+            </details>
         </div>
     </div>
 

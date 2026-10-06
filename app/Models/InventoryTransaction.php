@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -45,12 +46,24 @@ class InventoryTransaction extends Model
 
     public function scopeEffectiveDateFrom(Builder $query, string $date): Builder
     {
-        return $query->whereRaw('DATE(COALESCE(inventory_transactions.transaction_date, inventory_transactions.created_at)) >= ?', [$date]);
+        return $query->where(function (Builder $query) use ($date) {
+            $query->whereDate('inventory_transactions.transaction_date', '>=', $date)
+                ->orWhere(function (Builder $query) use ($date) {
+                    $query->whereNull('inventory_transactions.transaction_date')
+                        ->where('inventory_transactions.created_at', '>=', BusinessDateRange::startUtc($date));
+                });
+        });
     }
 
     public function scopeEffectiveDateTo(Builder $query, string $date): Builder
     {
-        return $query->whereRaw('DATE(COALESCE(inventory_transactions.transaction_date, inventory_transactions.created_at)) <= ?', [$date]);
+        return $query->where(function (Builder $query) use ($date) {
+            $query->whereDate('inventory_transactions.transaction_date', '<=', $date)
+                ->orWhere(function (Builder $query) use ($date) {
+                    $query->whereNull('inventory_transactions.transaction_date')
+                        ->where('inventory_transactions.created_at', '<', BusinessDateRange::endExclusiveUtc($date));
+                });
+        });
     }
 
     // Human-readable type labels

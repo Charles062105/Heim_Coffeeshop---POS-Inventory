@@ -15,6 +15,7 @@ use App\Models\ProductAddon;
 use App\Models\ProductSize;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
+use App\Models\TaxSetting;
 use App\Models\User;
 use App\Models\VoidLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,6 +100,23 @@ class PhaseOneFeaturesTest extends TestCase
         // Verify stock deducted
         $this->coffeeBeans->refresh();
         $this->assertEquals(980, $this->coffeeBeans->getCurrentStock());
+    }
+
+    public function test_tax_computation_uses_stable_two_decimal_rounding(): void
+    {
+        $taxSetting = TaxSetting::create([
+            'name' => 'VAT',
+            'rate' => 12.00,
+            'is_inclusive' => true,
+            'is_active' => true,
+        ]);
+
+        $computed = $taxSetting->computeOrder(999.99);
+
+        $this->assertSame(999.99, round((float) $computed['total'], 2));
+        $this->assertSame(892.85, round((float) $computed['vatable_sales'], 2));
+        $this->assertSame(107.14, round((float) $computed['tax_amount'], 2));
+        $this->assertEqualsWithDelta(999.99, (float) $computed['vatable_sales'] + (float) $computed['tax_amount'], 0.01);
     }
 
     public function test_can_hold_order_without_payment_or_stock_deduction()
@@ -692,6 +710,58 @@ class PhaseOneFeaturesTest extends TestCase
             'recipe_id' => $recipe->id,
             'ingredient_id' => $otherIngredient->id,
         ]);
+    }
+
+    public function test_recipe_update_rejects_quantity_precision_above_inventory_storage(): void
+    {
+        $recipe = Recipe::where('product_size_id', $this->size->id)->firstOrFail();
+
+        $this->actingAs($this->manager)->put(route('recipes.update', $this->size), [
+            'name' => 'Precision Test Recipe',
+            'ingredients' => [
+                ['ingredient_id' => $this->coffeeBeans->id, 'quantity' => '20.0001'],
+            ],
+        ])->assertSessionHasErrors('ingredients.0.quantity');
+
+        $this->assertSame(20.0, (float) $recipe->recipeIngredients()->firstOrFail()->quantity);
+    }
+
+    public function test_product_prices_reject_precision_above_currency_storage(): void
+    {
+        $product = $this->size->product;
+
+        $this->actingAs($this->manager)->from(route('products.edit', $product))->put(route('products.update', $product), [
+            'category_id' => $product->category_id,
+            'name' => $product->name,
+            'status' => $product->status,
+            'sizes' => [
+                [
+                    'id' => $this->size->id,
+                    'size_name' => $this->size->size_name,
+                    'price' => '150.001',
+                    'grab_price' => '180.001',
+                    'status' => $this->size->status,
+                ],
+            ],
+        ])->assertSessionHasErrors(['sizes.0.price', 'sizes.0.grab_price']);
+
+        $this->assertSame(150.0, (float) $this->size->fresh()->price);
+
+        $this->actingAs($this->manager)->from(route('products.create'))->post(route('products.store'), [
+            'category_id' => $product->category_id,
+            'name' => 'Invalid Precision Product',
+            'status' => 'active',
+            'sizes' => [
+                [
+                    'size_name' => 'Regular',
+                    'price' => '100.001',
+                    'grab_price' => '120.00',
+                    'status' => 'active',
+                ],
+            ],
+        ])->assertSessionHasErrors('sizes.0.price');
+
+        $this->assertDatabaseMissing('products', ['name' => 'Invalid Precision Product']);
     }
 
     public function test_ingredient_unit_cannot_change_after_recipe_or_inventory_usage(): void

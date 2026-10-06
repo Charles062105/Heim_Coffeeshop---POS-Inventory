@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Models\AddonIngredient;
 use App\Models\CashierShift;
 use App\Models\Category;
-use App\Models\Debt;
-use App\Models\DebtPayment;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\Order;
@@ -25,64 +23,6 @@ class PosOrderTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_debt_refunds_keep_the_original_debt_payment_link(): void
-    {
-        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
-        $this->startShiftFor($cashier);
-        $shift = CashierShift::activeForUser($cashier->id);
-
-        $order = Order::create([
-            'order_number' => 'ORD-DEBT-REFUND-001',
-            'order_type' => 'dine_in',
-            'cashier_name' => $cashier->name,
-            'shift_id' => $shift->id,
-            'subtotal' => 100,
-            'total' => 100,
-            'status' => 'completed',
-        ]);
-
-        $debt = Debt::create([
-            'order_id' => $order->id,
-            'customer_name' => 'Debt Customer',
-            'original_amount' => 100.00,
-            'amount_paid' => 0,
-            'balance' => 100.00,
-            'status' => 'pending',
-            'created_by' => $cashier->name,
-        ]);
-
-        $payment = DebtPayment::create([
-            'debt_id' => $debt->id,
-            'shift_id' => $shift->id,
-            'amount' => 70.00,
-            'payment_date' => now()->toDateString(),
-            'payment_method' => 'cash',
-            'notes' => 'Advance payment',
-            'recorded_by' => $cashier->id,
-        ]);
-
-        $refund = Refund::create([
-            'order_id' => $order->id,
-            'debt_payment_id' => $payment->id,
-            'shift_id' => $shift->id,
-            'amount' => 20.00,
-            'method' => 'cash',
-            'status' => 'completed',
-            'reason' => 'Debt refund adjustment',
-            'authorized_by' => 'Manager',
-            'authorized_role' => 'manager',
-            'authorized_user_id' => $cashier->id,
-            'stock_restored' => true,
-            'refunded_at' => now(),
-        ]);
-
-        $this->assertDatabaseHas('refunds', [
-            'id' => $refund->id,
-            'debt_payment_id' => $payment->id,
-            'payment_id' => null,
-        ]);
-        $this->assertSame($payment->id, $refund->fresh()->debt_payment_id);
-    }
 
     public function test_cashier_can_create_a_pos_order_and_view_it(): void
     {
@@ -115,12 +55,92 @@ class PosOrderTest extends TestCase
 
         $order = Order::firstOrFail();
         $response->assertRedirect(route('pos.success', ['order' => $order]));
+        $this->assertSame($user->name, $order->cashier_name);
 
         $this->assertEquals(1, $order->orderItems()->count());
         $this->assertEquals('Regular', $order->orderItems()->first()->size->size_name);
 
         $detail = $this->actingAs($user)->get(route('pos.success', ['order' => $order]));
         $detail->assertOk();
+    }
+
+    public function test_checkout_and_held_orders_reject_item_quantities_above_the_pos_limit(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $items = [['product_size_id' => $size->id, 'quantity' => 1000]];
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'cashier_name' => $cashier->name,
+            'payment_method' => 'cash',
+            'amount_received' => 50000,
+            'items' => $items,
+        ])->assertSessionHasErrors('items.0.quantity');
+
+        $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'cashier_name' => $cashier->name,
+            'items' => $items,
+        ])->assertJsonValidationErrors('items.0.quantity');
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_resuming_a_held_order_returns_unique_cart_keys_for_duplicate_products(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Held Resume Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $heldResponse = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [
+                ['product_size_id' => $size->id, 'quantity' => 1, 'comment' => 'Less ice', 'assigned_to' => 'Alex'],
+                ['product_size_id' => $size->id, 'quantity' => 1, 'comment' => 'No sugar', 'assigned_to' => 'Blair'],
+            ],
+        ])->assertOk();
+        $heldOrderId = $heldResponse->json('order.id');
+
+        $resumeResponse = $this->postJson(route('pos.resume-held', ['order' => $heldOrderId]))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonMissingPath('data.held_order_id');
+
+        $cart = $resumeResponse->json('data.cart');
+        $this->assertCount(2, $cart);
+        $this->assertNotSame($cart[0]['key'], $cart[1]['key']);
+        $this->assertSame(['Less ice', 'No sugar'], array_column($cart, 'comment'));
+        $this->assertSame(['Alex', 'Blair'], array_column($cart, 'assigned_to'));
+        $this->assertDatabaseMissing('orders', ['id' => $heldOrderId]);
+    }
+
+    public function test_resumed_held_order_uses_current_addon_price_in_cart_total(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Held Add-on Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $addon = ProductAddon::create(['name' => 'Extra Shot', 'price' => 10, 'status' => 'active']);
+
+        $heldResponse = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'addon_ids' => [$addon->id],
+            ]],
+        ])->assertOk();
+        $heldOrderId = $heldResponse->json('order.id');
+        $addon->update(['price' => 20]);
+
+        $resumeResponse = $this->postJson(route('pos.resume-held', ['order' => $heldOrderId]))
+            ->assertOk();
+
+        $this->assertSame(20.0, (float) $resumeResponse->json('data.cart.0.addons.0.price'));
+        $this->assertSame(120.0, (float) $resumeResponse->json('data.cart.0.unit_price'));
     }
 
     public function test_large_order_supports_assigned_items_split_payments_and_single_inventory_deduction(): void
@@ -729,6 +749,76 @@ class PosOrderTest extends TestCase
         $this->assertSame(100.0, (float) $order->total);
         $this->assertSame(10.71, (float) $order->tax_amount);
         $this->assertSame(89.29, (float) $order->vatable_sales);
+        $discountAudit = \App\Models\AuditLog::where('action', 'discount_applied')
+            ->where('reference_id', $order->id)
+            ->firstOrFail();
+        $this->assertSame($user->id, $discountAudit->actor_user_id);
+        $this->assertSame('custom', $discountAudit->details['discount_type']);
+        $this->assertSame(20.0, (float) $discountAudit->details['discount_amount']);
+        $this->assertArrayHasKey('applied_at', $discountAudit->details);
+    }
+
+    public function test_pos_rejects_currency_inputs_more_precise_than_cents(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Precision Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => '100.001',
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('amount_received');
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => '100.00',
+            'discount' => '0.001',
+            'discount_type' => 'custom',
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('discount');
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => '100.00',
+            'payments' => [[
+                'method' => 'cash',
+                'amount_paid' => '100.001',
+                'amount_received' => '100.01',
+            ]],
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('payments.0.amount_paid');
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_follow_up_order_payment_rejects_currency_precision_below_one_cent(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Follow-up Precision Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Mocha', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => 50,
+            'amount_paid' => 50,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasNoErrors();
+        $order = Order::firstOrFail();
+
+        $this->actingAs($cashier)->from(route('orders.show', $order))->post(route('orders.payments.store', $order), [
+            'amount_paid' => '0.001',
+            'amount_received' => '0.001',
+            'payment_method' => 'cash',
+        ])->assertSessionHasErrors(['amount_paid', 'amount_received']);
+
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertSame(50.0, (float) $order->fresh()->remainingBalance());
     }
 
     public function test_senior_discount_computes_twenty_percent_and_exempts_tax(): void
@@ -737,7 +827,7 @@ class PosOrderTest extends TestCase
         $this->startShiftFor($user);
         $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
         $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
-        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 112, 'status' => 'active']);
 
         $response = $this->actingAs($user)->post(route('pos.store'), [
             'cashier_name' => 'Cashier',
@@ -777,6 +867,26 @@ class PosOrderTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_regular_orders_do_not_retain_a_discount_id_number(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->post(route('pos.store'), [
+            'cashier_name' => $cashier->name,
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'discount_type' => 'none',
+            'discount_id_number' => 'SC-PRIVATE-123',
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertRedirect();
+
+        $this->assertNull(Order::firstOrFail()->discount_id_number);
+    }
+
     public function test_pos_page_wires_discount_selection_and_tax_calculation(): void
     {
         $user = User::factory()->create(['role' => 'manager']);
@@ -785,9 +895,17 @@ class PosOrderTest extends TestCase
 
         $response->assertOk()
             ->assertSee('function onDiscountTypeChange()', false)
+            ->assertSee('idInput.dataset.discountType !== discountType', false)
+            ->assertSee('Received ₱${payment.amount_received.toFixed(2)} · Change ₱${Math.max(0, payment.amount_received - payment.amount_paid).toFixed(2)}', false)
             ->assertSee("document.getElementById('f-discount-type').value = discountType", false)
             ->assertSee("document.getElementById('f-discount-id-number').value = discountIdNumber", false)
+            ->assertSee('subtotal / (1 + (taxRate / 100))', false)
+            ->assertSee('setInterval(updateShiftInDateTime, 15000)', false)
+            ->assertSee("timeZone: businessTimeZone", false)
+            ->assertSee('function updateOrderSummary()', false)
             ->assertSee('VAT-Exempt Sales');
+        $this->assertSame(1, substr_count($response->getContent(), 'onclick="confirmAddToCart()"'));
+        $this->assertStringContainsString('max-h-[calc(100dvh-4rem)]', $response->getContent());
     }
 
     public function test_cashier_cannot_apply_a_discount(): void
@@ -920,12 +1038,30 @@ class PosOrderTest extends TestCase
     public function test_pos_terminal_renders_only_cash_and_online_payment_options(): void
     {
         $user = User::factory()->create(['role' => 'cashier']);
+        $category = Category::create(['name' => 'Price Precision', 'status' => 'active']);
+        $product = Product::create([
+            'category_id' => $category->id,
+            'name' => 'Centavo Test Coffee',
+            'status' => 'active',
+        ]);
+        ProductSize::create([
+            'product_id' => $product->id,
+            'size_name' => 'Regular',
+            'price' => 12.34,
+            'status' => 'active',
+        ]);
+
         $response = $this->actingAs($user)->get(route('pos.index'));
         $response->assertOk();
 
         $response->assertSee('style="zoom: 90%"', false);
-        $response->assertSee('flex-1 py-4 text-sm font-extrabold transition-all', false);
-        $response->assertSee('text-xl">₱0.00</span>', false);
+        $response->assertSee('pos-main', false);
+        $response->assertSee('pos-terminal', false);
+        $response->assertSee('.pos-main [class~="text-xs"]', false);
+        $response->assertSee('input.text-lg', false);
+        $response->assertSee('flex-1 py-2.5 text-sm font-extrabold transition-all', false);
+        $response->assertSee('id="total-display"', false);
+        $response->assertSee('₱0.00</span>', false);
         $response->assertSee('text-base', false);
         // Must see Cash and Online Payment
         $response->assertSee('pm-cash', false);
@@ -935,7 +1071,17 @@ class PosOrderTest extends TestCase
         $response->assertSee('Platform settlement');
         $response->assertSee('Grab orders can be paid in cash at the counter');
         $response->assertSee("cashSec.style.display = showCash ? '' : 'none'", false);
-        $response->assertSee('checkout-hold-btn', false);
+        $response->assertDontSee('checkout-hold-btn', false);
+        $response->assertSee('Held Orders');
+        $response->assertSee('>Orders</span>', false);
+        $response->assertSee('Senior/PWD discounts require an ID.', false);
+        $response->assertSee('Custom discounts are limited to managers and owners.', false);
+        $response->assertSee('Current Order');
+        $response->assertSee('Customer / Table');
+        $response->assertSee('Split Payment');
+        $response->assertSee('PAY ₱0.00');
+        $response->assertSee('id="cashier-name" type="hidden"', false);
+        $response->assertDontSee('id="cashier-name" type="text"', false);
         $response->assertSee('payment-person-name', false);
         $response->assertSee('Payment Amount');
         $response->assertSee('Paying Person');
@@ -943,7 +1089,7 @@ class PosOrderTest extends TestCase
         $response->assertSee('selectPaymentMethod(currentMethod)', false);
         $response->assertSee('refreshCartItemKey(item)', false);
         $response->assertSee("['pl-customer-name', 'pl-customer-phone', 'pl-due-date', 'pl-notes']", false);
-        $response->assertSee('Customer</label>', false);
+        $response->assertSee('Customer / Table');
         $response->assertSee('id="cashier-name"', false);
         $response->assertSee('ot-dine-in', false);
         $response->assertSee('ot-take-out', false);
@@ -953,16 +1099,58 @@ class PosOrderTest extends TestCase
         $response->assertSee('100dvh', false);
         $response->assertSee('overscroll-contain', false);
         $response->assertSee('order-1', false);
-        $response->assertSee('h-auto min-h-0 w-full flex-shrink-0', false);
-        $response->assertSee('max-h-[85vh] min-h-[36rem]', false);
-        $response->assertSee('lg:w-[30rem] xl:w-[32rem]', false);
-        $response->assertSee('lg:overflow-y-auto lg:overscroll-contain', false);
+        $response->assertSee('lg:grid-cols-[minmax(0,1fr)_minmax(24rem,30rem)]', false);
+        $response->assertSee('h-auto min-h-0 w-full min-w-0', false);
+        $response->assertSee('min-h-[15rem] flex-1 space-y-3 overflow-y-auto', false);
+        $response->assertSee('lg:min-h-[15rem]', false);
+        $response->assertSee('pos-order-panel', false);
+        $response->assertSee('class="shrink-0 space-y-2 border-b', false);
+        $response->assertSee('class="shrink-0 px-3 pb-3', false);
+        $response->assertSee('@media (min-width: 1280px) and (max-height: 950px)', false);
+        $response->assertSee('.pos-order-panel #cart-items', false);
+        $response->assertSee('flex: 0 0 15rem', false);
+        $response->assertSee('max-height: 32vh', false);
+        $response->assertSee('@media (max-width: 1279px)', false);
+        $response->assertSee('.pos-shell', false);
+        $response->assertSee('zoom: 100% !important', false);
+        $response->assertSee('.pos-terminal > .grid > .pos-order-panel', false);
+        $response->assertSee('.pos-order-panel > .sticky.bottom-0', false);
+        $response->assertSee('position: static', false);
+        $response->assertSee('height: min(55vh, 34rem)', false);
+        $response->assertSee('lg:grid-rows-[minmax(0,1fr)]', false);
         $response->assertSee('sticky bottom-0 z-20', false);
-        $response->assertSee('lg:min-h-[12rem]', false);
+        $response->assertSee('toggleItemDetails', false);
+        $response->assertSee('Edit item', false);
+        $response->assertSee('revealCartItem(key)', false);
+        $response->assertSee("item?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })", false);
+        $response->assertSee('id="mobile-order-shortcut"', false);
+        $response->assertSee('function updateMobileOrderShortcut()', false);
+        $response->assertSee('function scrollToOrderPanel()', false);
+        $response->assertSee('const visibleRatio = cartBounds?.height ? visibleHeight / cartBounds.height : 0', false);
+        $response->assertSee('visibleRatio >= 0.65', false);
+        $response->assertSee('checkout-order-review', false);
+        $response->assertSee('checkout-review-rows', false);
+        $response->assertSee('Assigned person', false);
         $response->assertSee('product-grid-empty', false);
+        $response->assertSee('₱12.34');
+        $response->assertSee("Number(addon.price).toFixed(2)", false);
+        $response->assertSee("parseFloat(displayPrice).toFixed(2)", false);
+        $response->assertSee("escapeHtml(addon.name.replace('Flavor: ', ''))", false);
+        $response->assertSee('More ⋮');
+        $response->assertSee('+ Add comment');
+        $response->assertSee('data-product-size-prices', false);
+        $response->assertSee('Grab Price: ON');
+        $response->assertSee('Platform / Payment Note');
+        $response->assertSee('function focusItemAssignee(key)', false);
+        $response->assertSee('max="999"', false);
+        $response->assertSee('step="1"', false);
+        $response->assertSee("String(value).trim() === '' || !Number.isInteger(parsed)", false);
+        $response->assertSee('if (combinedQuantity > 999)', false);
+        $response->assertSee('Matching order items cannot be combined above 999 units.', false);
+        $response->assertSee('currentHeldOrderId = null;', false);
         $response->assertSee('clearProductFilters()', false);
-        $response->assertSee("payLaterAmount.textContent = '₱' + amount.toFixed(2)", false);
-        $response->assertSee('if (isNaN(parsed))', false);
+        $response->assertSee("payLaterAmount.textContent = formatCurrency(orderTotal)", false);
+        $response->assertSee('!Number.isInteger(parsed)', false);
         $response->assertSee('char => `%${char.charCodeAt(0).toString(16)}`', false);
         $response->assertDontSee('Sales today');
         $response->assertDontSee('Orders today');
@@ -975,6 +1163,31 @@ class PosOrderTest extends TestCase
         $response->assertDontSee('pm-bank', false);
         $response->assertDontSee('pm-gcash', false);
         $response->assertDontSee('GCash, Maya, QR, Transfer');
+    }
+
+    public function test_pos_product_cards_show_stock_status_and_disable_unavailable_products(): void
+    {
+        $user = User::factory()->create(['role' => 'cashier']);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $unavailableProduct = Product::create(['category_id' => $category->id, 'name' => 'Unavailable Latte', 'status' => 'active']);
+        $unavailableSize = ProductSize::create(['product_id' => $unavailableProduct->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $emptyIngredient = Ingredient::create(['name' => 'Out Coffee', 'unit' => 'g', 'minimum_stock' => 2, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $emptyIngredient->id, 'current_stock' => 0]);
+        $unavailableRecipe = Recipe::create(['product_size_id' => $unavailableSize->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $unavailableRecipe->id, 'ingredient_id' => $emptyIngredient->id, 'quantity' => 1]);
+
+        $lowStockProduct = Product::create(['category_id' => $category->id, 'name' => 'Low Stock Mocha', 'status' => 'active']);
+        $lowStockSize = ProductSize::create(['product_id' => $lowStockProduct->id, 'size_name' => 'Regular', 'price' => 120, 'status' => 'active']);
+        $lowIngredient = Ingredient::create(['name' => 'Low Coffee', 'unit' => 'g', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $lowIngredient->id, 'current_stock' => 2]);
+        $lowStockRecipe = Recipe::create(['product_size_id' => $lowStockSize->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $lowStockRecipe->id, 'ingredient_id' => $lowIngredient->id, 'quantity' => 1]);
+
+        $this->actingAs($user)->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('aria-label="Unavailable Latte, out of stock"', false)
+            ->assertSee('OUT OF STOCK')
+            ->assertSee('Low stock');
     }
 
     public function test_cashier_can_create_grab_order_with_grab_pricing_and_codes(): void
@@ -1168,6 +1381,31 @@ class PosOrderTest extends TestCase
         ]);
     }
 
+    public function test_shift_cash_inputs_reject_precision_beyond_cents(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('shifts.start'), [
+            'beginning_cash' => '100.001',
+        ])->assertSessionHasErrors('beginning_cash');
+        $this->assertDatabaseCount('cashier_shifts', 0);
+
+        $this->actingAs($cashier)->post(route('shifts.start'), [
+            'beginning_cash' => '100.00',
+        ])->assertSessionHasNoErrors();
+        $shift = CashierShift::activeForUser($cashier->id);
+
+        $this->actingAs($cashier)->postJson(route('shifts.preview-end'), [
+            'actual_cash' => '100.001',
+        ])->assertUnprocessable()->assertJsonValidationErrors('actual_cash');
+
+        $this->actingAs($cashier)->postJson(route('shifts.end'), [
+            'actual_cash' => '100.001',
+        ])->assertUnprocessable()->assertJsonValidationErrors('actual_cash');
+
+        $this->assertSame('open', $shift->fresh()->status);
+    }
+
     public function test_shift_start_and_end_use_local_business_time_and_store_the_actual_instants(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);
@@ -1209,6 +1447,19 @@ class PosOrderTest extends TestCase
         } finally {
             Carbon::setTestNow();
             config(['app.business_timezone' => $businessTimezone]);
+        }
+    }
+
+    public function test_order_number_date_prefix_uses_philippine_business_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-06 16:30:00', 'UTC'));
+
+        try {
+            $orderNumber = Order::generateOrderNumber();
+
+            $this->assertStringStartsWith('ORD-20261007-', $orderNumber);
+        } finally {
+            Carbon::setTestNow();
         }
     }
 
@@ -1289,69 +1540,6 @@ class PosOrderTest extends TestCase
         $this->assertDatabaseCount('cashier_shifts', 1);
     }
 
-    public function test_cash_debt_collection_is_attributed_to_the_shift_that_received_it(): void
-    {
-        $cashier = User::factory()->create(['role' => 'cashier']);
-        $manager = User::factory()->create(['role' => 'manager']);
-        $this->actingAs($cashier)->post(route('shifts.start'), ['beginning_cash' => 100])
-            ->assertSessionHasNoErrors();
-        $orderShift = CashierShift::activeForUser($cashier->id);
-        $this->actingAs($manager)->post(route('shifts.start'), ['beginning_cash' => 500])
-            ->assertSessionHasNoErrors();
-        $collectionShift = CashierShift::activeForUser($manager->id);
-
-        $order = Order::create([
-            'order_number' => 'ORD-SHIFT-DEBT-001',
-            'cashier_name' => $cashier->name,
-            'shift_id' => $orderShift->id,
-            'subtotal' => 75,
-            'total' => 75,
-            'status' => 'pay_later',
-        ]);
-        $debt = Debt::create([
-            'order_id' => $order->id,
-            'customer_name' => 'Shift Test Customer',
-            'original_amount' => 75,
-            'amount_paid' => 0,
-            'balance' => 75,
-            'status' => 'pending',
-            'created_by' => $cashier->name,
-        ]);
-
-        $this->actingAs($manager)->post(route('debts.payment', $debt), [
-            'amount' => 25,
-            'payment_date' => now()->toDateString(),
-            'payment_method' => 'cash',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertDatabaseHas('debt_payments', [
-            'debt_id' => $debt->id,
-            'shift_id' => $collectionShift->id,
-            'amount' => 25,
-            'payment_method' => 'cash',
-        ]);
-        $this->actingAs($manager)->post(route('debts.payment', $debt), [
-            'amount' => 10,
-            'payment_date' => now()->toDateString(),
-            'payment_method' => 'online',
-            'reference_number' => 'DEBT-ONLINE-10',
-        ])->assertSessionHasNoErrors();
-
-        $this->assertDatabaseHas('debt_payments', [
-            'debt_id' => $debt->id,
-            'shift_id' => $collectionShift->id,
-            'amount' => 10,
-            'payment_method' => 'online',
-            'reference_number' => 'DEBT-ONLINE-10',
-        ]);
-        $this->actingAs($manager)->postJson(route('shifts.preview-end'), ['actual_cash' => 525])
-            ->assertJsonPath('summary.debt_cash_collections', 25)
-            ->assertJsonPath('summary.debt_online_collections', 10)
-            ->assertJsonPath('expected_cash', 525);
-        $this->actingAs($cashier)->postJson(route('shifts.preview-end'), ['actual_cash' => 100])
-            ->assertJsonPath('summary.debt_cash_collections', 0)
-            ->assertJsonPath('expected_cash', 100);
-    }
 
     public function test_thermal_receipt_renders_pure_receipt_data_and_print_isolation(): void
     {

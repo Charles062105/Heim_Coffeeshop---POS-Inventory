@@ -20,7 +20,7 @@
         </div>
         <div class="flex justify-between">
             <span>Date & Time:</span>
-            <span>{{ $order->created_at->format('Y-m-d h:i A') }}</span>
+            <span>{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d h:i A') }}</span>
         </div>
         <div class="flex justify-between">
             <span>Cashier:</span>
@@ -239,23 +239,6 @@
             <span>Remaining Balance:</span>
             <span class="font-mono">₱{{ number_format($order->remainingBalance(), 2) }}</span>
         </div>
-    </div>
-    @elseif($order->debt)
-    <div class="space-y-0.5 text-[10px]">
-        <div class="flex justify-between font-bold">
-            <span>Payment Status:</span>
-            <span class="uppercase">Pay Later (Account Debt)</span>
-        </div>
-        <div class="flex justify-between">
-            <span>Customer:</span>
-            <span>{{ $order->debt->customer_name }}</span>
-        </div>
-        @if($order->debt->due_date)
-        <div class="flex justify-between">
-            <span>Due Date:</span>
-            <span>{{ $order->debt->due_date->format('M d, Y') }}</span>
-        </div>
-        @endif
     </div>
     @endif
 

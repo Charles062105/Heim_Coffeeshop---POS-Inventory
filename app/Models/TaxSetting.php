@@ -14,34 +14,61 @@ class TaxSetting extends Model
         'rate',
         'is_inclusive',
         'is_active',
+        'archived_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'rate' => 'decimal:2',
+            'rate'        => 'decimal:2',
             'is_inclusive' => 'boolean',
-            'is_active' => 'boolean',
+            'is_active'   => 'boolean',
+            'archived_at' => 'datetime',
         ];
+    }
+
+    /** Whether this tax configuration is currently archived. */
+    public function isArchived(): bool
+    {
+        return ! is_null($this->archived_at);
+    }
+
+    /** Archive the tax configuration. */
+    public function archive(): void
+    {
+        $this->update(['archived_at' => now()]);
+    }
+
+    /** Restore (unarchive) the tax configuration. */
+    public function unarchive(): void
+    {
+        $this->update(['archived_at' => null]);
     }
 
     /**
      * Get or create the singleton tax configuration.
+     * Prefers a non-archived record; falls back to any record (archived included).
      */
     public static function current(): self
     {
-        $setting = static::first();
+        $setting = static::whereNull('archived_at')->first()
+            ?? static::first();
 
         if (! $setting) {
             $setting = static::create([
-                'name' => 'VAT',
-                'rate' => 12.00,
+                'name'         => 'VAT',
+                'rate'         => 12.00,
                 'is_inclusive' => true,
-                'is_active' => true,
+                'is_active'    => true,
             ]);
         }
 
         return $setting;
+    }
+
+    private static function roundMoney(float $value): float
+    {
+        return round((float) $value + 1e-12, 2);
     }
 
     /**
@@ -49,7 +76,7 @@ class TaxSetting extends Model
      */
     public function computeOrder(float $subtotal, ?string $discountType = 'none', float $customDiscount = 0): array
     {
-        $subtotal = round(max(0, $subtotal), 2);
+        $subtotal = self::roundMoney(max(0, $subtotal));
         $taxRate = $this->is_active ? (float) $this->rate : 0.00;
         $isInclusive = (bool) $this->is_inclusive;
 
@@ -61,36 +88,32 @@ class TaxSetting extends Model
         $zeroRatedSales = 0.0;
         $taxAmount = 0.0;
 
-        if ($discountType === 'senior') {
-            $discountLabel = 'Senior Citizen (20% Off)';
-            $discountAmount = round($subtotal * 0.20, 2);
-            // Senior Citizen is VAT Exempt
-            $total = round(max(0, $subtotal - $discountAmount), 2);
-            $vatExemptSales = $total;
-            $vatableSales = 0.0;
-            $taxAmount = 0.0;
-        } elseif ($discountType === 'pwd') {
-            $discountLabel = 'PWD (20% Off)';
-            $discountAmount = round($subtotal * 0.20, 2);
-            // PWD is VAT Exempt
-            $total = round(max(0, $subtotal - $discountAmount), 2);
+        if (in_array($discountType, ['senior', 'pwd'], true)) {
+            $discountLabel = $discountType === 'senior'
+                ? 'Senior Citizen (20% Off)'
+                : 'PWD (20% Off)';
+            $vatExclusiveSales = $this->is_active && $taxRate > 0 && $isInclusive
+                ? self::roundMoney($subtotal / (1 + ($taxRate / 100)))
+                : $subtotal;
+            $discountAmount = self::roundMoney($vatExclusiveSales * 0.20);
+            $total = self::roundMoney(max(0, $vatExclusiveSales - $discountAmount));
             $vatExemptSales = $total;
             $vatableSales = 0.0;
             $taxAmount = 0.0;
         } elseif ($discountType === 'custom') {
             $discountLabel = 'Custom Discount';
-            $discountAmount = round(min($subtotal, max(0, $customDiscount)), 2);
-            $net = round(max(0, $subtotal - $discountAmount), 2);
+            $discountAmount = self::roundMoney(min($subtotal, max(0, $customDiscount)));
+            $net = self::roundMoney(max(0, $subtotal - $discountAmount));
 
             if ($this->is_active && $taxRate > 0) {
                 if ($isInclusive) {
-                    $vatableSales = round($net / (1 + ($taxRate / 100)), 2);
-                    $taxAmount = round($net - $vatableSales, 2);
+                    $vatableSales = self::roundMoney($net / (1 + ($taxRate / 100)));
+                    $taxAmount = self::roundMoney($net - $vatableSales);
                     $total = $net;
                 } else {
                     $vatableSales = $net;
-                    $taxAmount = round($net * ($taxRate / 100), 2);
-                    $total = round($net + $taxAmount, 2);
+                    $taxAmount = self::roundMoney($net * ($taxRate / 100));
+                    $total = self::roundMoney($net + $taxAmount);
                 }
             } else {
                 $vatableSales = $net;
@@ -98,24 +121,22 @@ class TaxSetting extends Model
                 $total = $net;
             }
         } else {
-            // No discount ('none' or unspecified)
             $discountType = 'none';
             if ($customDiscount > 0) {
-                // Backward compatibility if raw discount amount provided
-                $discountAmount = round(min($subtotal, max(0, $customDiscount)), 2);
+                $discountAmount = self::roundMoney(min($subtotal, max(0, $customDiscount)));
                 $discountLabel = 'Discount';
             }
-            $net = round(max(0, $subtotal - $discountAmount), 2);
+            $net = self::roundMoney(max(0, $subtotal - $discountAmount));
 
             if ($this->is_active && $taxRate > 0) {
                 if ($isInclusive) {
-                    $vatableSales = round($net / (1 + ($taxRate / 100)), 2);
-                    $taxAmount = round($net - $vatableSales, 2);
+                    $vatableSales = self::roundMoney($net / (1 + ($taxRate / 100)));
+                    $taxAmount = self::roundMoney($net - $vatableSales);
                     $total = $net;
                 } else {
                     $vatableSales = $net;
-                    $taxAmount = round($net * ($taxRate / 100), 2);
-                    $total = round($net + $taxAmount, 2);
+                    $taxAmount = self::roundMoney($net * ($taxRate / 100));
+                    $total = self::roundMoney($net + $taxAmount);
                 }
             } else {
                 $vatableSales = $net;

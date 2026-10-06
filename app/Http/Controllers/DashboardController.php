@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\CashierShift;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
 use App\Models\Notification;
@@ -19,16 +20,22 @@ class DashboardController extends Controller
         $user = $request->user() ?? auth()->user();
         $userRole = $user?->role ?? 'guest';
         $userName = $user?->name ?? 'User';
-        $today = now()->toDateString();
-        $saleStatuses = ['completed', 'partially_paid', 'pay_later'];
+        $cashierShift = $userRole === 'cashier' ? CashierShift::activeForUser($user?->id ?? 0) : null;
+        $businessNow = now(config('app.business_timezone', 'Asia/Manila'));
+        $today = $businessNow->toDateString();
+        $todayStartUtc = $businessNow->copy()->startOfDay()->utc();
+        $tomorrowStartUtc = $businessNow->copy()->addDay()->startOfDay()->utc();
+        $saleStatuses = ['completed', 'partially_paid'];
 
         // ── Top KPIs ─────────────────────────────────────────────────────────────
         $todaySales = (float) Order::whereIn('status', $saleStatuses)
-            ->whereDate('created_at', $today)
+            ->where('created_at', '>=', $todayStartUtc)
+            ->where('created_at', '<', $tomorrowStartUtc)
             ->sum('total');
 
         $todayOrders = Order::whereIn('status', $saleStatuses)
-            ->whereDate('created_at', $today)
+            ->where('created_at', '>=', $todayStartUtc)
+            ->where('created_at', '<', $tomorrowStartUtc)
             ->count();
 
         $totalOrders = Order::whereIn('status', [...$saleStatuses, 'refunded'])->count();
@@ -41,37 +48,53 @@ class DashboardController extends Controller
         $cashierAllTimeOrders = 0;
 
         if ($userRole === 'cashier') {
+            $cashierOrderScope = function ($query) use ($userName, $cashierShift) {
+                $query->where(function ($inner) use ($userName, $cashierShift) {
+                    $inner->where('cashier_name', $userName);
+
+                    if ($cashierShift) {
+                        $inner->orWhere('shift_id', $cashierShift->id);
+                    }
+                });
+            };
+
             $cashierTodaySales = (float) Order::whereIn('status', $saleStatuses)
-                ->where('cashier_name', $userName)
-                ->whereDate('created_at', $today)
+                ->where($cashierOrderScope)
+                ->where('created_at', '>=', $todayStartUtc)
+                ->where('created_at', '<', $tomorrowStartUtc)
                 ->sum('total');
 
             $cashierTodayOrders = Order::whereIn('status', $saleStatuses)
-                ->where('cashier_name', $userName)
-                ->whereDate('created_at', $today)
+                ->where($cashierOrderScope)
+                ->where('created_at', '>=', $todayStartUtc)
+                ->where('created_at', '<', $tomorrowStartUtc)
                 ->count();
 
             $cashierAllTimeSales = (float) Order::whereIn('status', $saleStatuses)
-                ->where('cashier_name', $userName)
+                ->where($cashierOrderScope)
                 ->sum('total');
 
             $cashierAllTimeOrders = Order::whereIn('status', $saleStatuses)
-                ->where('cashier_name', $userName)
+                ->where($cashierOrderScope)
                 ->count();
         }
 
         // ── 7-Day Sales Overview Trend ──────────────────────────────────────────
-        $salesTrend = collect(range(6, 0))->map(function ($dayOffset) use ($saleStatuses) {
-            $date = now()->subDays($dayOffset);
+        $salesTrend = collect(range(6, 0))->map(function ($dayOffset) use ($saleStatuses, $businessNow) {
+            $date = $businessNow->copy()->subDays($dayOffset);
+            $dateStartUtc = $date->copy()->startOfDay()->utc();
+            $nextDateStartUtc = $date->copy()->addDay()->startOfDay()->utc();
 
             return [
                 'label' => $date->format('D'),
                 'date' => $date->format('M j'),
                 'total' => (float) Order::whereIn('status', $saleStatuses)
-                    ->whereDate('created_at', $date->toDateString())
+                    ->where('created_at', '>=', $dateStartUtc)
+                    ->where('created_at', '<', $nextDateStartUtc)
                     ->sum('total'),
                 'count' => Order::whereIn('status', $saleStatuses)
-                    ->whereDate('created_at', $date->toDateString())
+                    ->where('created_at', '>=', $dateStartUtc)
+                    ->where('created_at', '<', $nextDateStartUtc)
                     ->count(),
             ];
         })->values();
@@ -99,7 +122,9 @@ class DashboardController extends Controller
 
         // ── Payment Breakdown ───────────────────────────────────────────────────
         $todayPayments = Payment::where('status', 'paid')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses)->whereDate('created_at', $today))
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses)
+                ->where('created_at', '>=', $todayStartUtc)
+                ->where('created_at', '<', $tomorrowStartUtc))
             ->select(
                 DB::raw("CASE WHEN LOWER(method) = 'cash' THEN 'cash' ELSE 'online' END as method"),
                 DB::raw('SUM(amount_paid) as total'),
@@ -144,7 +169,8 @@ class DashboardController extends Controller
         $todayConsumption = collect();
         if (in_array($userRole, ['owner', 'manager'])) {
             $todayConsumption = InventoryTransaction::whereIn('type', ['sales_consumption', 'sales_return'])
-                ->whereDate('created_at', $today)
+                ->where('created_at', '>=', $todayStartUtc)
+                ->where('created_at', '<', $tomorrowStartUtc)
                 ->with('ingredient')
                 ->select('ingredient_id', DB::raw("SUM(CASE WHEN type = 'sales_return' THEN -quantity ELSE quantity END) as total_consumed"))
                 ->groupBy('ingredient_id')
@@ -164,7 +190,14 @@ class DashboardController extends Controller
         // ── Recent Orders ───────────────────────────────────────────────────────
         $ordersQuery = Order::with('payment');
         if ($userRole === 'cashier') {
-            $recentOrders = (clone $ordersQuery)->where('cashier_name', $userName)->latest()->limit(6)->get();
+            $recentOrders = (clone $ordersQuery)->where(function ($query) use ($userName, $cashierShift) {
+                $query->where('cashier_name', $userName);
+
+                if ($cashierShift) {
+                    $query->orWhere('shift_id', $cashierShift->id);
+                }
+            })->latest()->limit(6)->get();
+
             if ($recentOrders->isEmpty()) {
                 $recentOrders = $ordersQuery->latest()->limit(6)->get();
             }
@@ -183,7 +216,7 @@ class DashboardController extends Controller
             $recentLogs = AuditLog::latest()
                 ->limit(6)
                 ->get()
-                ->map(function ($log) {
+                ->map(function ($log) use ($businessNow) {
                     $actionName = match ($log->action) {
                         'login' => 'User Login',
                         'logout' => 'Logged out',
@@ -197,12 +230,13 @@ class DashboardController extends Controller
                         default => ucwords(str_replace('_', ' ', $log->action)),
                     };
 
-                    $timeStr = $log->created_at ? (
-                        $log->created_at->isToday()
-                            ? 'Today, '.$log->created_at->format('g:i A')
-                            : ($log->created_at->isYesterday()
-                                ? 'Yesterday, '.$log->created_at->format('g:i A')
-                                : $log->created_at->format('M j, g:i A'))
+                    $businessLogTime = $log->created_at?->copy()->timezone(config('app.business_timezone', 'Asia/Manila'));
+                    $timeStr = $businessLogTime ? (
+                        $businessLogTime->isSameDay($businessNow)
+                            ? 'Today, '.$businessLogTime->format('g:i A')
+                            : ($businessLogTime->isSameDay($businessNow->copy()->subDay())
+                                ? 'Yesterday, '.$businessLogTime->format('g:i A')
+                                : $businessLogTime->format('M j, g:i A'))
                     ) : 'Recently';
 
                     return (object) [

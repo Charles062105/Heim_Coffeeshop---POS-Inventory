@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\VoidLog;
 use App\Services\AuditService;
 use App\Services\InventoryService;
+use App\Support\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +20,10 @@ class VoidController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
         $query = VoidLog::with(['order', 'orderItem.product', 'orderItem.size', 'authorizedUser'])
             ->latest('voided_at');
 
@@ -34,11 +39,11 @@ class VoidController extends Controller
             $query->where('void_type', $voidType);
         }
 
-        if ($from = $request->get('from')) {
-            $query->whereDate('voided_at', '>=', $from);
+        if ($from = $filters['from'] ?? null) {
+            $query->where('voided_at', '>=', BusinessDateRange::startUtc($from));
         }
-        if ($to = $request->get('to')) {
-            $query->whereDate('voided_at', '<=', $to);
+        if ($to = $filters['to'] ?? null) {
+            $query->where('voided_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
 
         $voidLogs = $query->paginate(20)->withQueryString();
@@ -71,7 +76,7 @@ class VoidController extends Controller
             return back()->with('error', "Order cannot be voided because it is already {$order->status}.");
         }
 
-        $inventoryDeducted = in_array($order->status, ['completed', 'partially_paid', 'pay_later']);
+        $inventoryDeducted = in_array($order->status, ['completed', 'partially_paid']);
         $requester = $request->user();
 
         DB::transaction(function () use ($order, $authorizer, $request, $inventoryDeducted, $requester) {
@@ -197,7 +202,7 @@ class VoidController extends Controller
                 'total' => (float) $lockedOrder->total,
                 'item_payable_total' => (float) $lockedItem->payable_total,
             ];
-            $inventoryDeducted = in_array($lockedOrder->status, ['completed', 'partially_paid', 'pay_later'], true);
+            $inventoryDeducted = in_array($lockedOrder->status, ['completed', 'partially_paid'], true);
 
             if ($inventoryDeducted) {
                 $lockedItem->load(['product', 'size', 'addons.addon']);
@@ -259,16 +264,8 @@ class VoidController extends Controller
                 $shift->id
             );
 
-            $debt = $lockedOrder->debt;
-            if ($debt) {
-                $debt->update(['original_amount' => $newTotal]);
-                $debt->recalculate();
-            }
-
             if ($activeItems->isEmpty()) {
                 $lockedOrder->update(['status' => 'voided']);
-            } elseif ($debt) {
-                $lockedOrder->update(['status' => 'pay_later']);
             } else {
                 $lockedOrder->update([
                     'status' => $lockedOrder->paidAmount() >= $newTotal ? 'completed' : 'partially_paid',
@@ -325,40 +322,31 @@ class VoidController extends Controller
         string $reason,
         int $shiftId
     ): array {
-        $debt = $order->debt;
-        if ($debt) {
-            $paid = (float) $debt->payments()->sum('amount');
+        $payments = $order->payments()->where('status', 'paid')->orderByDesc('id')->get();
+        $payer = trim((string) $item->assigned_to);
+        $payerPayments = $payer !== ''
+            ? $payments->where('customer_name', $payer)->values()
+            : collect();
+
+        if ($payerPayments->isNotEmpty()) {
+            $paid = (float) $payerPayments->sum('amount_paid');
+            $payerDue = (float) $order->orderItems()
+                ->where('status', 'active')
+                ->where('assigned_to', $payer)
+                ->sum('payable_total');
+            $payerPaymentIds = $payerPayments->pluck('id');
+            $alreadyRefunded = (float) $order->refunds()
+                ->whereIn('payment_id', $payerPaymentIds)
+                ->sum('amount');
+            $refundAmount = max(0, round($paid - $payerDue - $alreadyRefunded, 2));
+            $availablePayments = $payerPayments;
+        } else {
+            $paid = (float) $payments->sum('amount_paid');
             $alreadyRefunded = (float) $order->refunds()->sum('amount');
             $refundAmount = max(0, round($paid - (float) $order->total - $alreadyRefunded, 2));
-            $availablePayments = $debt->payments()->orderByDesc('id')->get();
-            $foreignKey = 'debt_payment_id';
-        } else {
-            $payments = $order->payments()->where('status', 'paid')->orderByDesc('id')->get();
-            $payer = trim((string) $item->assigned_to);
-            $payerPayments = $payer !== ''
-                ? $payments->where('customer_name', $payer)->values()
-                : collect();
-
-            if ($payerPayments->isNotEmpty()) {
-                $paid = (float) $payerPayments->sum('amount_paid');
-                $payerDue = (float) $order->orderItems()
-                    ->where('status', 'active')
-                    ->where('assigned_to', $payer)
-                    ->sum('payable_total');
-                $payerPaymentIds = $payerPayments->pluck('id');
-                $alreadyRefunded = (float) $order->refunds()
-                    ->whereIn('payment_id', $payerPaymentIds)
-                    ->sum('amount');
-                $refundAmount = max(0, round($paid - $payerDue - $alreadyRefunded, 2));
-                $availablePayments = $payerPayments;
-            } else {
-                $paid = (float) $payments->sum('amount_paid');
-                $alreadyRefunded = (float) $order->refunds()->sum('amount');
-                $refundAmount = max(0, round($paid - (float) $order->total - $alreadyRefunded, 2));
-                $availablePayments = $payments;
-            }
-            $foreignKey = 'payment_id';
+            $availablePayments = $payments;
         }
+        $foreignKey = 'payment_id';
 
         if ($refundAmount <= 0) {
             return [];

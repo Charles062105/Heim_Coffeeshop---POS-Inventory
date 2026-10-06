@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\CashierShift;
 use App\Models\Category;
-use App\Models\Debt;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -32,12 +31,14 @@ class PosController extends Controller
                 $q->where('status', 'active')
                     ->with(['sizes' => fn ($q2) => $q2
                         ->where('status', 'active')
-                        ->with(['recipe.recipeIngredients.ingredient'])
+                        ->with(['recipe.recipeIngredients.ingredient.inventory'])
                         ->orderBy('price')]);
             }])
             ->get();
 
-        $addons = ProductAddon::where('status', 'active')->get();
+        $addons = ProductAddon::where('status', 'active')
+            ->with('addonIngredients.ingredient.inventory')
+            ->get();
         $taxSetting = TaxSetting::current();
         $activeShift = $request->user() ? CashierShift::activeForUser($request->user()->id) : null;
 
@@ -69,41 +70,35 @@ class PosController extends Controller
             'grab_order_code' => 'required_if:order_type,grab|nullable|string|max:100',
             'rider_code' => 'required_if:order_type,grab|nullable|string|max:100',
             'customer_name' => 'nullable|string|max:150',
-            'cashier_name' => 'required|string|max:100',
             'items' => 'required|array|min:1',
             'items.*.product_size_id' => 'required|exists:product_sizes,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => 'required|integer|min:1|max:999',
             'items.*.comment' => 'nullable|string|max:255',
             'items.*.assigned_to' => 'nullable|string|max:150',
             'items.*.addon_ids' => 'nullable|array',
             'items.*.addon_ids.*' => [
                 Rule::exists('product_addons', 'id')->where('status', 'active'),
             ],
-            'discount' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|decimal:0,2|min:0',
             'discount_type' => 'nullable|string|in:none,senior,pwd,custom',
             'discount_label' => 'nullable|string|max:100',
             'discount_id_number' => 'required_if:discount_type,senior,pwd|nullable|string|max:100',
             'authorizer_email' => 'nullable|email',
             'authorizer_password' => 'nullable|string',
-            'payment_method' => 'required|in:cash,online,pay_later,grabfood,grab',
-            'amount_received' => 'required_unless:payment_method,pay_later,grabfood,grab|nullable|numeric|min:0',
-            'amount_paid' => 'nullable|numeric|min:0.01',
+            'payment_method' => 'required|in:cash,online,grabfood,grab',
+            'amount_received' => 'required_unless:payment_method,grabfood,grab|nullable|numeric|decimal:0,2|min:0',
+            'amount_paid' => 'nullable|numeric|decimal:0,2|min:0.01',
             'person_name' => 'nullable|string|max:150',
             'payment_comment' => 'nullable|string|max:255',
             'reference_number' => 'nullable|string|max:100',
             'payments' => 'nullable|array|min:1',
             'payments.*.method' => 'required|in:cash,online,grabfood,grab',
-            'payments.*.amount_paid' => 'required|numeric|min:0.01',
-            'payments.*.amount_received' => 'nullable|numeric|min:0',
+            'payments.*.amount_paid' => 'required|numeric|decimal:0,2|min:0.01',
+            'payments.*.amount_received' => 'nullable|numeric|decimal:0,2|min:0',
             'payments.*.person_name' => 'nullable|string|max:150',
             'payments.*.reference_number' => 'nullable|string|max:100',
             'payments.*.comment' => 'nullable|string|max:255',
             'held_order_id' => 'nullable|exists:orders,id',
-            // Pay Later fields
-            'debt_customer_name' => 'required_if:payment_method,pay_later|nullable|string|max:150',
-            'debt_customer_phone' => 'nullable|string|max:30',
-            'debt_due_date' => 'nullable|date|after_or_equal:today',
-            'debt_notes' => 'nullable|string|max:500',
         ]);
 
         foreach ($request->input('items', []) as $index => $item) {
@@ -115,6 +110,7 @@ class PosController extends Controller
             }
         }
 
+        $request->merge(['cashier_name' => $request->user()->name]);
         $orderType = strtolower(trim($request->order_type ?? 'dine_in'));
         $isGrab = $orderType === 'grab';
         $isGrabPayment = in_array($request->payment_method, ['grabfood', 'grab']);
@@ -204,6 +200,7 @@ class PosController extends Controller
             // Authorization check: Senior Citizen & PWD discounts are statutory and accessible to cashiers.
             // Custom discounts require manager/owner privileges or manager credentials.
             $isStatutoryDiscount = in_array($discountType, ['senior', 'pwd']);
+            $discountAuthorizedBy = $request->user();
             if (($rawDiscount > 0 || $isStatutoryDiscount) && ! $isStatutoryDiscount) {
                 $hasAuthPrivilege = $request->user()?->canAuthorize() ?? false;
                 if (! $hasAuthPrivilege) {
@@ -212,6 +209,7 @@ class PosController extends Controller
                         $authMgr = User::where('email', $request->authorizer_email)->where('status', 'active')->first();
                         if ($authMgr && Hash::check($request->authorizer_password, $authMgr->password) && $authMgr->canAuthorize()) {
                             $authorized = true;
+                            $discountAuthorizedBy = $authMgr;
                         }
                     }
                     if (! $authorized) {
@@ -225,18 +223,20 @@ class PosController extends Controller
             // Compute tax, discount and totals using configured tax settings
             $taxSetting = TaxSetting::current();
             $computed = $taxSetting->computeOrder($subtotal, $discountType, $rawDiscount);
+            $discountIdNumber = in_array($computed['discount_type'], ['senior', 'pwd'], true)
+                ? trim((string) $request->input('discount_id_number'))
+                : null;
 
             $discount = $computed['discount'];
             $total = $computed['total'];
 
             $stagedPayments = collect($request->input('payments', []));
             $hasStagedPayments = $stagedPayments->isNotEmpty();
-            $isPayLater = ! $hasStagedPayments && $request->payment_method === 'pay_later';
-            $amountPaid = $isPayLater ? 0 : round($hasStagedPayments
+            $amountPaid = round($hasStagedPayments
                 ? $stagedPayments->sum(fn ($payment) => (float) $payment['amount_paid'])
                 : (float) ($request->amount_paid ?? $total), 2);
             $amountPaid = round($amountPaid, 2);
-            if (! $isPayLater && ($amountPaid <= 0 || $amountPaid > $total)) {
+            if ($amountPaid <= 0 || $amountPaid > $total) {
                 throw ValidationException::withMessages([
                     'amount_paid' => 'Payment amount must be greater than zero and cannot exceed the order total.',
                 ]);
@@ -345,7 +345,7 @@ class PosController extends Controller
                         'discount' => $discount,
                         'discount_type' => $computed['discount_type'],
                         'discount_label' => $computed['discount_label'],
-                        'discount_id_number' => $request->input('discount_id_number'),
+                        'discount_id_number' => $discountIdNumber,
                         'total' => $total,
                         'tax_name' => $computed['tax_name'],
                         'tax_rate' => $computed['tax_rate'],
@@ -353,7 +353,7 @@ class PosController extends Controller
                         'vatable_sales' => $computed['vatable_sales'],
                         'vat_exempt_sales' => $computed['vat_exempt_sales'],
                         'zero_rated_sales' => $computed['zero_rated_sales'],
-                        'status' => $isPayLater ? 'pay_later' : ($amountPaid >= $total ? 'completed' : 'partially_paid'),
+                        'status' => $amountPaid >= $total ? 'completed' : 'partially_paid',
                         'notes' => $request->notes,
                     ]);
                     break;
@@ -366,6 +366,17 @@ class PosController extends Controller
 
             if (! $createdOrder) {
                 throw new \RuntimeException('Unable to create an order after multiple unique-number collisions.');
+            }
+
+            if ($discount > 0) {
+                AuditService::logFromUser($discountAuthorizedBy, 'discount_applied', 'POS', [
+                    'order_number' => $createdOrder->order_number,
+                    'discount_type' => $computed['discount_type'],
+                    'discount_label' => $computed['discount_label'],
+                    'discount_amount' => $discount,
+                    'discount_id_number' => $discountIdNumber,
+                    'applied_at' => now()->toIso8601String(),
+                ], $createdOrder);
             }
 
             // ── Order items ──────────────────────────────────────────────
@@ -395,33 +406,12 @@ class PosController extends Controller
                 }
             }
 
-            // ── Payment or Debt ───────────────────────────────────────────
+            // ── Payment ──────────────────────────────────────────────────
             $user = $request->user();
             $performedBy = $user?->name ?? $request->cashier_name ?? 'Cashier';
             $performedRole = $user?->role ?? 'cashier';
 
-            if ($isPayLater) {
-                Debt::create([
-                    'order_id' => $createdOrder->id,
-                    'customer_name' => $request->debt_customer_name,
-                    'customer_phone' => $request->debt_customer_phone ?? null,
-                    'original_amount' => $total,
-                    'amount_paid' => 0,
-                    'balance' => $total,
-                    'due_date' => $request->debt_due_date ?? null,
-                    'status' => 'pending',
-                    'notes' => $request->debt_notes ?? null,
-                    'created_by' => $performedBy,
-                ]);
-
-                AuditService::logFromUser($user, 'pay_later_order', 'POS', [
-                    'order_number' => $orderNumber,
-                    'cashier_name' => $request->cashier_name,
-                    'total' => $total,
-                    'items' => count($itemsData),
-                    'customer_name' => $request->debt_customer_name,
-                ], $createdOrder);
-            } elseif ($hasStagedPayments) {
+            if ($hasStagedPayments) {
                 foreach ($stagedPayments as $payment) {
                     $method = $payment['method'];
                     $paymentAmount = round((float) $payment['amount_paid'], 2);
@@ -509,17 +499,16 @@ class PosController extends Controller
             'grab_order_code' => 'required_if:order_type,grab|nullable|string|max:100',
             'rider_code' => 'required_if:order_type,grab|nullable|string|max:100',
             'customer_name' => 'nullable|string|max:150',
-            'cashier_name' => 'required|string|max:100',
             'items' => 'required|array|min:1',
             'items.*.product_size_id' => 'required|exists:product_sizes,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => 'required|integer|min:1|max:999',
             'items.*.comment' => 'nullable|string|max:255',
             'items.*.assigned_to' => 'nullable|string|max:150',
             'items.*.addon_ids' => 'nullable|array',
             'items.*.addon_ids.*' => [
                 Rule::exists('product_addons', 'id')->where('status', 'active'),
             ],
-            'discount' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|decimal:0,2|min:0',
             'discount_type' => 'nullable|string|in:none,senior,pwd,custom',
             'discount_label' => 'nullable|string|max:100',
             'discount_id_number' => 'required_if:discount_type,senior,pwd|nullable|string|max:100',
@@ -535,6 +524,7 @@ class PosController extends Controller
             }
         }
 
+        $request->merge(['cashier_name' => $request->user()->name]);
         $orderType = strtolower(trim($request->input('order_type', 'dine_in')));
         $isGrab = $orderType === 'grab';
         if ($isGrab && (blank(trim((string) $request->grab_order_code)) || blank(trim((string) $request->rider_code)))) {
@@ -587,6 +577,9 @@ class PosController extends Controller
             $rawDiscount = (float) ($request->discount ?? 0);
             $taxSetting = TaxSetting::current();
             $computed = $taxSetting->computeOrder($subtotal, $discountType, $rawDiscount);
+            $discountIdNumber = in_array($computed['discount_type'], ['senior', 'pwd'], true)
+                ? trim((string) $request->input('discount_id_number'))
+                : null;
 
             $createdOrder = null;
             for ($attempt = 0; $attempt < 10; $attempt++) {
@@ -605,7 +598,7 @@ class PosController extends Controller
                         'discount' => $computed['discount'],
                         'discount_type' => $computed['discount_type'],
                         'discount_label' => $computed['discount_label'],
-                        'discount_id_number' => $request->input('discount_id_number'),
+                        'discount_id_number' => $discountIdNumber,
                         'total' => $computed['total'],
                         'tax_name' => $computed['tax_name'],
                         'tax_rate' => $computed['tax_rate'],
@@ -718,33 +711,33 @@ class PosController extends Controller
             $lockedOrder->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon']);
 
             $cartItems = $lockedOrder->orderItems->map(function ($item) use ($lockedOrder) {
-                $addonIds = $item->addons->pluck('product_addon_id')->toArray();
+                $addons = $item->addons->map(fn ($orderItemAddon) => [
+                    'id' => $orderItemAddon->product_addon_id,
+                    'name' => $orderItemAddon->addon?->name ?? 'Addon',
+                    'price' => (float) ($orderItemAddon->addon?->price ?? $orderItemAddon->price),
+                ])->values();
                 $regularPrice = (float) ($item->size?->price ?? $item->unit_price);
                 $grabPrice = (float) ($item->size?->getGrabPrice() ?? $regularPrice);
+                $basePrice = $lockedOrder->order_type === 'grab' ? $grabPrice : $regularPrice;
 
                 return [
-                    'key' => "{$item->product_id}-{$item->product_size_id}-".implode('-', $addonIds),
+                    'key' => "held-{$item->id}",
                     'product_id' => $item->product_id,
                     'product_size_id' => $item->product_size_id,
                     'name' => $item->product?->name ?? 'Unknown',
                     'size' => $item->size?->size_name ?? 'Regular',
-                    'price' => $lockedOrder->order_type === 'grab' ? $grabPrice : $regularPrice,
+                    'price' => $basePrice,
                     'regular_price' => $regularPrice,
                     'grab_price' => $grabPrice,
-                    'unit_price' => (float) $item->unit_price,
+                    'unit_price' => $basePrice + $addons->sum('price'),
                     'qty' => $item->quantity,
                     'comment' => $item->comment,
                     'assigned_to' => $item->assigned_to,
-                    'addons' => $item->addons->map(fn ($a) => [
-                        'id' => $a->product_addon_id,
-                        'name' => $a->addon?->name ?? 'Addon',
-                        'price' => (float) $a->price,
-                    ])->toArray(),
+                    'addons' => $addons->all(),
                 ];
             });
 
             $payload = [
-                'held_order_id' => $lockedOrder->id,
                 'order_number' => $lockedOrder->order_number,
                 'order_type' => $lockedOrder->order_type ?? 'dine_in',
                 'grab_order_code' => $lockedOrder->grab_order_code,
@@ -770,11 +763,13 @@ class PosController extends Controller
 
     public function discardHeld(Order $order)
     {
+        $reason = trim(request()->input('reason', ''));
+
         $orderNumber = DB::transaction(function () use ($order) {
             CashierShift::lockActiveForUser(request()->user()->id);
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             if ($lockedOrder->status !== 'held') {
-                throw ValidationException::withMessages(['order' => 'Only held orders can be discarded.']);
+                throw ValidationException::withMessages(['order' => 'Only held orders can be voided.']);
             }
 
             $number = $lockedOrder->order_number;
@@ -783,13 +778,14 @@ class PosController extends Controller
             return $number;
         });
 
-        AuditService::logFromUser(request()->user(), 'discarded_held_order', 'POS', [
+        AuditService::logFromUser(request()->user(), 'voided_saved_ticket', 'POS', [
             'order_number' => $orderNumber,
+            'reason'       => $reason ?: 'No reason provided',
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => "Held order #{$orderNumber} discarded.",
+            'message' => "Saved ticket #{$orderNumber} voided.",
         ]);
     }
 

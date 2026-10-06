@@ -53,10 +53,8 @@ class ShiftController extends Controller
                 'unresolved_orders' => $openOrders,
                 'non_cash_summary' => [
                     'online_sales' => $summary['online_sales'],
-                    'debt_online_collections' => $summary['debt_online_collections'],
                     'grab_sales' => $summary['grab_sales'],
                     'grab_settlements' => $summary['grab_settlements'],
-                    'pay_later_charged' => $summary['pay_later_charged'],
                     'dine_in_sales' => $summary['dine_in_sales'],
                     'take_out_sales' => $summary['take_out_sales'],
                     'void_count' => $summary['void_count'],
@@ -69,7 +67,7 @@ class ShiftController extends Controller
     public function start(Request $request)
     {
         $validated = $request->validate([
-            'beginning_cash' => 'required|numeric|min:0',
+            'beginning_cash' => 'required|numeric|decimal:0,2|min:0',
         ]);
         $user = $request->user();
         $startedAt = now();
@@ -179,7 +177,7 @@ class ShiftController extends Controller
         abort_unless($request->user()->canAuthorize(), 403);
 
         $validated = $request->validate([
-            'actual_cash' => 'nullable|numeric|min:0|required_without:denomination_count',
+            'actual_cash' => 'nullable|numeric|decimal:0,2|min:0|required_without:denomination_count',
             'denomination_count' => 'nullable|array|required_without:actual_cash',
             'denomination_count.*' => 'required|integer|min:0',
             'comment' => 'nullable|string|max:500',
@@ -259,7 +257,7 @@ class ShiftController extends Controller
         }
 
         $validated = $request->validate([
-            'amount' => 'required|numeric|not_in:0',
+            'amount' => 'required|numeric|decimal:0,2|not_in:0',
             'reason' => 'required|string|min:10|max:500',
         ]);
         $movement = ShiftCashMovement::create([
@@ -284,7 +282,7 @@ class ShiftController extends Controller
     private function validateCount(Request $request): float
     {
         $validated = $request->validate([
-            'actual_cash' => 'nullable|numeric|min:0|required_without:denomination_count',
+            'actual_cash' => 'nullable|numeric|decimal:0,2|min:0|required_without:denomination_count',
             'denomination_count' => 'nullable|array|required_without:actual_cash',
             'denomination_count.*' => 'required|integer|min:0',
             'comment' => 'nullable|string|max:500',
@@ -341,8 +339,6 @@ class ShiftController extends Controller
             'shift_id' => $shift->id,
             'beginning_cash' => (float) $shift->beginning_cash,
             'cash_sales' => (float) $shift->cash_sales,
-            'debt_cash_collections' => $summary['debt_cash_collections'],
-            'debt_online_collections' => $summary['debt_online_collections'],
             'cash_refunds' => (float) $shift->cash_refunds,
             'cash_voids' => (float) $shift->cash_voids,
             'expected_cash' => (float) $shift->expected_cash,
@@ -387,7 +383,7 @@ class ShiftController extends Controller
                 || mb_strlen(trim($overrideReason)) < 10
             )) {
                 throw ValidationException::withMessages([
-                    'override_reason' => "A reason and manager approval are required to close this shift with {$openOrderCount} held or unpaid ticket(s).",
+                    'override_reason' => "A reason and manager approval are required to close this shift with {$openOrderCount} saved or unpaid ticket(s).",
                 ]);
             }
 
@@ -405,14 +401,11 @@ class ShiftController extends Controller
                 'open_user_id' => null,
                 'closed_by' => $closedBy->id,
                 'cash_sales' => $summary['cash_sales'],
-                'debt_cash_collections' => $summary['debt_cash_collections'],
                 'cash_refunds' => $summary['cash_refunds'],
                 'cash_voids' => $summary['cash_voids'],
                 'online_sales' => $summary['online_sales'],
-                'debt_online_collections' => $summary['debt_online_collections'],
                 'grab_sales' => $summary['grab_sales'],
                 'grab_settlements' => $summary['grab_settlements'],
-                'pay_later_charged' => $summary['pay_later_charged'],
                 'void_count' => $summary['void_count'],
                 'void_amount' => $summary['void_amount'],
                 'dine_in_sales' => $summary['dine_in_sales'],
@@ -434,7 +427,6 @@ class ShiftController extends Controller
         return round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
-            + $summary['debt_cash_collections']
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2

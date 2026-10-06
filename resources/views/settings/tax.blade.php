@@ -13,6 +13,7 @@
 @section('content')
 <div class="max-w-4xl mx-auto space-y-6">
 
+    {{-- Flash Messages --}}
     @if(session('success'))
     <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3 text-sm shadow-xs">
         <svg class="w-5 h-5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -20,10 +21,42 @@
     </div>
     @endif
 
+    @if(session('info'))
+    <div class="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-2xl flex items-center gap-3 text-sm shadow-xs">
+        <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="font-medium">{{ session('info') }}</span>
+    </div>
+    @endif
+
+    {{-- Archived Banner --}}
+    @if($taxSetting->isArchived())
+    <div class="p-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl flex items-center justify-between gap-4 shadow-xs">
+        <div class="flex items-center gap-3">
+            <svg class="w-6 h-6 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4"/></svg>
+            <div>
+                <p class="font-bold text-sm">This tax configuration is archived.</p>
+                <p class="text-xs text-amber-700 mt-0.5">
+                    Archived since {{ $taxSetting->archived_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y \a\t h:i A') }}.
+                    Tax calculations are still visible on historical records but the configuration cannot be edited while archived.
+                </p>
+            </div>
+        </div>
+        <form method="POST" action="{{ route('settings.tax.unarchive') }}" class="shrink-0">
+            @csrf
+            @method('PATCH')
+            <button type="submit"
+                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-xs">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Restore / Unarchive
+            </button>
+        </form>
+    </div>
+    @endif
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {{-- Settings Form Card --}}
         <div class="lg:col-span-7">
-            <div class="brand-card rounded-2xl p-6 shadow-sm border border-gray-100 bg-white">
+            <div class="brand-card rounded-2xl p-6 shadow-sm border border-gray-100 bg-white {{ $taxSetting->isArchived() ? 'opacity-60 pointer-events-none select-none' : '' }}">
                 <div class="flex items-center gap-3 pb-4 mb-5 border-b border-gray-100">
                     <div class="w-10 h-10 rounded-xl bg-heim-50 border border-heim-100 flex items-center justify-center text-heim-700">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z"/></svg>
@@ -86,12 +119,56 @@
                         <a href="{{ route('dashboard') }}" class="brand-btn-cancel">
                             Cancel
                         </a>
-                        <button type="submit" class="brand-button gap-2">
+                        <button type="submit" class="brand-button gap-2" {{ $taxSetting->isArchived() ? 'disabled' : '' }}>
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                             Save Tax Configuration
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {{-- Archive / Unarchive Action Card --}}
+            <div class="mt-4 rounded-2xl border {{ $taxSetting->isArchived() ? 'border-amber-200 bg-amber-50/40' : 'border-rose-100 bg-rose-50/30' }} p-5 shadow-xs">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        @if($taxSetting->isArchived())
+                            <p class="text-sm font-bold text-amber-900">Tax Configuration is Archived</p>
+                            <p class="text-xs text-amber-700 mt-1">
+                                This configuration is currently archived and not being applied to new orders.
+                                Restore it to re-enable tax calculations in the POS.
+                            </p>
+                        @else
+                            <p class="text-sm font-bold text-rose-800">Archive Tax Configuration</p>
+                            <p class="text-xs text-rose-700 mt-1">
+                                Archiving disables the tax configuration without deleting it.
+                                Historical records are preserved. You can restore it at any time.
+                            </p>
+                        @endif
+                    </div>
+
+                    @if($taxSetting->isArchived())
+                        <form method="POST" action="{{ route('settings.tax.unarchive') }}" class="shrink-0">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-xs whitespace-nowrap">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                Restore Configuration
+                            </button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('settings.tax.archive') }}"
+                            onsubmit="return confirm('Archive this tax configuration? Tax will not be applied to new POS orders until it is restored.')">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-xs font-bold transition-colors shadow-xs whitespace-nowrap">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4"/></svg>
+                                Archive Configuration
+                            </button>
+                        </form>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -163,7 +240,7 @@
                     Philippine Statutory Exemption Compliance
                 </div>
                 <p class="leading-relaxed text-[11px]">
-                    Under <strong>RA 9994</strong> (Senior Citizens Act) and <strong>RA 10754</strong> (PWD Act), eligible patrons receive a <strong>20% discount</strong> and are <strong>exempt from Value-Added Tax (VAT)</strong>.
+                    Under <strong>RA 9994</strong> (Senior Citizens Act) and <strong>RA 10754</strong> (PWD Act), eligible patrons receive a <strong>20% discount on the VAT-exclusive amount</strong> and are <strong>exempt from Value-Added Tax (VAT)</strong>.
                 </p>
                 <p class="leading-relaxed text-[11px] text-amber-800">
                     The POS terminal applies this automatically upon selecting Senior Citizen or PWD from the discount dropdown, and itemizes VAT-Exempt sales and tax information on every official receipt.
@@ -190,17 +267,15 @@ function previewTax() {
     let exempt = 0;
     let tax = 0;
 
-    if (discType === 'senior') {
-        discount = subtotal * 0.20;
-        discountLabel = 'Senior Citizen (20% Off):';
-        total = Math.max(0, subtotal - discount);
-        exempt = total;
-        vatable = 0;
-        tax = 0;
-    } else if (discType === 'pwd') {
-        discount = subtotal * 0.20;
-        discountLabel = 'PWD (20% Off):';
-        total = Math.max(0, subtotal - discount);
+    if (discType === 'senior' || discType === 'pwd') {
+        const vatExclusiveSales = isActive && rate > 0 && isInclusive
+            ? Math.round((subtotal / (1 + (rate / 100))) * 100) / 100
+            : subtotal;
+        discount = Math.round(vatExclusiveSales * 0.20 * 100) / 100;
+        discountLabel = discType === 'senior'
+            ? 'Senior Citizen (20% Off):'
+            : 'PWD (20% Off):';
+        total = Math.max(0, Math.round((vatExclusiveSales - discount) * 100) / 100);
         exempt = total;
         vatable = 0;
         tax = 0;

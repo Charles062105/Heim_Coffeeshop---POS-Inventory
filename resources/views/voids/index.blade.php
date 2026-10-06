@@ -125,10 +125,10 @@
                         </td>
                         <td class="px-5 py-4 text-right">
                             <div class="text-xs font-medium text-gray-700">
-                                {{ $void->voided_at ? $void->voided_at->format('M d, Y') : '—' }}
+                                {{ $void->voided_at ? $void->voided_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') : '—' }}
                             </div>
                             <div class="text-[11px] text-gray-400">
-                                {{ $void->voided_at ? $void->voided_at->format('h:i A') : '' }}
+                                {{ $void->voided_at ? $void->voided_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') : '' }}
                             </div>
                         </td>
                     </tr>

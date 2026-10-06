@@ -48,8 +48,8 @@ class ProductController extends Controller
             'status' => 'required|in:active,inactive',
             'sizes' => 'required|array|min:1',
             'sizes.*.size_name' => 'required|string|max:50',
-            'sizes.*.price' => 'required|numeric|min:0',
-            'sizes.*.grab_price' => 'nullable|numeric|min:0',
+            'sizes.*.price' => 'required|numeric|decimal:0,2|min:0',
+            'sizes.*.grab_price' => 'nullable|numeric|decimal:0,2|min:0',
             'sizes.*.status' => 'required|in:active,inactive',
         ]);
 
@@ -91,8 +91,8 @@ class ProductController extends Controller
             'sizes' => 'array',
             'sizes.*.id' => 'nullable|exists:product_sizes,id',
             'sizes.*.size_name' => 'required|string|max:50',
-            'sizes.*.price' => 'required|numeric|min:0',
-            'sizes.*.grab_price' => 'nullable|numeric|min:0',
+            'sizes.*.price' => 'required|numeric|decimal:0,2|min:0',
+            'sizes.*.grab_price' => 'nullable|numeric|decimal:0,2|min:0',
             'sizes.*.status' => 'required|in:active,inactive',
         ]);
 

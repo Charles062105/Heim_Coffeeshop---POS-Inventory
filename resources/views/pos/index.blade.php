@@ -17,15 +17,18 @@
             <span class="ml-1 text-[10px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded-md font-bold uppercase">Shift In</span>
         </button>
     @endif
-    <button type="button" onclick="openHeldOrdersModal()" aria-label="Held tickets" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 shadow-xs transition-all relative">
+    <button type="button" onclick="openHeldOrdersModal()" aria-label="Saved tickets" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 shadow-xs transition-all relative">
         <span>📌</span>
-        <span class="hidden sm:inline">Held Tickets</span>
+        <span class="hidden sm:inline">Held Orders</span>
         <span id="held-count-badge" class="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-600 text-white">0</span>
     </button>
-    <a href="{{ route('orders.index') }}" aria-label="View orders" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 shadow-xs transition-all">
-        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        <span class="hidden sm:inline">View Orders</span>
+    <a href="{{ route('orders.index') }}" aria-label="View orders" class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition-all hover:bg-gray-50">
+        <svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <span class="hidden sm:inline">Orders</span>
     </a>
+    @if(auth()->user()?->canAuthorize())
+        <a href="{{ route('voids.index') }}" aria-label="Void list" class="hidden xl:inline-flex items-center rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition-all hover:bg-gray-50">Void List</a>
+    @endif
 @endsection
 
 @section('content')
@@ -34,39 +37,39 @@
         <section class="w-full max-w-md rounded-3xl bg-white p-7 text-center shadow-2xl">
             <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl">🔒</div>
             <h2 class="mt-4 text-xl font-extrabold text-gray-900">POS Locked · Shift Required</h2>
-            <p class="mt-2 text-sm text-gray-600">Count and confirm your starting drawer cash before creating orders, recording payments, or holding tickets.</p>
+            <p class="mt-2 text-sm text-gray-600">Count and confirm your starting drawer cash before creating orders, recording payments, or saving tickets.</p>
             <p class="mt-2 text-xs text-gray-500">Cashier and shift time are recorded automatically from your account.</p>
             <button type="button" onclick="openShiftInModal()" class="brand-button mt-5 w-full">Start Shift</button>
         </section>
     </div>
 @endunless
-<div class="flex h-full min-h-0 flex-col gap-3 bg-heim-50/30">
-<div class="flex min-h-0 flex-1 flex-col gap-4 sm:gap-5 lg:flex-row">
+<div class="pos-terminal flex h-full min-h-0 flex-col gap-3 bg-gradient-to-b from-emerald-50/70 via-white to-emerald-50/40">
+<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,30rem)] lg:[grid-template-columns:minmax(0,1.6fr)_minmax(26rem,0.9fr)] lg:grid-rows-[minmax(0,1fr)]">
 
     {{-- ── Left: Product Grid ───────────────────────────────────────────────── --}}
-    <div class="order-2 flex min-w-0 min-h-[28rem] flex-1 flex-col rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden lg:order-1 lg:min-h-0">
+    <div class="order-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] ring-1 ring-white/70 lg:h-full">
 
         {{-- Category tabs & Search --}}
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 border-b border-heim-100 bg-heim-50/45 flex-shrink-0">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/60 p-3 sm:p-4 flex-shrink-0">
             <div class="hidden sm:block shrink-0">
                 <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-heim-700">Menu catalog</p>
                 <p class="text-xs text-gray-500 mt-0.5">Select a drink to begin</p>
             </div>
             <div class="flex items-center gap-1.5 overflow-x-auto sidebar-scroll min-w-0 flex-1 py-0.5">
                 <button onclick="filterCategory('all')" id="cat-all"
-                    class="cat-btn active px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all bg-heim-600 text-white shadow-xs">
-                    All Items
+                    class="cat-btn active px-3.5 py-2 rounded-xl text-xs font-extrabold uppercase tracking-[0.12em] whitespace-nowrap transition-all bg-heim-700 text-white shadow-[0_8px_20px_rgba(16,185,129,0.14)]">
+                    All
                 </button>
                 @foreach($categories as $cat)
                 <button onclick="filterCategory({{ $cat->id }})" id="cat-{{ $cat->id }}"
-                    class="cat-btn px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+                    class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all text-gray-600 hover:bg-emerald-50 hover:text-emerald-800">
                     {{ $cat->name }}
                 </button>
                 @endforeach
             </div>
             <div class="relative w-full sm:w-56 flex-shrink-0">
                 <input id="pos-search" type="search" oninput="searchProducts(this.value)" placeholder="Search items..." aria-label="Search menu items"
-                    class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-gray-200 bg-gray-50/80 focus:bg-white focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-transparent transition-all">
+                    class="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-emerald-100 bg-white/90 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-300 transition-all shadow-sm">
                 <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
@@ -75,7 +78,7 @@
 
         {{-- Product grid --}}
         <div id="product-grid" class="flex-1 overflow-y-auto p-3 sm:p-5 w-full bg-gray-50/35">
-            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 sm:gap-4 w-full content-start">
+            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 sm:gap-4 w-full content-start">
                 @foreach($categories as $cat)
                     @foreach($cat->products as $product)
                     @php
@@ -96,11 +99,20 @@
                         };
 
                         $sizeData = $product->sizes->map(function ($size) {
+                            $ingredients = $size->recipe?->recipeIngredients ?? collect();
+                            $available = $ingredients->every(fn ($row) => $row->ingredient
+                                && $row->ingredient->inventory
+                                && (float) $row->ingredient->inventory->current_stock >= (float) $row->quantity);
+
                             return [
                                 'id' => $size->id,
                                 'size_name' => $size->size_name,
                                 'price' => (float) $size->price,
                                 'grab_price' => $size->grab_price !== null ? (float) $size->grab_price : (float) $size->price,
+                                'available' => $available,
+                                'low_stock' => $available && $ingredients->contains(fn ($row) => $row->ingredient
+                                    && $row->ingredient->inventory
+                                    && (float) $row->ingredient->inventory->current_stock <= $row->ingredient->getReorderThreshold()),
                                 'recipe' => [
                                     'recipe_ingredients' => $size->recipe?->recipeIngredients
                                         ->map(function ($ri) {
@@ -112,18 +124,22 @@
                                 ],
                             ];
                         })->values()->all();
+                        $isOutOfStock = count($sizeData) > 0 && collect($sizeData)->every(fn ($size) => ! $size['available']);
+                        $isLowStock = ! $isOutOfStock && collect($sizeData)->contains(fn ($size) => $size['low_stock']);
                     @endphp
-                    <button type="button" class="product-card w-full bg-white border border-gray-200/90 rounded-2xl text-left cursor-pointer hover:border-heim-400 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 group relative p-3.5 sm:p-4 flex flex-col justify-between select-none focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2"
+                    <button type="button" class="product-card w-full bg-white border border-emerald-100 hover:border-emerald-300 rounded-2xl text-left cursor-pointer hover:shadow-[0_16px_32px_rgba(16,185,129,0.10)] hover:-translate-y-0.5 transition-all duration-200 group relative p-3.5 sm:p-4 flex flex-col justify-between select-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                         data-category="{{ $cat->id }}"
                         data-category-name="{{ $cat->name }}"
                         data-product-id="{{ $product->id }}"
                         data-product-name="{{ $product->name }}"
                         data-sizes="{{ json_encode($sizeData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                        @disabled($isOutOfStock)
+                        aria-label="{{ $isOutOfStock ? $product->name . ', out of stock' : 'Add ' . $product->name . ' to order' }}"
                         onclick="handleProductClick(this)">
                         
                         <div>
                             <div class="flex items-start justify-between gap-2 mb-3">
-                                <div class="w-10 h-10 {{ $catTheme['classes'] }} rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                                <div class="w-9 h-9 {{ $catTheme['classes'] }} rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs ring-1 ring-white/50">
                                     @if($catTheme['icon'] === 'coffee')
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10h14a1 1 0 011 1v5a3 3 0 01-3 3H7a3 3 0 01-3-3v-5a1 1 0 011-1zm2-2V7a5 5 0 0110 0v1M9 18h6"/></svg>
                                     @elseif($catTheme['icon'] === 'coldbrew')
@@ -146,25 +162,26 @@
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10h14a1 1 0 011 1v5a3 3 0 01-3 3H7a3 3 0 01-3-3v-5a1 1 0 011-1zm2-2V7a5 5 0 0110 0v1M9 18h6"/></svg>
                                     @endif
                                 </div>
-                                <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
+                                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-lg">
                                     {{ $product->sizes->count() }} {{ $product->sizes->count() === 1 ? 'size' : 'sizes' }}
                                 </span>
                             </div>
 
-                            <p class="font-bold text-gray-900 text-sm leading-snug group-hover:text-heim-700 transition-colors line-clamp-2">{{ $product->name }}</p>
+                            <p class="font-extrabold text-gray-950 text-base leading-snug group-hover:text-heim-800 transition-colors line-clamp-2">{{ $product->name }}</p>
+                            <p class="mt-1.5 text-xs leading-relaxed text-slate-600" data-product-size-prices>
+                                @foreach($product->sizes as $size)
+                                    <span>{{ $size->size_name }} ₱{{ number_format($size->price, 2) }}</span>@if(!$loop->last)<span aria-hidden="true"> · </span>@endif
+                                @endforeach
+                            </p>
                         </div>
 
                         <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                            <span class="text-xs font-bold text-heim-700 bg-heim-50/90 border border-heim-200/70 px-2.5 py-1 rounded-lg">
-                                @if($product->sizes->count() === 1)
-                                    ₱{{ number_format($product->sizes->first()->price, 0) }}
-                                @else
-                                    From ₱{{ number_format($product->sizes->min('price'), 0) }}
-                                @endif
+                            <span class="text-xs font-extrabold {{ $isOutOfStock ? 'text-rose-700 bg-rose-50 border-rose-200' : ($isLowStock ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-emerald-800 bg-emerald-50 border-emerald-200') }} border px-2.5 py-1 rounded-xl" data-stock-status>
+                                {{ $isOutOfStock ? 'OUT OF STOCK' : ($isLowStock ? '⚠ Low stock' : 'Available') }}
                             </span>
 
-                            <span class="w-7 h-7 rounded-lg bg-gray-100 text-gray-400 group-hover:bg-heim-600 group-hover:text-white flex items-center justify-center transition-all shadow-xs">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span class="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 group-hover:bg-heim-700 group-hover:text-white flex items-center justify-center transition-all shadow-xs" aria-hidden="true">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
                                 </svg>
                             </span>
@@ -184,119 +201,143 @@
     </div>
 
     {{-- ── Right: Order Panel ────────────────────────────────────────────────── --}}
-    <div class="order-1 flex h-auto min-h-0 w-full flex-shrink-0 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm lg:order-2 lg:h-full lg:min-h-0 lg:w-[30rem] xl:w-[32rem] lg:overflow-y-auto lg:overscroll-contain">
+    <div class="pos-order-panel order-2 flex h-auto min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm lg:h-full">
+
+        <div class="flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3.5 sm:px-5">
+            <div class="min-w-0">
+                <p class="text-xs font-black uppercase tracking-[0.16em] text-heim-800">Current Order</p>
+                <p id="current-ticket-number" class="mt-0.5 truncate font-mono text-sm font-bold text-slate-700">New ticket</p>
+            </div>
+            <div class="text-right text-xs leading-5 text-slate-600">
+                <p><span class="font-semibold">Customer:</span> <span id="current-order-customer">—</span></p>
+                <p><span class="font-semibold">Order type:</span> <span id="current-order-type">Dine-in</span></p>
+            </div>
+        </div>
 
         {{-- Order Type Toggle: Dine-in/Take-out | GRAB --}}
-        <div class="sticky top-0 z-20 mx-3 mt-3 mb-2 flex shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:top-0" role="group" aria-label="Order type">
+        <div class="mx-3 mt-2 mb-1.5 flex shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" role="group" aria-label="Order type">
             <button type="button" id="ot-dine-in" onclick="setOrderType('dine_in')"
-                aria-pressed="true" class="flex-1 py-4 text-sm font-extrabold transition-all bg-heim-700 text-white">
+                aria-pressed="true" class="flex-1 py-2.5 text-sm font-extrabold transition-all bg-heim-700 text-white">
                 Dine-in
             </button>
             <button type="button" id="ot-take-out" onclick="setOrderType('take_out')"
-                aria-pressed="false" class="flex-1 py-4 text-sm font-extrabold transition-all bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800">
+                aria-pressed="false" class="flex-1 py-2.5 text-sm font-extrabold transition-all bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800">
                 Take-out
             </button>
             <button type="button" id="ot-grab" onclick="setOrderType('grab')"
-                aria-pressed="false" class="flex-1 py-4 text-sm font-extrabold transition-all bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800">
+                aria-pressed="false" class="flex-1 py-2.5 text-sm font-extrabold transition-all bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800">
                 Grab
             </button>
         </div>
 
         {{-- Grab Order Fields (hidden by default) --}}
-        <div id="grab-fields" class="hidden px-4 py-3 bg-emerald-50/60 border-b border-emerald-200 space-y-2">
-            <p class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">GrabFood Order Details</p>
-            <div class="grid grid-cols-2 gap-2">
+        <div id="grab-fields" class="hidden shrink-0 px-4 py-3.5 bg-emerald-50/60 border-b border-emerald-200 space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+                <p class="text-xs font-extrabold uppercase tracking-wider text-emerald-800">Grab Order</p>
+                <span class="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-black text-emerald-800">Grab Price: ON</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
                 <div>
                     <label class="text-xs font-bold text-emerald-900 block mb-1">Grab Order Code <span class="text-rose-500">*</span></label>
                     <input id="grab-order-code" type="text" placeholder="GF-20260927-0012"
-                        class="w-full border border-emerald-300 bg-white rounded-lg px-3 py-2 text-sm font-mono font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
+                        class="w-full border border-emerald-300 bg-white rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
                         oninput="this.value = this.value.toUpperCase()" autocomplete="off">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-emerald-900 block mb-1">Rider Code <span class="text-rose-500">*</span></label>
                     <input id="grab-rider-code" type="text" placeholder="RDR-025"
-                        class="w-full border border-emerald-300 bg-white rounded-lg px-3 py-2 text-sm font-mono font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
+                        class="w-full border border-emerald-300 bg-white rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 uppercase"
                         oninput="this.value = this.value.toUpperCase()" autocomplete="off">
                 </div>
             </div>
-            <p class="text-xs text-emerald-700 flex items-center gap-1">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Grab pricing applies automatically for this order
+            <p class="text-xs text-emerald-700 font-medium flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                GrabFood is the platform; Grab pricing applies automatically.
             </p>
         </div>
 
         {{-- Cashier and customer details --}}
-        <div class="grid grid-cols-2 gap-3 border-b border-heim-100 bg-gradient-to-r from-heim-50 to-white px-4 py-3">
-            <div class="min-w-0">
-                <label for="cashier-name" class="mb-1 block text-xs font-extrabold uppercase tracking-wider text-heim-800">Cashier <span class="text-rose-500">*</span></label>
-                <input id="cashier-name" type="text" placeholder="Cashier name" value="{{ old('cashier_name', auth()->user()?->name ?? '') }}" required autocomplete="off"
-                    class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-heim-500">
-            </div>
-            <div class="min-w-0">
-                <div class="mb-1 flex items-center justify-between gap-2">
-                    <label for="order-customer-name" class="text-xs font-extrabold uppercase tracking-wider text-gray-600">Customer</label>
-                    <label class="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-bold text-gray-700">
-                        <input id="split-toggle" type="checkbox" onchange="toggleSplitAssignments(this.checked)" class="rounded border-gray-300 text-heim-600 focus:ring-heim-500">
-                        Split
-                    </label>
+        <div class="shrink-0 space-y-2 border-b border-heim-100 bg-gradient-to-r from-heim-50 to-white px-3 py-2.5 sm:px-4">
+            <div class="grid grid-cols-2 gap-2.5">
+                <div class="min-w-0">
+                    <span class="mb-1 block text-[11px] font-extrabold uppercase tracking-wider text-heim-800">Cashier</span>
+                    <p class="truncate text-sm font-bold leading-5 text-slate-900">{{ auth()->user()?->name }}</p>
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ auth()->user()?->role }}</span>
+                    <input id="cashier-name" type="hidden" value="{{ auth()->user()?->name }}">
                 </div>
-                <input id="order-customer-name" type="text" maxlength="150" placeholder="Name or table (optional)"
-                    class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
+                <div class="min-w-0">
+                    <label id="order-customer-label" for="order-customer-name" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Customer / Table</label>
+                    <input id="order-customer-name" type="text" maxlength="150" placeholder="Customer name or table"
+                        oninput="updateOrderSummary()"
+                        class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-heim-500">
+                </div>
             </div>
-            <div id="split-people-panel" class="col-span-2 hidden">
-                <div id="split-people" class="flex flex-wrap items-center gap-1.5"></div>
-                <div class="mt-2 flex gap-1.5">
-                    <input id="new-split-person" type="text" maxlength="150" placeholder="Add a person to this order"
+            <div class="flex items-center justify-end">
+                <label class="inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border border-heim-200 bg-heim-50 px-2.5 text-xs font-extrabold text-heim-900">
+                    <input id="split-toggle" type="checkbox" onchange="toggleSplitAssignments(this.checked)" class="h-4 w-4 rounded border-gray-300 text-heim-600 focus:ring-heim-500">
+                    Split Payment
+                </label>
+            </div>
+            <div id="split-people-panel" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <p class="text-xs font-black uppercase tracking-wider text-indigo-900">Split Order</p>
+                <div id="split-people" class="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="Split order people"></div>
+                <div class="mt-3 flex gap-2">
+                    <input id="new-split-person" type="text" maxlength="150" placeholder="Add a person"
                         onkeydown="if(event.key==='Enter'){event.preventDefault();addSplitPerson();}"
-                        class="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
-                    <button type="button" onclick="addSplitPerson()" class="rounded-lg border border-heim-200 bg-heim-50 px-3 py-2.5 text-sm font-bold text-heim-800 hover:bg-heim-100">Add person</button>
+                        class="min-w-0 flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
+                    <button type="button" onclick="addSplitPerson()" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-900 hover:bg-indigo-100">Add person</button>
                 </div>
+                <label for="split-assignee-select" class="mt-3 block text-xs font-bold text-indigo-900">Assign products to</label>
+                <select id="split-assignee-select" onchange="selectSplitPersonByValue(this.value)" class="mt-1 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-heim-500">
+                    <option value="">Choose a person</option>
+                </select>
             </div>
         </div>
-        <p id="pos-feedback" class="hidden mx-4 mt-3 rounded-xl border px-3 py-2 text-xs font-semibold" role="status" aria-live="polite"></p>
+        <p id="pos-feedback" class="hidden mx-4 mt-3 shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-semibold" role="status" aria-live="polite"></p>
 
         {{-- Cart header --}}
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center justify-between gap-2 px-3 py-2 sm:px-4 border-b border-gray-100 bg-white/80">
+            <div class="flex items-center gap-2.5">
                 <div>
-                    <span class="block font-extrabold text-gray-900 text-base">Order items</span>
-                    <span class="block text-[10px] uppercase tracking-wider text-gray-400 mt-0.5">Current ticket</span>
+                    <span class="block text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Current order</span>
+                    <span class="block font-black text-gray-900 text-base leading-5">Order items</span>
                 </div>
-                <span id="cart-badge" class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-heim-100 text-heim-800">0</span>
+                <span id="cart-badge" class="px-3 py-1 rounded-full text-sm font-black bg-heim-100 text-heim-800">0</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" onclick="holdCurrentOrder()" id="hold-btn" title="Save this order without completing payment"
-                    class="inline-flex items-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                     disabled>
-                    <span>📌</span> Hold Order
+                    <span>📌</span> Hold
                 </button>
-                <button onclick="clearCart()" class="text-sm text-gray-500 hover:text-rose-600 transition-colors font-semibold">Clear All</button>
+                <button onclick="clearCart()" class="text-xs text-gray-500 hover:text-rose-600 transition-colors font-bold px-1.5 py-1 whitespace-nowrap">Clear</button>
             </div>
         </div>
 
         {{-- Cart Items --}}
-        <div id="cart-items" class="max-h-[85vh] min-h-[36rem] flex-1 space-y-2 overflow-y-auto p-3 overscroll-contain lg:max-h-[32rem] lg:min-h-[12rem] lg:overscroll-contain">
-            <div id="empty-cart" class="flex flex-col items-center justify-center h-full min-h-[12rem] text-center py-8">
-                <svg class="w-12 h-12 text-gray-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-                </svg>
-                <p class="text-sm text-gray-400">Cart is empty</p>
-                <p class="text-xs text-gray-300 mt-1">Select products to add</p>
+        <div id="cart-items" class="min-h-[15rem] flex-1 space-y-3 overflow-y-auto overscroll-contain bg-slate-50/60 p-3 sm:p-3.5 lg:min-h-[15rem]">
+            <div id="empty-cart" class="flex flex-col items-center justify-center h-full min-h-[14rem] text-center py-10 px-4 select-none">
+                <div class="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-3xl mb-3 shadow-xs">
+                    ☕
+                </div>
+                <p class="text-base font-extrabold text-slate-800">Your ticket is empty</p>
+                <p class="text-xs font-semibold text-slate-500 mt-1 max-w-xs leading-relaxed">Tap any item from the catalog on the left to add it to this order.</p>
             </div>
-            <div id="cart-list" class="space-y-2"></div>
+            <div id="cart-list" class="space-y-3" role="list" aria-label="Order items list"></div>
         </div>
 
         {{-- Discount Dropdown & Tax Breakdown --}}
-        <div class="px-4 py-3 border-t border-gray-100 bg-gray-50/50 space-y-2.5">
+        <div class="shrink-0 px-3 py-2.5 sm:px-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
             <div>
-                <div class="flex items-center justify-between mb-1">
-                    <label for="discount-type" class="text-sm font-extrabold text-gray-700">Discount</label>
-                    <span id="discount-badge" class="hidden text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label for="discount-type" class="text-sm font-extrabold text-gray-800">Discount</label>
+                    <span id="discount-badge" class="hidden text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800">
                         20% Off
                     </span>
                 </div>
+                <p class="mb-1 text-[10px] leading-4 text-gray-500">Senior/PWD discounts require an ID. Custom discounts are limited to managers and owners.</p>
                 <select id="discount-type" onchange="onDiscountTypeChange()"
-                    class="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm font-semibold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-heim-500/20 focus:border-heim-500 shadow-2xs">
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-heim-500/20 focus:border-heim-500 shadow-2xs">
                     <option value="none">No Discount (0%)</option>
                     <option value="senior">Senior Citizen (20% Off)</option>
                     <option value="pwd">PWD (20% Off)</option>
@@ -307,73 +348,90 @@
             </div>
 
             {{-- Senior Citizen / PWD ID Input (Visible for SC / PWD) --}}
-            <div id="discount-id-wrapper" class="hidden space-y-1">
-                <label id="discount-id-label" for="discount-id-number" class="text-[11px] font-semibold text-heim-900 block">
+            <div id="discount-id-wrapper" class="hidden space-y-1.5">
+                <label id="discount-id-label" for="discount-id-number" class="text-xs font-bold text-heim-900 block">
                     Customer ID Number
                 </label>
                 <input id="discount-id-number" type="text" placeholder="e.g. SC-12345 or PWD-67890" maxlength="100"
-                    class="w-full border border-heim-200 bg-white rounded-lg px-2.5 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-heim-400">
-                <p class="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
-                    <svg class="w-3 h-3 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Statutory 20% discount + VAT Exemption applied
+                    data-discount-type="none"
+                    class="w-full border border-heim-200 bg-white rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-heim-400">
+                <p class="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    20% discount on the VAT-exclusive amount + VAT exemption
                 </p>
             </div>
 
             {{-- Custom Discount Amount Input (Visible for Custom) --}}
             <div id="custom-discount-wrapper" class="hidden">
-                <div class="flex items-center gap-2">
-                    <label for="discount" class="text-xs text-gray-500 whitespace-nowrap">Amount (₱)</label>
+                <div class="flex items-center gap-2.5">
+                    <label for="discount" class="text-xs font-bold text-gray-600 whitespace-nowrap">Amount (₱)</label>
                     <input id="discount" type="number" min="0" value="0" step="0.01"
                         oninput="updateTotals()"
-                        class="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-right font-mono font-bold focus:outline-none focus:ring-1 focus:ring-heim-400">
+                        class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-right font-mono font-bold focus:outline-none focus:ring-1 focus:ring-heim-400">
                 </div>
             </div>
         </div>
 
         {{-- Totals & Tax Information --}}
-        <div class="px-4 pb-3 space-y-2 border-t border-gray-100 pt-3 text-sm">
-            <div class="flex justify-between text-gray-600">
+        <div class="shrink-0 px-3 pb-3 sm:px-4 space-y-1.5 border-t border-gray-100 pt-2.5 text-sm">
+            <div class="flex justify-between text-gray-600 font-medium">
                 <span>Subtotal</span>
-                <span id="subtotal-display" class="font-mono text-gray-800 font-semibold">₱0.00</span>
+                <span id="subtotal-display" class="font-mono text-gray-900 font-bold text-base">₱0.00</span>
             </div>
-            <div id="discount-display-row" class="hidden flex justify-between text-rose-600 font-semibold">
+            <div id="discount-display-row" class="hidden flex justify-between text-rose-600 font-bold text-base">
                 <span id="discount-display-label">Discount</span>
                 <span id="discount-display" class="font-mono">-₱0.00</span>
             </div>
 
             {{-- Tax information rows --}}
-            <div class="pt-2 pb-1.5 border-y border-dashed border-gray-100 text-xs text-gray-500 space-y-1.5">
+            <div class="pt-2 pb-2 border-y border-dashed border-gray-200 text-xs text-gray-500 space-y-1">
                 <div class="flex justify-between">
                     <span>VATable Sales</span>
-                    <span id="vatable-display" class="font-mono text-gray-600">₱0.00</span>
+                    <span id="vatable-display" class="font-mono text-gray-700 font-semibold">₱0.00</span>
                 </div>
-                <div id="exempt-row" class="hidden flex justify-between text-emerald-700">
+                <div id="exempt-row" class="hidden flex justify-between text-emerald-700 font-semibold">
                     <span>VAT-Exempt Sales</span>
-                    <span id="exempt-display" class="font-mono font-medium">₱0.00</span>
+                    <span id="exempt-display" class="font-mono font-bold">₱0.00</span>
                 </div>
-                <div class="flex justify-between font-medium text-gray-600">
+                <div class="flex justify-between font-semibold text-gray-600">
                     <span id="tax-name-label">{{ $taxSetting->name ?? 'VAT' }} ({{ number_format($taxSetting->rate ?? 12, 2) }}%)</span>
-                    <span id="tax-display" class="font-mono">₱0.00</span>
+                    <span id="tax-display" class="font-mono font-bold">₱0.00</span>
                 </div>
             </div>
 
-            <div class="flex justify-between font-black text-base text-gray-900 pt-1">
-                <span>TOTAL</span>
-                <span id="total-display" class="font-mono text-heim-800 text-xl">₱0.00</span>
+            <div class="flex justify-between items-baseline font-black text-gray-900 pt-1.5">
+                <span class="text-lg uppercase tracking-wider">TOTAL</span>
+                <span id="total-display" class="font-mono text-heim-800 text-2xl font-black">₱0.00</span>
             </div>
         </div>
 
         {{-- Checkout button --}}
-        <div class="sticky bottom-0 z-20 bg-white p-4 sm:p-5 border-t border-gray-100 shadow-[0_-8px_16px_rgba(15,23,42,0.08)] lg:shrink-0">
+        <div class="sticky bottom-0 z-20 shrink-0 bg-white p-3 sm:p-4 border-t border-gray-100 shadow-[0_-8px_16px_rgba(15,23,42,0.08)]">
             <button onclick="openCheckout()" id="checkout-btn"
-                class="w-full bg-heim-700 hover:bg-heim-800 text-white font-extrabold py-4 rounded-xl shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-base"
+                class="w-full bg-heim-700 hover:bg-heim-800 text-white font-black py-4 sm:py-[1.125rem] rounded-2xl shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed text-lg tracking-wide flex items-center justify-center gap-2"
                 disabled>
-                Proceed to Checkout
+                <span id="checkout-button-label">PAY ₱0.00</span>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             </button>
         </div>
     </div>
 </div>
 </div>
+
+<button type="button" id="mobile-order-shortcut" onclick="scrollToOrderPanel()"
+    class="fixed inset-x-4 bottom-4 z-30 hidden flex items-center justify-between rounded-2xl bg-heim-800 px-4 py-3 text-left text-white shadow-xl ring-1 ring-white/20 lg:hidden"
+    aria-label="View current order">
+    <span class="flex min-w-0 items-center gap-2">
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 6h14M5 12h14M5 18h8"/></svg>
+        </span>
+        <span class="min-w-0">
+            <span class="block text-xs font-extrabold"><span id="mobile-order-count">0 items</span> · View order</span>
+            <span class="block text-[10px] font-semibold text-emerald-100">Current ticket</span>
+        </span>
+    </span>
+    <span id="mobile-order-total" class="ml-3 shrink-0 font-mono text-base font-black">₱0.00</span>
+</button>
 
 {{-- ── Held Orders Modal ─────────────────────────────────────────────────────── --}}
 <div id="held-orders-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" style="display:none">
@@ -404,23 +462,69 @@
     </div>
 </div>
 
-{{-- ── Size Selection Modal ──────────────────────────────────────────────────── --}}
-<div id="size-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="size-modal-title" style="display:none">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
-            <div>
-                <h3 id="size-modal-title" class="font-semibold text-gray-900 text-lg">Select Size</h3>
-                <p class="text-sm text-gray-400 mt-0.5">Choose a size to add to cart</p>
+{{-- ── Void Ticket Modal ─────────────────────────────────────────────────────── --}}
+<div id="void-ticket-modal" class="fixed inset-0 bg-black/60 z-[60] items-center justify-center p-4" style="display:none">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-rose-50/60">
+            <div class="flex items-center gap-2.5">
+                <span class="text-xl">🚫</span>
+                <div>
+                    <h3 class="font-bold text-gray-900 text-base">Void Saved Ticket</h3>
+                    <p id="void-ticket-order-number" class="text-xs text-gray-500"></p>
+                </div>
             </div>
-            <button type="button" onclick="closeSizeModal()" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none" aria-label="Close modal">
+            <button type="button" onclick="document.getElementById('void-ticket-modal').style.display='none'"
+                class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-600">Please provide a reason for voiding this ticket. This action cannot be undone.</p>
+            <div>
+                <label for="void-ticket-reason" class="block text-xs font-semibold text-gray-700 mb-1.5">Reason / Comment <span class="text-rose-500">*</span></label>
+                <textarea id="void-ticket-reason"
+                    class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent resize-none"
+                    rows="3"
+                    placeholder="e.g. Customer cancelled order, duplicate entry…"></textarea>
+                <p id="void-ticket-error" class="hidden mt-1.5 text-xs text-rose-600 font-medium"></p>
+            </div>
+        </div>
+
+        <div class="px-6 pb-6 flex gap-3">
+            <button type="button" onclick="document.getElementById('void-ticket-modal').style.display='none'"
+                class="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors">
+                Cancel
+            </button>
+            <button type="button" id="void-ticket-confirm-btn" onclick="confirmVoidHeldOrder()"
+                class="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                Void Ticket
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- ── Size Selection Modal ──────────────────────────────────────────────────── --}}
+<div id="size-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="size-modal-title" style="display:none">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg sm:max-w-xl max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden border border-gray-100" id="size-modal-content">
+        <div class="p-5 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-heim-50/50">
+            <div>
+                <h3 id="size-modal-title" class="font-black text-gray-900 text-xl tracking-tight">Select Size</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Customize size and add-ons for this item</p>
+            </div>
+            <button type="button" onclick="closeSizeModal()" class="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-heim-500" aria-label="Close modal">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <div id="size-options" class="p-5 space-y-2"></div>
-        <div class="p-5 border-t border-gray-100">
-            <button type="button" onclick="closeSizeModal()" class="brand-btn-cancel w-full">Cancel</button>
+        <div id="size-options" class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1"></div>
+        <div class="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end gap-3 shrink-0">
+            <button type="button" onclick="closeSizeModal()" class="px-5 py-3 rounded-xl border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-100 transition-colors">Cancel</button>
+            <button type="button" onclick="confirmAddToCart()" class="px-6 py-3 rounded-xl bg-heim-700 hover:bg-heim-800 text-white text-sm font-black shadow-sm hover:shadow transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                <span>Add to Order</span>
+            </button>
         </div>
     </div>
 </div>
@@ -442,6 +546,14 @@
         </div>
 
         <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6">
+            <details id="checkout-order-review" class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800">
+                    <span>Review order <span id="checkout-review-count" class="ml-1 text-xs font-medium text-slate-500"></span></span>
+                    <span class="text-xs font-semibold text-heim-800">View items</span>
+                </summary>
+                <div id="checkout-review-rows" class="max-h-52 divide-y divide-slate-100 overflow-y-auto"></div>
+            </details>
+
             {{-- Payment method selector --}}
             <div>
                 <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Payment Method</p>
@@ -466,16 +578,7 @@
                             <p class="text-[10px] text-gray-500">E-Wallet / GCash</p>
                         </div>
                     </button>
-                    <!-- Pay Later -->
-                    <button type="button" onclick="selectPaymentMethod('pay_later')"
-                        id="pm-pay_later"
-                        class="pm-btn flex items-center gap-2 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/40 transition-all">
-                        <span class="text-xl">📋</span>
-                        <div class="text-left">
-                            <p class="text-xs font-bold text-gray-800">Pay Later</p>
-                            <p class="text-[10px] text-gray-500">Charge / Tab</p>
-                        </div>
-                    </button>
+
                     <!-- GrabFood -->
                     <button type="button" onclick="selectPaymentMethod('grabfood')"
                         id="pm-grabfood"
@@ -509,8 +612,8 @@
                     <p class="text-[11px] text-gray-500 mt-1">A smaller amount records a partial payment.</p>
                 </div>
                 <div>
-                    <label for="payment-comment" class="block text-xs font-bold text-gray-700 mb-1.5">Payment Note <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input id="payment-comment" type="text" maxlength="255" placeholder="Purpose, source, or platform"
+                    <label for="payment-comment" class="block text-xs font-bold text-gray-700 mb-1.5">Platform / Payment Note <span class="font-normal text-gray-400">(optional)</span></label>
+                    <input id="payment-comment" type="text" maxlength="255" placeholder="e.g. GCash personal account"
                         class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-heim-500">
                 </div>
             </div>
@@ -562,7 +665,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1.5">
-                        Reference Number <span class="text-red-500">*</span>
+                        Reference No. <span class="text-red-500">*</span>
                     </label>
                     <input id="reference-number-input" type="text" placeholder="e.g. Ref No. 1234567890"
                         class="w-full border-2 border-gray-300 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-heim-500 uppercase"
@@ -614,16 +717,12 @@
         </div>
 
         <div class="grid shrink-0 grid-cols-2 gap-2 border-t border-gray-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-3 sm:px-6 sm:pt-3 sm:pb-6">
-            <button type="button" onclick="holdCurrentOrder()" id="checkout-hold-btn"
-                class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors">
-                <span>📌</span> Save / Hold
-            </button>
             <button type="button" onclick="closeCheckout()" class="brand-btn-cancel">Back</button>
             <button type="button" id="record-payment-btn" onclick="stageCheckoutPayment()"
                 class="rounded-xl border border-heim-200 bg-white px-3 py-2.5 text-xs font-bold text-heim-800 hover:bg-heim-50 transition-colors">
                 Record Payment
             </button>
-            <button type="button" id="complete-btn" onclick="completeOrder()" class="brand-button active:scale-95">
+            <button type="button" id="complete-btn" onclick="completeOrder()" class="brand-button active:scale-95 col-span-2">
                 Complete Order
             </button>
         </div>
@@ -653,11 +752,6 @@
     <input type="hidden" name="grab_order_code"       id="f-grab-order-code">
     <input type="hidden" name="rider_code"            id="f-rider-code">
     <input type="hidden" name="customer_name"         id="f-customer-name">
-    {{-- Pay Later fields --}}
-    <input type="hidden" name="debt_customer_name"    id="f-pl-customer-name">
-    <input type="hidden" name="debt_customer_phone"   id="f-pl-customer-phone">
-    <input type="hidden" name="debt_due_date"         id="f-pl-due-date">
-    <input type="hidden" name="debt_notes"            id="f-pl-notes">
     <div id="f-items"></div>
 </form>
 
@@ -679,7 +773,7 @@
                 </div>
                 <div class="bg-gray-50 rounded-xl p-3">
                     <p class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-0.5">Date &amp; Time</p>
-                    <p class="font-bold text-gray-900 text-sm" id="si-datetime">{{ now()->timezone(config('app.business_timezone'))->format('M d, Y h:i A') }}</p>
+                    <p class="font-bold text-gray-900 text-sm" id="si-datetime">{{ now(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}</p>
                 </div>
             </div>
             <div>
@@ -728,10 +822,6 @@
                     <span class="font-mono font-bold text-rose-700" id="so-cash-refunds">Hidden until counted</span>
                 </div>
                 <div class="flex justify-between text-sm">
-                    <span class="text-gray-500">Debt collections (cash)</span>
-                    <span class="font-mono font-bold text-gray-900" id="so-debt-collections">Hidden until counted</span>
-                </div>
-                <div class="flex justify-between text-sm">
                     <span class="text-gray-500">Cash voids</span>
                     <span class="font-mono font-bold text-rose-700" id="so-cash-voids">Hidden until counted</span>
                 </div>
@@ -742,9 +832,7 @@
                 <div class="mt-3 border-t border-gray-200 pt-2 text-xs text-gray-600">
                     <p class="mb-1 font-bold text-gray-700">Other activity · not in drawer</p>
                     <div class="flex justify-between"><span>Online / e-wallet</span><span id="so-online-sales">₱0.00</span></div>
-                    <div class="flex justify-between"><span>Debt collections · online</span><span id="so-debt-online">₱0.00</span></div>
                     <div class="flex justify-between"><span>Grab orders / settlements</span><span id="so-grab-sales">₱0.00 / ₱0.00</span></div>
-                    <div class="flex justify-between"><span>Pay Later charged</span><span id="so-pay-later">₱0.00</span></div>
                     <div class="flex justify-between"><span>Dine-in / Take-out</span><span id="so-order-type-sales">₱0.00 / ₱0.00</span></div>
                     <div class="flex justify-between"><span>Voids</span><span id="so-voids">0 · ₱0.00</span></div>
                 </div>
@@ -812,6 +900,9 @@
             'id' => $addon->id,
             'name' => $addon->name,
             'price' => (float) $addon->price,
+            'available' => $addon->addonIngredients->every(fn ($row) => $row->ingredient
+                && $row->ingredient->inventory
+                && (float) $row->ingredient->inventory->current_stock >= (float) $row->quantity),
         ];
     })->values()->toArray();
 @endphp
@@ -835,12 +926,47 @@ let currentDiscountType = 'none';
 let currentDiscountLabel = '';
 let currentAuthData = null;
 let currentHeldOrderId = null;
+let currentHeldOrderNumber = null;
 let currentOrderType = 'dine_in';
 let splitEnabled = false;
 let splitPeople = [];
 let activeSplitPerson = '';
 let stagedCheckoutPayments = [];
 let shiftPreviewTimer = null;
+
+function updateMobileOrderShortcut() {
+    const shortcut = document.getElementById('mobile-order-shortcut');
+    const countEl = document.getElementById('mobile-order-count');
+    const totalEl = document.getElementById('mobile-order-total');
+    if (!shortcut) return;
+
+    const count = cart.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+    const cartItems = document.getElementById('cart-items');
+    const cartBounds = cartItems?.getBoundingClientRect();
+    const visibleHeight = cartBounds
+        ? Math.max(0, Math.min(cartBounds.bottom, window.innerHeight) - Math.max(cartBounds.top, 0))
+        : 0;
+    const visibleRatio = cartBounds?.height ? visibleHeight / cartBounds.height : 0;
+    if (countEl) countEl.textContent = `${count} ${count === 1 ? 'item' : 'items'}`;
+    if (totalEl) totalEl.textContent = `₱${Number(orderTotal || 0).toFixed(2)}`;
+    shortcut.classList.toggle('hidden', count === 0 || visibleRatio >= 0.65);
+}
+
+function scrollToOrderPanel() {
+    document.querySelector('.pos-order-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateOrderSummary() {
+    const customer = document.getElementById('order-customer-name')?.value.trim();
+    const customerEl = document.getElementById('current-order-customer');
+    const typeEl = document.getElementById('current-order-type');
+    const ticketEl = document.getElementById('current-ticket-number');
+    const customerLabel = document.getElementById('order-customer-label');
+    if (customerEl) customerEl.textContent = customer || '—';
+    if (typeEl) typeEl.textContent = ({ dine_in: 'Dine-in', take_out: 'Take-out', grab: 'GrabFood' })[currentOrderType] || 'Dine-in';
+    if (ticketEl) ticketEl.textContent = currentHeldOrderNumber ? `#${currentHeldOrderNumber}` : 'New ticket';
+    if (customerLabel) customerLabel.textContent = currentOrderType === 'grab' ? 'Customer' : 'Customer / Table';
+}
 
 // ── Order Type ───────────────────────────────────────────────────────────────
 function setOrderType(type) {
@@ -856,13 +982,27 @@ function setOrderType(type) {
         if (!button) return;
         const active = mode === type;
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
-        button.className = `flex-1 py-4 text-sm font-extrabold transition-all ${active
+        button.className = `flex-1 py-4 text-base font-extrabold transition-all ${active
             ? 'bg-heim-700 text-white'
-            : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`;
+            : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800'}`;
     });
     if (grabFields) {
         grabFields.classList.toggle('hidden', !isGrab);
     }
+    updateOrderSummary();
+    document.querySelectorAll('.product-card').forEach(card => {
+        const summary = card.querySelector('[data-product-size-prices]');
+        if (!summary) return;
+        try {
+            const sizes = JSON.parse(card.dataset.sizes || '[]');
+            summary.textContent = sizes.map(size => {
+                const price = isGrab ? (size.grab_price ?? size.price) : size.price;
+                return `${size.size_name} ₱${Number(price).toFixed(2)}`;
+            }).join(' · ');
+        } catch (error) {
+            console.error('Unable to update product prices for the selected order type.', error);
+        }
+    });
 
     // If switching to grab, auto-select GrabFood payment
     if (isGrab && currentMethod === 'cash') {
@@ -976,15 +1116,18 @@ function renderAddonPicker(categoryName = '') {
         return `
             <div class="mb-3">
                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-2">${title}</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     ${items.map(addon => `
-                        <label class="flex items-center justify-between gap-2 p-2.5 border border-gray-200 rounded-xl bg-gray-50/80 hover:border-heim-400 hover:bg-heim-50/40 transition-colors cursor-pointer text-xs">
-                            <span class="flex items-center gap-2 min-w-0">
-                                <input type="${isSingle ? 'radio' : 'checkbox'}" name="pos_addon_id" value="${addon.id}" class="h-4 w-4 rounded border-gray-300 text-heim-600 focus:ring-heim-500">
-                                <span class="font-medium text-gray-800 truncate">${addon.name.replace('Flavor: ', '')}</span>
+                        <label class="flex items-center justify-between gap-3 p-3.5 border-2 border-slate-200 rounded-xl bg-white hover:border-heim-400 hover:bg-heim-50/50 transition-all min-h-[3rem] ${addon.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}">
+                            <span class="flex items-center gap-2.5 min-w-0">
+                                <input type="${isSingle ? 'radio' : 'checkbox'}" name="pos_addon_id" value="${addon.id}" ${addon.available ? '' : 'disabled'} class="h-5 w-5 rounded border-slate-300 text-heim-600 focus:ring-2 focus:ring-heim-500">
+                                <span class="font-semibold text-slate-800 text-sm truncate">${escapeHtml(addon.name.replace('Flavor: ', ''))}</span>
                             </span>
-                            <span class="font-bold text-heim-700 bg-white px-1.5 py-0.5 rounded border border-heim-100 whitespace-nowrap text-[11px]">
-                                ${Number(addon.price) === 0 ? 'FREE' : '+₱' + Number(addon.price).toFixed(0)}
+                            <span class="text-right">
+                                <span class="block font-black text-heim-700 bg-heim-50 px-2 py-0.5 rounded-lg border border-heim-200 whitespace-nowrap text-xs">
+                                    ${Number(addon.price) === 0 ? 'FREE' : '+₱' + Number(addon.price).toFixed(2)}
+                                </span>
+                                ${addon.available ? '' : '<span class="mt-1 block text-[10px] font-extrabold text-rose-700">Out of stock</span>'}
                             </span>
                         </label>
                     `).join('')}
@@ -1030,7 +1173,11 @@ function selectProduct(id, name, sizes, categoryName = '') {
     if (!sizes || sizes.length === 0) return;
     currentProduct = { id, name, categoryName };
     currentProductSizes = sizes;
-    activeSizeIndex = 0;
+    activeSizeIndex = Math.max(0, sizes.findIndex(size => size.available !== false));
+    if (sizes[activeSizeIndex]?.available === false) {
+        showPosFeedback('This product is unavailable because one or more ingredients are out of stock.', 'error');
+        return;
+    }
 
     document.getElementById('size-modal-title').textContent = name;
     renderModalForm();
@@ -1068,14 +1215,18 @@ function renderModalForm() {
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Select Size</p>
                     ${isGrab ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">Grab Pricing Active</span>' : ''}
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-2.5">
                     ${sizes.map((s, idx) => {
                         const displayPrice = isGrab ? (s.grab_price ?? s.price) : s.price;
                         return `
-                        <button type="button" onclick="setActiveSize(${idx})"
-                            class="size-choice-btn flex items-center justify-between p-3 rounded-xl border-2 transition-all ${idx === activeSizeIndex ? (isGrab ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs' : 'border-heim-600 bg-heim-50 text-heim-900 shadow-xs') : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'}">
-                            <span class="text-xs font-bold truncate">${escapeHtml(s.size_name)}</span>
-                            <span class="text-xs font-extrabold ${isGrab ? 'text-emerald-700' : 'text-heim-700'} whitespace-nowrap">₱${parseFloat(displayPrice).toFixed(0)}</span>
+                        <button type="button" onclick="setActiveSize(${idx})" ${s.available === false ? 'disabled' : ''}
+                            aria-pressed="${idx === activeSizeIndex ? 'true' : 'false'}"
+                            class="size-choice-btn flex items-center justify-between p-3.5 rounded-xl border-2 transition-all min-h-[3.5rem] disabled:cursor-not-allowed disabled:opacity-50 ${idx === activeSizeIndex ? (isGrab ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm ring-2 ring-emerald-200' : 'border-heim-600 bg-heim-50 text-heim-900 shadow-sm ring-2 ring-heim-200') : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700'}">
+                            <span class="text-sm font-bold truncate">${escapeHtml(s.size_name)}</span>
+                            <span class="text-right">
+                                <span class="block text-sm font-black ${isGrab ? 'text-emerald-700' : 'text-heim-700'} whitespace-nowrap font-mono">₱${parseFloat(displayPrice).toFixed(2)}</span>
+                                <span class="block text-[10px] font-bold ${s.available === false ? 'text-rose-700' : (s.low_stock ? 'text-amber-700' : 'text-emerald-700')}">${s.available === false ? 'Unavailable' : (s.low_stock ? 'Low stock' : 'Available')}</span>
+                            </span>
                         </button>
                     `;}).join('')}
                 </div>
@@ -1097,13 +1248,6 @@ function renderModalForm() {
                     <button type="button" onclick="appendModalComment('Extra hot')" class="text-[10px] font-semibold bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 px-2 py-0.5 rounded-lg transition-colors">+ Extra hot</button>
                     <button type="button" onclick="appendModalComment('No whipped cream')" class="text-[10px] font-semibold bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 px-2 py-0.5 rounded-lg transition-colors">+ No whipped cream</button>
                 </div>
-            </div>
-            <div class="pt-3 border-t border-gray-100 flex gap-2">
-                <button type="button" onclick="confirmAddToCart()"
-                    class="flex-1 py-3 bg-heim-600 text-white rounded-xl text-sm font-bold hover:bg-heim-700 shadow-xs transition-colors flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-                    <span>Add to Order</span>
-                </button>
             </div>
         </div>
     `;
@@ -1129,6 +1273,10 @@ function setActiveSize(idx) {
 function confirmAddToCart() {
     if (!currentProduct || !currentProductSizes[activeSizeIndex]) return;
     const s = currentProductSizes[activeSizeIndex];
+    if (s.available === false) {
+        showPosFeedback('This size is unavailable because one or more ingredients are out of stock.', 'error');
+        return;
+    }
     const selectedAddonIds = getSelectedAddonIds();
     const addons = posAddons.filter(addon => selectedAddonIds.includes(addon.id));
     const commentInput = document.getElementById('modal-item-comment');
@@ -1195,16 +1343,22 @@ function refreshCartItemKey(item) {
         item.comment || '',
         item.assigned_to || ''
     );
-    if (updatedKey === item.key) return;
+    if (updatedKey === item.key) return true;
 
     const duplicate = cart.find(candidate => candidate !== item && candidate.key === updatedKey);
     if (duplicate) {
-        duplicate.qty = (parseInt(duplicate.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
+        const combinedQuantity = (parseInt(duplicate.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
+        if (combinedQuantity > 999) {
+            showPosFeedback('Matching order items cannot be combined above 999 units. Reduce a quantity before merging.', 'error');
+            return false;
+        }
+        duplicate.qty = combinedQuantity;
         cart = cart.filter(candidate => candidate !== item);
-        return;
+        return true;
     }
 
     item.key = updatedKey;
+    return true;
 }
 
 function addToCart(productId, productName, sizeId, sizeName, price, recipe = null, addons = [], comment = '', grabPrice = null) {
@@ -1217,6 +1371,10 @@ function addToCart(productId, productName, sizeId, sizeName, price, recipe = nul
     const assignedTo = splitEnabled ? activeSplitPerson : '';
     const key = buildCartItemKey(productId, sizeId, addons.map(addon => Number(addon.id)), safeComment, assignedTo);
     const existing = cart.find(i => i.key === key);
+    if (existing && existing.qty >= 999) {
+        showPosFeedback('An order item cannot exceed 999 units.', 'error');
+        return;
+    }
     const normalizedAddons = addons.map(addon => ({
         id: Number(addon.id),
         name: addon.name,
@@ -1247,10 +1405,12 @@ function addToCart(productId, productName, sizeId, sizeName, price, recipe = nul
             qty: 1,
             comment: safeComment,
             assigned_to: assignedTo,
+            expanded: false,
             recipe: recipe && recipe.recipe_ingredients ? recipe.recipe_ingredients : []
         });
     }
     renderCart();
+    revealCartItem(key);
 }
 
 function changeQty(key, delta) {
@@ -1262,6 +1422,10 @@ function changeQty(key, delta) {
         removeItem(key);
         return;
     }
+    if (next > 999) {
+        showPosFeedback('An order item cannot exceed 999 units.', 'error');
+        return;
+    }
     item.qty = next;
     renderCart();
 }
@@ -1269,13 +1433,19 @@ function changeQty(key, delta) {
 function setItemQty(key, value) {
     const item = cart.find(i => i.key === key);
     if (!item) return;
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) {
+    const parsed = Number(value);
+    if (String(value).trim() === '' || !Number.isInteger(parsed)) {
+        showPosFeedback('Quantity must be a whole number between 1 and 999.', 'error');
         renderCart();
         return;
     }
     if (parsed <= 0) {
         removeItem(key);
+        return;
+    }
+    if (parsed > 999) {
+        showPosFeedback('An order item cannot exceed 999 units.', 'error');
+        renderCart();
         return;
     }
     item.qty = parsed;
@@ -1285,19 +1455,69 @@ function setItemQty(key, value) {
 function setItemComment(key, comment) {
     const item = cart.find(i => i.key === key);
     if (!item) return;
+    const previousComment = item.comment;
     item.comment = (comment || '').trim();
-    refreshCartItemKey(item);
+    if (!refreshCartItemKey(item)) item.comment = previousComment;
     renderCart();
 }
 
 function setItemAssignee(key, name) {
     const item = cart.find(i => i.key === key);
     if (!item) return;
+    const previousAssignee = item.assigned_to;
     item.assigned_to = (name || '').trim();
+    if (!refreshCartItemKey(item)) {
+        item.assigned_to = previousAssignee;
+        renderCart();
+        return;
+    }
     if (item.assigned_to && !splitPeople.includes(item.assigned_to)) splitPeople.push(item.assigned_to);
-    refreshCartItemKey(item);
     renderSplitPeople();
     renderCart();
+}
+
+function toggleItemDetails(key) {
+    const item = cart.find(candidate => candidate.key === key);
+    if (!item) return;
+    document.getElementById(`cart-item-menu-${key}`)?.removeAttribute('open');
+
+    item.expanded = !item.expanded;
+    const details = document.getElementById(`cart-item-details-${key}`);
+    const button = document.getElementById(`cart-item-toggle-${key}`);
+    if (!details || !button) {
+        renderCart();
+        return;
+    }
+
+    details.classList.toggle('hidden', !item.expanded);
+    button.setAttribute('aria-expanded', item.expanded ? 'true' : 'false');
+    button.querySelector('[data-item-toggle-label]').textContent = item.expanded ? 'Hide details' : 'Edit item';
+    button.querySelector('svg').classList.toggle('rotate-180', item.expanded);
+}
+
+function focusItemComment(key) {
+    const item = cart.find(candidate => candidate.key === key);
+    if (!item) return;
+    document.getElementById(`cart-item-menu-${key}`)?.removeAttribute('open');
+    if (!item.expanded) toggleItemDetails(key);
+    requestAnimationFrame(() => document.getElementById(`cart-item-comment-${key}`)?.focus());
+}
+
+function focusItemQuantity(key) {
+    document.getElementById(`cart-item-menu-${key}`)?.removeAttribute('open');
+    document.getElementById(`cart-item-quantity-${key}`)?.focus();
+}
+
+function focusItemAssignee(key) {
+    document.getElementById(`cart-item-menu-${key}`)?.removeAttribute('open');
+    if (!splitEnabled) {
+        const customer = document.getElementById('order-customer-name')?.value.trim();
+        if (!splitPeople.length && customer) splitPeople.push(customer);
+        toggleSplitAssignments(true);
+    }
+    const item = cart.find(candidate => candidate.key === key);
+    if (item && !item.expanded) toggleItemDetails(key);
+    requestAnimationFrame(() => document.getElementById(`cart-item-assignee-${key}`)?.focus());
 }
 
 function toggleSplitAssignments(enabled) {
@@ -1307,6 +1527,10 @@ function toggleSplitAssignments(enabled) {
     if (enabled && !splitPeople.length) {
         const assigned = cart.map(item => item.assigned_to).filter(Boolean);
         splitPeople = [...new Set(assigned)];
+        if (!splitPeople.length) {
+            const customer = document.getElementById('order-customer-name')?.value.trim();
+            if (customer) splitPeople.push(customer);
+        }
         activeSplitPerson = splitPeople[0] || '';
     }
     renderSplitPeople();
@@ -1337,16 +1561,30 @@ function renderSplitPeople() {
     const container = document.getElementById('split-people');
     if (!container) return;
     container.innerHTML = splitPeople.map((person, index) => `
-        <button type="button" onclick="selectSplitPerson(${index})"
-            class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${person === activeSplitPerson ? 'border-heim-500 bg-heim-50 text-heim-800' : 'border-gray-200 bg-white text-gray-600 hover:border-heim-300'}">
-            ${escapeHtml(person)}
+        <button type="button" onclick="selectSplitPerson(${index})" aria-pressed="${person === activeSplitPerson ? 'true' : 'false'}"
+            class="rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${person === activeSplitPerson ? 'border-indigo-500 bg-indigo-100 text-indigo-900' : 'border-indigo-100 bg-white text-gray-700 hover:border-indigo-300'}">
+            <span class="mr-1 inline-flex h-4 w-4 items-center justify-center rounded border ${person === activeSplitPerson ? 'border-indigo-700 bg-indigo-700 text-white' : 'border-slate-300 bg-white'}">${person === activeSplitPerson ? '✓' : ''}</span>
+            Person ${index + 1} — ${escapeHtml(person)}
         </button>
     `).join('');
+    const assigneeSelect = document.getElementById('split-assignee-select');
+    if (assigneeSelect) {
+        const selectedPerson = activeSplitPerson;
+        assigneeSelect.replaceChildren(new Option('Choose a person', ''));
+        splitPeople.forEach(person => assigneeSelect.add(new Option(person, person)));
+        assigneeSelect.value = splitPeople.includes(selectedPerson) ? selectedPerson : '';
+    }
+}
+
+function selectSplitPersonByValue(person) {
+    activeSplitPerson = splitPeople.includes(person) ? person : '';
+    renderSplitPeople();
 }
 
 function appendItemComment(key, preset) {
     const item = cart.find(i => i.key === key);
     if (!item) return;
+    const previousComment = item.comment;
     if (item.comment) {
         if (!item.comment.includes(preset)) {
             item.comment += ', ' + preset;
@@ -1354,20 +1592,33 @@ function appendItemComment(key, preset) {
     } else {
         item.comment = preset;
     }
+    if (!refreshCartItemKey(item)) item.comment = previousComment;
     renderCart();
 }
 
 function clearItemComment(key) {
     const item = cart.find(i => i.key === key);
     if (!item) return;
+    const previousComment = item.comment;
     item.comment = '';
+    if (!refreshCartItemKey(item)) item.comment = previousComment;
     renderCart();
 }
 
 function removeItem(key) { cart = cart.filter(i => i.key !== key); renderCart(); }
+
+function revealCartItem(key) {
+    requestAnimationFrame(() => {
+        const item = Array.from(document.querySelectorAll('#cart-list [data-cart-key]'))
+            .find(element => element.dataset.cartKey === key);
+        item?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    });
+}
+
 function clearCart() {
     cart = [];
     currentHeldOrderId = null;
+    currentHeldOrderNumber = null;
     setOrderType('dine_in');
     splitEnabled = false;
     splitPeople = [];
@@ -1388,6 +1639,7 @@ function clearCart() {
     if (discountInput) discountInput.value = '0';
     if (discountId) discountId.value = '';
     onDiscountTypeChange();
+    updateOrderSummary();
     renderCart();
 }
 
@@ -1396,12 +1648,11 @@ function renderCart() {
     const listEl  = document.getElementById('cart-list');
     const btn     = document.getElementById('checkout-btn');
     const holdBtn = document.getElementById('hold-btn');
-    const checkoutHoldBtn = document.getElementById('checkout-hold-btn');
     const badge   = document.getElementById('cart-badge');
     const totalCount = cart.reduce((sum, i) => sum + (parseInt(i.qty, 10) || 0), 0);
     if (badge) badge.textContent = totalCount;
     if (holdBtn) holdBtn.disabled = cart.length === 0;
-    if (checkoutHoldBtn) checkoutHoldBtn.disabled = cart.length === 0;
+    updateMobileOrderShortcut();
 
     if (cart.length === 0) {
         if (emptyEl) emptyEl.style.display = 'flex';
@@ -1419,64 +1670,108 @@ function renderCart() {
 
     if (listEl) {
         listEl.innerHTML = cart.map(item => {
-            const addonLabel = item.addons.length
-                ? `<p class="text-[11px] text-heim-700 mt-1 font-medium">Add-ons: ${item.addons.map(addon => `${addon.name} (+₱${Number(addon.price).toFixed(2)})`).join(', ')}</p>`
-                : '<p class="text-[11px] text-gray-400 mt-0.5">Standard</p>';
-
             const isGrabOrder = currentOrderType === 'grab';
-            return `
-                <div class="bg-gray-50/90 border border-gray-200/90 rounded-xl p-3 transition-all hover:border-gray-300" data-cart-key="${item.key}" title="${recipeSummary && item.recipe && item.recipe.length ? recipeSummary : ''}">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <p class="text-sm font-bold text-gray-900 leading-tight">${escapeHtml(item.name)}</p>
-                                ${isGrabOrder ? '<span class="text-[9px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.2 rounded">GRAB</span>' : ''}
-                            </div>
-                            <p class="text-xs font-semibold text-heim-700 mt-0.5">${escapeHtml(item.size)}</p>
-                            ${addonLabel}
-                        </div>
-                        <p class="text-sm font-extrabold text-gray-900 whitespace-nowrap font-mono">₱${(item.unit_price * item.qty).toFixed(2)}</p>
-                    </div>
-                    <div class="flex items-center justify-between mt-2.5">
-                        <div class="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
-                            <button type="button" onclick="changeQty('${item.key}', -1)" title="Decrease quantity" class="w-6 h-6 rounded text-gray-600 hover:bg-red-50 hover:text-red-600 text-sm font-bold flex items-center justify-center transition-colors">−</button>
-                            <input type="number" min="1" max="999" value="${item.qty}"
-                                onchange="setItemQty('${item.key}', this.value)"
-                                onkeydown="if(event.key==='Enter'){this.blur();}"
-                                title="Enter quantity"
-                                class="w-10 text-center text-sm font-bold text-gray-800 border-0 p-0 focus:ring-1 focus:ring-heim-500 focus:outline-none rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
-                            <button type="button" onclick="changeQty('${item.key}', 1)" title="Increase quantity" class="w-6 h-6 rounded text-gray-600 hover:bg-heim-50 hover:text-heim-600 text-sm font-bold flex items-center justify-center transition-colors">+</button>
-                        </div>
-                        <p class="text-xs text-gray-400 font-mono">₱${item.unit_price.toFixed(2)} ea</p>
-                        <button type="button" onclick="removeItem('${item.key}')" class="text-xs text-gray-300 hover:text-red-500 transition-colors p-1" title="Remove item">✕</button>
-                    </div>
+            const accentColor = isGrabOrder ? 'border-l-emerald-500' : 'border-l-heim-600';
 
-                    {{-- Item special instruction / comment --}}
-                    <div class="mt-2.5 pt-2 border-t border-gray-200/60">
-                        <div class="flex items-center justify-between text-[11px] mb-1">
-                            <span class="font-medium text-gray-500 flex items-center gap-1">
-                                <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
-                                Note / Instruction
-                            </span>
-                            ${item.comment ? `<button type="button" onclick="clearItemComment('${item.key}')" class="text-[10px] text-red-500 hover:text-red-700 font-semibold">Clear</button>` : ''}
+            const addonChips = item.addons.length
+                ? `<div class="flex flex-wrap gap-1.5 mt-2" role="list" aria-label="Add-ons">${item.addons.map(addon => `<span role="listitem" class="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/90 font-bold px-2.5 py-1 rounded-lg text-xs"><svg class="w-2.5 h-2.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>${escapeHtml(addon.name)} <span class="text-amber-700 font-black">+₱${Number(addon.price).toFixed(2)}</span></span>`).join('')}</div>`
+                : '<p class="text-xs text-slate-400 mt-1 font-medium italic">No add-ons</p>';
+
+            return `
+                <div role="listitem" class="bg-white border border-slate-200 hover:border-heim-300 rounded-xl p-0 shadow-sm transition-colors relative overflow-hidden border-l-4 ${accentColor}" data-cart-key="${item.key}" title="${recipeSummary && item.recipe && item.recipe.length ? recipeSummary : ''}">
+                    <div class="p-3 sm:p-3.5">
+                        {{-- Item header: name, size badge, total price, remove button --}}
+                        <div class="flex items-start gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start gap-2 flex-wrap">
+                                    <p class="text-sm sm:text-base font-bold text-slate-900 leading-tight">${escapeHtml(item.name)}</p>
+                                    ${isGrabOrder ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md uppercase tracking-wide">GRAB</span>' : ''}
+                                </div>
+                                <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-heim-50 text-heim-800 border border-heim-200">${escapeHtml(item.size)}</span>
+                                <p class="mt-1 text-xs font-semibold text-slate-600">₱${item.unit_price.toFixed(2)} × ${item.qty}</p>
+                                ${item.addons.length ? `<span class="ml-1 text-[11px] text-slate-500">${item.addons.length} add-on${item.addons.length === 1 ? '' : 's'}</span>` : ''}
+                                ${splitEnabled
+                                    ? `<p class="mt-1 text-xs font-medium ${item.assigned_to ? 'text-heim-800' : 'text-amber-700'}">${item.assigned_to ? `Assigned to ${escapeHtml(item.assigned_to)}` : 'Unassigned · edit item to assign'}</p>`
+                                    : (item.assigned_to ? `<p class="mt-1 text-xs font-medium text-heim-800">Assigned to ${escapeHtml(item.assigned_to)}</p>` : '')}
+                                ${item.comment
+                                    ? `<p class="mt-1 text-xs text-amber-800"><span class="font-semibold">📝</span> ${escapeHtml(item.comment)}</p>`
+                                    : `<button type="button" onclick="focusItemComment('${item.key}')" class="mt-1 text-xs font-semibold text-heim-700 hover:text-heim-900">+ Add comment</button>`}
+                            </div>
+                            <div class="flex flex-col items-end gap-2 shrink-0">
+                                <p class="text-base font-bold text-slate-900 whitespace-nowrap font-mono">₱${(item.unit_price * item.qty).toFixed(2)}</p>
+                                <details id="cart-item-menu-${item.key}" class="relative">
+                                    <summary aria-label="More actions for ${escapeHtml(item.name)}" class="flex h-9 cursor-pointer list-none items-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-600 hover:bg-slate-50">More ⋮</summary>
+                                    <div class="absolute right-0 z-30 mt-1 min-w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                                        <button type="button" onclick="toggleItemDetails('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit item</button>
+                                        <button type="button" onclick="focusItemComment('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Add comment</button>
+                                        <button type="button" onclick="focusItemQuantity('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Change quantity</button>
+                                        <button type="button" onclick="focusItemAssignee('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Move to person</button>
+                                        <button type="button" onclick="removeItem('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50">Remove item</button>
+                                    </div>
+                                </details>
+                            </div>
                         </div>
-                        <input type="text" value="${escapeHtml(item.comment || '')}" 
-                            onchange="setItemComment('${item.key}', this.value)"
-                            placeholder="e.g. Less ice, no sugar, extra hot..."
-                            class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-heim-500 text-gray-800 placeholder-gray-400">
-                        ${splitEnabled ? `
-                            <label class="block text-[11px] font-medium text-gray-500 mt-2 mb-1">Assigned Person</label>
-                            <select onchange="setItemAssignee('${item.key}', this.value)"
-                                class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-heim-500 text-gray-800">
-                                <option value="">Not assigned</option>
-                                ${[...new Set([...splitPeople, ...(item.assigned_to ? [item.assigned_to] : [])])].map(person => `<option value="${escapeHtml(person)}" ${person === item.assigned_to ? 'selected' : ''}>${escapeHtml(person)}</option>`).join('')}
-                            </select>
-                        ` : (item.assigned_to ? `<p class="mt-2 text-[11px] font-semibold text-indigo-700">For: ${escapeHtml(item.assigned_to)}</p>` : '')}
-                        <div class="flex flex-wrap gap-1 mt-1.5">
-                            <button type="button" onclick="appendItemComment('${item.key}', 'Less ice')" class="text-[9px] font-medium bg-white border border-gray-200 hover:bg-heim-50 hover:text-heim-800 px-1.5 py-0.5 rounded text-gray-600 transition-colors">+ Less ice</button>
-                            <button type="button" onclick="appendItemComment('${item.key}', 'No sugar')" class="text-[9px] font-medium bg-white border border-gray-200 hover:bg-heim-50 hover:text-heim-800 px-1.5 py-0.5 rounded text-gray-600 transition-colors">+ No sugar</button>
-                            <button type="button" onclick="appendItemComment('${item.key}', 'Extra hot')" class="text-[9px] font-medium bg-white border border-gray-200 hover:bg-heim-50 hover:text-heim-800 px-1.5 py-0.5 rounded text-gray-600 transition-colors">+ Extra hot</button>
-                            <button type="button" onclick="appendItemComment('${item.key}', 'No cream')" class="text-[9px] font-medium bg-white border border-gray-200 hover:bg-heim-50 hover:text-heim-800 px-1.5 py-0.5 rounded text-gray-600 transition-colors">+ No cream</button>
+
+                        {{-- Quantity controls + unit price --}}
+                        <div class="flex items-center justify-between mt-2.5 gap-2">
+                            <div class="flex items-center gap-0 bg-white border border-slate-200 rounded-lg overflow-hidden" role="group" aria-label="Quantity for ${escapeHtml(item.name)}">
+                                <button type="button" onclick="changeQty('${item.key}', -1)"
+                                    aria-label="Decrease quantity of ${escapeHtml(item.name)}"
+                                    class="w-9 h-9 flex items-center justify-center text-slate-600 hover:bg-rose-50 hover:text-rose-700 text-lg font-semibold transition-colors border-r border-slate-200">
+                                    −
+                                </button>
+                                <input id="cart-item-quantity-${item.key}" type="number" min="1" max="999" step="1" value="${item.qty}"
+                                    onchange="setItemQty('${item.key}', this.value)"
+                                    onkeydown="if(event.key==='Enter'){this.blur();}"
+                                    aria-label="Quantity of ${escapeHtml(item.name)}"
+                                    class="w-10 text-center text-sm font-bold text-slate-900 bg-white border-0 py-0 h-9 focus:ring-2 focus:ring-heim-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                                <button type="button" onclick="changeQty('${item.key}', 1)"
+                                    aria-label="Increase quantity of ${escapeHtml(item.name)}"
+                                    class="w-9 h-9 flex items-center justify-center text-slate-600 hover:bg-heim-50 hover:text-heim-700 text-lg font-semibold transition-colors border-l border-slate-200">
+                                    +
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <p class="hidden text-xs text-slate-500 font-mono sm:block">₱${item.unit_price.toFixed(2)} each</p>
+                                <button type="button" id="cart-item-toggle-${item.key}" onclick="toggleItemDetails('${item.key}')"
+                                    aria-expanded="${item.expanded ? 'true' : 'false'}" aria-controls="cart-item-details-${item.key}"
+                                    class="inline-flex min-h-9 items-center gap-1 rounded-lg border border-heim-200 bg-heim-50 px-2.5 text-xs font-semibold text-heim-800 transition-colors hover:bg-heim-100">
+                                    <span data-item-toggle-label>${item.expanded ? 'Hide details' : 'Edit item'}</span>
+                                    <svg class="h-3.5 w-3.5 transition-transform ${item.expanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Item special instruction / comment --}}
+                        <div id="cart-item-details-${item.key}" class="${item.expanded ? '' : 'hidden'} mt-3.5 pt-3 border-t border-slate-100">
+                            ${addonChips}
+                            <div class="flex items-center justify-between text-xs mb-2">
+                                <span class="font-black text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <svg class="w-3.5 h-3.5 text-heim-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                    Note
+                                </span>
+                                ${item.comment ? `<button type="button" onclick="clearItemComment('${item.key}')" class="text-xs text-rose-500 hover:text-rose-700 font-bold px-2 py-0.5 rounded-lg hover:bg-rose-50 transition-colors">✕ Clear</button>` : ''}
+                            </div>
+                            <input id="cart-item-comment-${item.key}" type="text" value="${escapeHtml(item.comment || '')}"
+                                onchange="setItemComment('${item.key}', this.value)"
+                                aria-label="Special instruction for ${escapeHtml(item.name)}"
+                                placeholder="e.g. Less ice, no sugar, extra hot..."
+                                class="w-full text-sm px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-heim-400 text-slate-800 placeholder-slate-400 font-medium transition-colors">
+                            ${splitEnabled ? `
+                                <label class="block text-xs font-semibold text-slate-700 mt-2.5 mb-1">Assigned person</label>
+                                <select id="cart-item-assignee-${item.key}" onchange="setItemAssignee('${item.key}', this.value)"
+                                    aria-label="Assign ${escapeHtml(item.name)} to a person"
+                                    class="w-full text-sm px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-heim-400 text-slate-800 font-semibold transition-colors">
+                                    <option value="">Not assigned</option>
+                                    ${[...new Set([...splitPeople, ...(item.assigned_to ? [item.assigned_to] : [])])].map(person => `<option value="${escapeHtml(person)}" ${person === item.assigned_to ? 'selected' : ''}>${escapeHtml(person)}</option>`).join('')}
+                                </select>
+                            ` : (item.assigned_to ? `<p class="mt-2 text-xs font-black text-indigo-700 flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>For: ${escapeHtml(item.assigned_to)}</p>` : '')}
+                            <div class="flex flex-wrap gap-1.5 mt-2.5">
+                                <button type="button" onclick="appendItemComment('${item.key}', 'Less ice')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🧊 Less ice</button>
+                                <button type="button" onclick="appendItemComment('${item.key}', 'No sugar')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🚫 No sugar</button>
+                                <button type="button" onclick="appendItemComment('${item.key}', 'Extra hot')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🔥 Extra hot</button>
+                                <button type="button" onclick="appendItemComment('${item.key}', 'No cream')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🥛 No cream</button>
+                            </div>
                         </div>
                     </div>
                 </div>`;
@@ -1492,31 +1787,37 @@ function updateTotals() {
     const discountType = document.getElementById('discount-type')?.value || 'none';
     const customDiscountInput = document.getElementById('discount');
     const requestedCustomDiscount = parseFloat(customDiscountInput?.value) || 0;
-    const discount = discountType === 'senior' || discountType === 'pwd'
-        ? Math.round(subtotal * 0.20 * 100) / 100
-        : discountType === 'custom'
-            ? Math.round(Math.min(subtotal, Math.max(0, requestedCustomDiscount)) * 100) / 100
-            : 0;
-    const net = Math.max(0, subtotal - discount);
     const taxRate = taxConfig.isActive ? Math.max(0, Number(taxConfig.rate) || 0) : 0;
     const isStatutory = discountType === 'senior' || discountType === 'pwd';
+    const statutoryBase = isStatutory && taxRate > 0 && taxConfig.isInclusive
+        ? roundMoney(subtotal / (1 + (taxRate / 100)))
+        : subtotal;
+    const discount = discountType === 'senior' || discountType === 'pwd'
+        ? roundMoney(statutoryBase * 0.20)
+        : discountType === 'custom'
+            ? roundMoney(Math.min(subtotal, Math.max(0, requestedCustomDiscount)))
+            : 0;
+    const net = Math.max(0, roundMoney(subtotal - discount));
     let vatableSales = 0;
     let vatExemptSales = 0;
     let taxAmount = 0;
 
     if (isStatutory) {
-        vatExemptSales = net;
+        vatExemptSales = Math.max(0, roundMoney(statutoryBase - roundMoney(statutoryBase * 0.20)));
     } else if (taxRate > 0 && taxConfig.isInclusive) {
-        vatableSales = Math.round((net / (1 + taxRate / 100)) * 100) / 100;
-        taxAmount = Math.round((net - vatableSales) * 100) / 100;
+        vatableSales = roundMoney(net / (1 + (taxRate / 100)));
+        taxAmount = roundMoney(net - vatableSales);
     } else if (taxRate > 0) {
         vatableSales = net;
-        taxAmount = Math.round((net * taxRate / 100) * 100) / 100;
+        taxAmount = roundMoney(net * (taxRate / 100));
     } else {
         vatableSales = net;
     }
 
-    orderTotal = Math.round((net + (isStatutory || taxConfig.isInclusive ? 0 : taxAmount)) * 100) / 100;
+    orderTotal = isStatutory
+        ? vatExemptSales
+        : roundMoney(net + (taxConfig.isInclusive ? 0 : taxAmount));
+    updateMobileOrderShortcut();
     currentDiscountAmount = discount;
     currentDiscountType = discountType;
     currentDiscountLabel = discountType === 'senior'
@@ -1527,7 +1828,7 @@ function updateTotals() {
                 ? 'Custom Discount'
                 : '';
 
-    const formatCurrency = value => '₱' + value.toFixed(2);
+    const formatCurrency = value => '₱' + Number(value || 0).toFixed(2);
     const subtotalEl = document.getElementById('subtotal-display');
     const discountEl = document.getElementById('discount-display');
     const discountLabelEl = document.getElementById('discount-display-label');
@@ -1545,6 +1846,8 @@ function updateTotals() {
     if (discountRow) discountRow.classList.toggle('hidden', discount <= 0);
     if (discountRow) discountRow.classList.toggle('flex', discount > 0);
     if (totalEl) totalEl.textContent = formatCurrency(orderTotal);
+    const checkoutButtonLabel = document.getElementById('checkout-button-label');
+    if (checkoutButtonLabel) checkoutButtonLabel.textContent = `PAY ${formatCurrency(orderTotal)}`;
     const payLaterAmount = document.getElementById('pl-amount-display');
     if (payLaterAmount) payLaterAmount.textContent = formatCurrency(orderTotal);
     if (vatableEl) vatableEl.textContent = formatCurrency(vatableSales);
@@ -1564,6 +1867,10 @@ function onDiscountTypeChange() {
     const isStatutory = discountType === 'senior' || discountType === 'pwd';
     const isCustom = discountType === 'custom';
 
+    if (idInput && idInput.dataset.discountType !== discountType) {
+        idInput.value = '';
+        idInput.dataset.discountType = discountType;
+    }
     if (idWrapper) idWrapper.classList.toggle('hidden', !isStatutory);
     if (idInput) idInput.required = isStatutory;
     if (customWrapper) customWrapper.classList.toggle('hidden', !isCustom);
@@ -1575,6 +1882,8 @@ function onDiscountTypeChange() {
     updateTotals();
 }
 
+const roundMoney = value => Math.round((Number(value) || 0) * 100) / 100;
+
 // ── Checkout ─────────────────────────────────────────────────────────────────
 function checkoutPayerTotals() {
     const subtotal = cart.reduce((sum, item) => sum + (Number(item.unit_price || item.price) * (parseInt(item.qty, 10) || 0)), 0);
@@ -1584,12 +1893,12 @@ function checkoutPayerTotals() {
     cart.forEach((item, index) => {
         const lineSubtotal = Number(item.unit_price || item.price) * (parseInt(item.qty, 10) || 0);
         const lineDue = index === cart.length - 1
-            ? Math.round((orderTotal - allocated) * 100) / 100
-            : Math.round((orderTotal * lineSubtotal / Math.max(subtotal, 0.01)) * 100) / 100;
-        allocated += lineDue;
+            ? roundMoney(orderTotal - allocated)
+            : roundMoney((orderTotal * lineSubtotal) / Math.max(subtotal, 0.01));
+        allocated = roundMoney(allocated + lineDue);
 
         const person = (item.assigned_to || '').trim();
-        if (person) totals.set(person, Math.round(((totals.get(person) || 0) + lineDue) * 100) / 100);
+        if (person) totals.set(person, roundMoney((totals.get(person) || 0) + lineDue));
     });
 
     return totals;
@@ -1599,6 +1908,25 @@ function updateCheckoutPayers() {
     const payerSelect = document.getElementById('payment-person-name');
     const hint = document.getElementById('payer-assignment-hint');
     if (!payerSelect) return;
+
+    const reviewCount = document.getElementById('checkout-review-count');
+    const reviewRows = document.getElementById('checkout-review-rows');
+    if (reviewCount) reviewCount.textContent = `· ${cart.length} ${cart.length === 1 ? 'item' : 'items'}`;
+    if (reviewRows) {
+        reviewRows.innerHTML = cart.map(item => {
+            const person = (item.assigned_to || '').trim();
+            return `
+                <div class="flex items-start justify-between gap-3 px-3 py-2.5 text-xs">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-slate-800">${escapeHtml(item.name)} <span class="font-normal text-slate-500">· ${escapeHtml(item.size)} × ${item.qty}</span></p>
+                        <p class="mt-0.5 text-slate-500">${person ? `Assigned to ${escapeHtml(person)}` : 'Not assigned to a person'}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</p>
+                        ${item.addons?.length ? `<p class="mt-0.5 text-slate-500">Add-ons: ${item.addons.map(addon => escapeHtml(addon.name)).join(', ')}</p>` : ''}
+                    </div>
+                    <span class="shrink-0 font-mono font-semibold text-slate-800">₱${(item.unit_price * item.qty).toFixed(2)}</span>
+                </div>
+            `;
+        }).join('');
+    }
 
     const selectedPerson = payerSelect.value;
     const totals = checkoutPayerTotals();
@@ -1654,10 +1982,15 @@ function updateCheckoutPayers() {
         stagedRemaining.textContent = `₱${remainingTotal.toFixed(2)} remaining`;
         stagedRows.innerHTML = stagedCheckoutPayments.map((payment, index) => `
             <div class="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                <span class="min-w-0 truncate font-medium text-gray-700">
-                    ${escapeHtml(payment.person_name || 'Full order')} · ${escapeHtml(payment.method_label)}
-                    ${payment.reference_number ? `<span class="text-gray-400">(${escapeHtml(payment.reference_number)})</span>` : ''}
-                </span>
+                <div class="min-w-0">
+                    <p class="truncate font-medium text-gray-700">
+                        ${escapeHtml(payment.person_name || 'Full order')} · ${escapeHtml(payment.method_label)}
+                        ${payment.reference_number ? `<span class="text-gray-400">(${escapeHtml(payment.reference_number)})</span>` : ''}
+                    </p>
+                    ${payment.method === 'cash'
+                        ? `<p class="mt-0.5 text-[10px] text-gray-500">Received ₱${payment.amount_received.toFixed(2)} · Change ₱${Math.max(0, payment.amount_received - payment.amount_paid).toFixed(2)}</p>`
+                        : ''}
+                </div>
                 <span class="shrink-0 font-mono font-bold text-gray-900">₱${payment.amount_paid.toFixed(2)}</span>
                 <button type="button" onclick="removeStagedPayment(${index})" class="shrink-0 font-bold text-rose-600 hover:text-rose-800" aria-label="Remove payment">Remove</button>
             </div>
@@ -1712,6 +2045,10 @@ function openCheckout() {
         showPosFeedback('Cart is empty. Select a product before checking out.', 'error');
         return;
     }
+    if (splitEnabled && (!splitPeople.length || cart.some(item => !item.assigned_to))) {
+        showPosFeedback('Assign every order item to a person before starting split payment.', 'error');
+        return;
+    }
 
     clearPosFeedback();
     stagedCheckoutPayments = [];
@@ -1728,6 +2065,8 @@ function openCheckout() {
     const personInput = document.getElementById('payment-person-name');
     if (personInput) personInput.value = '';
     updateCheckoutPayers();
+    const orderReview = document.getElementById('checkout-order-review');
+    if (orderReview) orderReview.open = splitEnabled || checkoutPayerTotals().size > 0;
     const paymentCommentInput = document.getElementById('payment-comment');
     if (paymentCommentInput) paymentCommentInput.value = '';
     ['pl-customer-name', 'pl-customer-phone', 'pl-due-date', 'pl-notes'].forEach(id => {
@@ -1793,22 +2132,15 @@ function clearPosFeedback() {
 }
 
 function selectPaymentMethod(method) {
-    if (method === 'pay_later' && stagedCheckoutPayments.length) {
-        const errorEl = document.getElementById('checkout-error');
-        errorEl.textContent = 'Pay Later cannot be combined with payments recorded in this checkout.';
-        errorEl.classList.remove('hidden');
-        return;
-    }
 
     currentMethod = method;
     const isCash = method === 'cash';
     const isOnlineRef = method === 'online'; // needs reference number
-    const isPayLater = method === 'pay_later';
     const showCash = isCash;
     const showOnline = isOnlineRef;
 
-    const allMethods = ['cash', 'online', 'pay_later', 'grabfood'];
-    const colors = { cash: 'heim', online: 'blue', pay_later: 'amber', grabfood: 'emerald' };
+    const allMethods = ['cash', 'online', 'grabfood'];
+    const colors = { cash: 'heim', online: 'blue', grabfood: 'emerald' };
     allMethods.forEach(m => {
         const btn = document.getElementById('pm-' + m);
         if (!btn) return;
@@ -1824,12 +2156,10 @@ function selectPaymentMethod(method) {
 
     const cashSec    = document.getElementById('cash-section');
     const onlineSec  = document.getElementById('online-section');
-    const payLaterSec = document.getElementById('pay-later-section');
     const recordPaymentBtn = document.getElementById('record-payment-btn');
     document.getElementById('grab-payment-hint')?.classList.toggle('hidden', currentOrderType !== 'grab');
 
     if (cashSec)    cashSec.style.display = showCash ? '' : 'none';
-    if (recordPaymentBtn) recordPaymentBtn.classList.toggle('hidden', isPayLater);
     if (isCash) {
         const amountToPay = parseFloat(document.getElementById('amount-to-pay')?.value) || orderTotal;
         const receivedInput = document.getElementById('amount-received');
@@ -1838,7 +2168,6 @@ function selectPaymentMethod(method) {
         }
         computeChange();
     }
-    if (payLaterSec) payLaterSec.classList.toggle('hidden', !isPayLater);
     if (onlineSec) {
         onlineSec.classList.toggle('hidden', !showOnline);
         if (showOnline) {
@@ -1864,8 +2193,6 @@ function updateOnlineAmount() {
     const amount = parseFloat(document.getElementById('amount-to-pay')?.value) || 0;
     const amtEl = document.getElementById('online-amount-display');
     if (amtEl) amtEl.textContent = '₱' + amount.toFixed(2);
-    const payLaterAmount = document.getElementById('pl-amount-display');
-    if (payLaterAmount) payLaterAmount.textContent = '₱' + amount.toFixed(2);
 }
 
 function computeChange() {
@@ -1892,11 +2219,6 @@ function stageCheckoutPayment() {
         .filter(payment => payment.person_name === payerName)
         .reduce((sum, payment) => sum + payment.amount_paid, 0);
 
-    if (currentMethod === 'pay_later') {
-        errorEl.textContent = 'Pay Later cannot be staged with other payment records.';
-        errorEl.classList.remove('hidden');
-        return;
-    }
     if (amountPaid <= 0 || amountPaid > remainingTotal) {
         errorEl.textContent = `Enter an amount from ₱0.01 up to the remaining ₱${remainingTotal.toFixed(2)}.`;
         errorEl.classList.remove('hidden');
@@ -1976,8 +2298,8 @@ function completeOrder() {
         errorEl.classList.remove('hidden');
         return;
     }
-    if (hasStagedPayments && (currentMethod === 'pay_later' || stagedPaidTotal <= 0 || stagedPaidTotal > orderTotal)) {
-        errorEl.textContent = 'The staged payments are invalid or cannot be combined with Pay Later.';
+    if (hasStagedPayments && (stagedPaidTotal <= 0 || stagedPaidTotal > orderTotal)) {
+        errorEl.textContent = 'The staged payments total is invalid.';
         errorEl.classList.remove('hidden');
         return;
     }
@@ -2003,15 +2325,6 @@ function completeOrder() {
         if (refInput) refInput.focus();
         return;
     }
-    if (!hasStagedPayments && currentMethod === 'pay_later') {
-        const plName = document.getElementById('pl-customer-name')?.value.trim();
-        if (!plName) {
-            errorEl.textContent = 'Customer name is required for Pay Later orders.';
-            errorEl.classList.remove('hidden');
-            return;
-        }
-    }
-
     // Grab order validation
     if (currentOrderType === 'grab') {
         const grabCode = document.getElementById('grab-order-code')?.value.trim();
@@ -2053,7 +2366,7 @@ function completeOrder() {
     document.getElementById('f-amount').value = submittedMethod === 'cash'
         ? (hasStagedPayments ? submittedReceived : received)
         : submittedAmountPaid;
-    document.getElementById('f-amount-paid').value = submittedMethod === 'pay_later' ? '' : submittedAmountPaid;
+    document.getElementById('f-amount-paid').value = submittedAmountPaid;
     document.getElementById('f-person-name').value = hasStagedPayments ? (primaryPayment.person_name || '') : payerName;
     document.getElementById('f-payment-comment').value = hasStagedPayments
         ? (primaryPayment.comment || '')
@@ -2085,11 +2398,6 @@ function completeOrder() {
     document.getElementById('f-grab-order-code').value = document.getElementById('grab-order-code')?.value.trim() || '';
     document.getElementById('f-rider-code').value = document.getElementById('grab-rider-code')?.value.trim() || '';
     document.getElementById('f-customer-name').value = document.getElementById('order-customer-name')?.value.trim() || '';
-    // Pay Later
-    document.getElementById('f-pl-customer-name').value  = document.getElementById('pl-customer-name')?.value || '';
-    document.getElementById('f-pl-customer-phone').value = document.getElementById('pl-customer-phone')?.value || '';
-    document.getElementById('f-pl-due-date').value       = document.getElementById('pl-due-date')?.value || '';
-    document.getElementById('f-pl-notes').value          = document.getElementById('pl-notes')?.value || '';
 
     const container = document.getElementById('f-items');
     container.innerHTML = '';
@@ -2111,9 +2419,35 @@ function completeOrder() {
 }
 
 // ── Shift In / Out ─────────────────────────────────────────────────────────
+const shiftClockServerTime = new Date(@json(now('UTC')->toIso8601String())).getTime();
+const shiftClockClientAnchor = Date.now();
+const businessTimeZone = @json(config('app.business_timezone', 'Asia/Manila'));
+
+function updateShiftInDateTime() {
+    const dateTimeElement = document.getElementById('si-datetime');
+    if (!dateTimeElement) return;
+
+    const currentTime = new Date(shiftClockServerTime + (Date.now() - shiftClockClientAnchor));
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: businessTimeZone,
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+    }).formatToParts(currentTime);
+    const value = (type) => parts.find((part) => part.type === type)?.value || '';
+
+    dateTimeElement.textContent = `${value('month')} ${value('day')}, ${value('year')} ${value('hour')}:${value('minute')} ${value('dayPeriod')}`;
+}
+
+updateShiftInDateTime();
+setInterval(updateShiftInDateTime, 15000);
+
 function openShiftInModal() {
     document.getElementById('si-cashier-name').textContent = @json(auth()->user()->name);
-    document.getElementById('si-datetime').textContent = @json(now()->timezone(config('app.business_timezone'))->format('M d, Y h:i A'));
+    updateShiftInDateTime();
     const errEl = document.getElementById('si-error');
     if (errEl) errEl.classList.add('hidden');
     document.getElementById('si-beginning-cash').value = '';
@@ -2198,9 +2532,7 @@ async function openShiftOutModal() {
             }
             const nonCash = s.non_cash_summary || {};
             document.getElementById('so-online-sales').textContent = `₱${Number(nonCash.online_sales || 0).toFixed(2)}`;
-            document.getElementById('so-debt-online').textContent = `₱${Number(nonCash.debt_online_collections || 0).toFixed(2)}`;
             document.getElementById('so-grab-sales').textContent = `₱${Number(nonCash.grab_sales || 0).toFixed(2)} / ₱${Number(nonCash.grab_settlements || 0).toFixed(2)}`;
-            document.getElementById('so-pay-later').textContent = `₱${Number(nonCash.pay_later_charged || 0).toFixed(2)}`;
             document.getElementById('so-order-type-sales').textContent = `₱${Number(nonCash.dine_in_sales || 0).toFixed(2)} / ₱${Number(nonCash.take_out_sales || 0).toFixed(2)}`;
             document.getElementById('so-voids').textContent = `${Number(nonCash.void_count || 0)} · ₱${Number(nonCash.void_amount || 0).toFixed(2)}`;
         }
@@ -2252,7 +2584,6 @@ function updateShiftOutDifference() {
             summary.classList.remove('hidden');
             document.getElementById('so-cash-sales').textContent = `₱${Number(cash.cash_sales).toFixed(2)}`;
             document.getElementById('so-cash-refunds').textContent = `−₱${Number(cash.cash_refunds).toFixed(2)}`;
-            document.getElementById('so-debt-collections').textContent = `₱${Number(cash.debt_cash_collections).toFixed(2)}`;
             document.getElementById('so-cash-voids').textContent = `−₱${Number(cash.cash_voids).toFixed(2)}`;
             document.getElementById('so-expected').textContent = `₱${Number(data.expected_cash).toFixed(2)}`;
             document.getElementById('so-difference').textContent = `${data.difference >= 0 ? '+' : ''}₱${Number(data.difference).toFixed(2)}`;
@@ -2355,14 +2686,9 @@ async function holdCurrentOrder() {
     }
 
     const holdBtn = document.getElementById('hold-btn');
-    const checkoutHoldBtn = document.getElementById('checkout-hold-btn');
     if (holdBtn) {
         holdBtn.disabled = true;
         holdBtn.innerHTML = '<span>⏳</span> Holding...';
-    }
-    if (checkoutHoldBtn) {
-        checkoutHoldBtn.disabled = true;
-        checkoutHoldBtn.innerHTML = '<span>⏳</span> Saving...';
     }
 
     try {
@@ -2416,11 +2742,7 @@ async function holdCurrentOrder() {
     } finally {
         if (holdBtn) {
             holdBtn.disabled = cart.length === 0;
-            holdBtn.innerHTML = '<span>📌</span> Hold Order';
-        }
-        if (checkoutHoldBtn) {
-            checkoutHoldBtn.disabled = cart.length === 0;
-            checkoutHoldBtn.innerHTML = '<span>📌</span> Save / Hold';
+            holdBtn.innerHTML = '<span>📌</span> Save / Hold Order';
         }
     }
 }
@@ -2494,7 +2816,7 @@ function renderHeldOrders(orders) {
             <div class="flex flex-col items-center justify-center py-12 text-center text-gray-400">
                 <span class="text-3xl mb-2">📋</span>
                 <p class="text-sm font-semibold text-gray-600">No held tickets</p>
-                <p class="text-xs text-gray-400 mt-1">Orders saved via "Hold Order" will appear here.</p>
+                <p class="text-xs text-gray-400 mt-1">Orders saved with "Save / Hold Order" will appear here.</p>
             </div>
         `;
         return;
@@ -2503,7 +2825,11 @@ function renderHeldOrders(orders) {
     list.innerHTML = orders.map(order => {
         const items = order.order_items || [];
         const isPinned = !!order.is_pinned;
-        const formattedDate = new Date(order.held_at || order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formattedDate = new Date(order.held_at || order.created_at).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: @json(config('app.business_timezone', 'Asia/Manila'))
+        });
 
         return `
             <div class="p-4 rounded-xl border ${isPinned ? 'border-amber-300 bg-amber-50/40 shadow-xs' : 'border-gray-200 bg-white hover:border-gray-300'} transition-all">
@@ -2518,7 +2844,7 @@ function renderHeldOrders(orders) {
                             <span>•</span>
                             <span>Held at: <strong>${formattedDate}</strong></span>
                         </div>
-                        ${order.order_type === 'grab' ? `<div class="mt-1 text-[11px] font-semibold text-emerald-700">Grab · ${escapeHtml(order.grab_order_code || 'Code not entered')}${order.customer_name ? ` · ${escapeHtml(order.customer_name)}` : ''}</div>` : ''}
+                        <div class="mt-1 text-[11px] font-semibold text-slate-600">${escapeHtml(({ dine_in: 'Dine-in', take_out: 'Take-out', grab: 'GrabFood' })[order.order_type] || 'Dine-in')}${order.customer_name ? ` · ${escapeHtml(order.customer_name)}` : ''}${order.order_type === 'grab' ? ` · ${escapeHtml(order.grab_order_code || 'Code not entered')}` : ''}</div>
                     </div>
                     <div class="text-right">
                         <span class="font-extrabold text-base text-heim-700 font-mono">₱${parseFloat(order.total).toFixed(2)}</span>
@@ -2547,14 +2873,14 @@ function renderHeldOrders(orders) {
                             <span>📌</span>
                             <span>${isPinned ? 'Unpin' : 'Pin Ticket'}</span>
                         </button>
-                        <button type="button" onclick="discardHeldOrder(${order.id}, '${order.order_number}')"
+                        <button type="button" onclick="voidHeldOrder(${order.id}, '${order.order_number}')"
                             class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors">
-                            Discard
+                            Void
                         </button>
                     </div>
                     <button type="button" onclick="resumeHeldOrder(${order.id})"
                         class="brand-button px-4 py-1.5 text-xs font-bold shadow-xs">
-                        Resume & Pay →
+                        Open →
                     </button>
                 </div>
             </div>
@@ -2564,7 +2890,7 @@ function renderHeldOrders(orders) {
 
 async function togglePinOrder(orderId) {
     try {
-        const response = await fetch(`/pos/held-orders/${orderId}/pin`, {
+        const response = await fetch(`/pos/saved-orders/${orderId}/pin`, {
             method: 'PATCH',
             headers: {
                 'Accept': 'application/json',
@@ -2588,7 +2914,7 @@ async function resumeHeldOrder(orderId) {
     }
 
     try {
-        const response = await fetch(`/pos/held-orders/${orderId}/resume`, {
+        const response = await fetch(`/pos/saved-orders/${orderId}/resume`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -2617,10 +2943,12 @@ async function resumeHeldOrder(orderId) {
             qty: item.qty,
             comment: item.comment || '',
             assigned_to: item.assigned_to || '',
+            expanded: false,
             recipe: []
         }));
 
-        currentHeldOrderId = data.held_order_id;
+        currentHeldOrderId = null;
+        currentHeldOrderNumber = data.order_number || null;
         setOrderType(data.order_type || 'dine_in');
         const grabOrderCodeInput = document.getElementById('grab-order-code');
         const riderCodeInput = document.getElementById('grab-rider-code');
@@ -2628,6 +2956,7 @@ async function resumeHeldOrder(orderId) {
         if (grabOrderCodeInput) grabOrderCodeInput.value = data.grab_order_code || '';
         if (riderCodeInput) riderCodeInput.value = data.rider_code || '';
         if (grabCustomerInput) grabCustomerInput.value = data.customer_name || '';
+        updateOrderSummary();
         splitPeople = [...new Set(data.cart.map(item => item.assigned_to).filter(Boolean))];
         activeSplitPerson = splitPeople[0] || '';
         splitEnabled = splitPeople.length > 0;
@@ -2635,12 +2964,6 @@ async function resumeHeldOrder(orderId) {
         if (splitToggle) splitToggle.checked = splitEnabled;
         document.getElementById('split-people-panel')?.classList.toggle('hidden', !splitEnabled);
         renderSplitPeople();
-
-        // Restore cashier name
-        const cashierInput = document.getElementById('cashier-name');
-        if (cashierInput && data.cashier_name) {
-            cashierInput.value = data.cashier_name;
-        }
 
         // Restore discount
         const discSelect = document.getElementById('discount-type');
@@ -2668,33 +2991,78 @@ async function resumeHeldOrder(orderId) {
     }
 }
 
-async function discardHeldOrder(orderId, orderNumber) {
-    if (!confirm(`Are you sure you want to discard held order #${orderNumber}? This cannot be undone.`)) {
+async function voidHeldOrder(orderId, orderNumber) {
+    // Show void reason modal
+    const modal = document.getElementById('void-ticket-modal');
+    const orderNumEl = document.getElementById('void-ticket-order-number');
+    const reasonInput = document.getElementById('void-ticket-reason');
+    const errorEl = document.getElementById('void-ticket-error');
+    if (!modal) return;
+
+    orderNumEl.textContent = orderNumber;
+    reasonInput.value = '';
+    errorEl.classList.add('hidden');
+    modal.style.display = 'flex';
+
+    // Store pending action
+    modal._pendingOrderId = orderId;
+    modal._pendingOrderNumber = orderNumber;
+}
+
+async function confirmVoidHeldOrder() {
+    const modal = document.getElementById('void-ticket-modal');
+    const reasonInput = document.getElementById('void-ticket-reason');
+    const errorEl = document.getElementById('void-ticket-error');
+    const confirmBtn = document.getElementById('void-ticket-confirm-btn');
+    const orderId = modal._pendingOrderId;
+    const orderNumber = modal._pendingOrderNumber;
+
+    const reason = reasonInput.value.trim();
+    if (!reason) {
+        errorEl.textContent = 'Please enter a reason before voiding.';
+        errorEl.classList.remove('hidden');
+        reasonInput.focus();
         return;
     }
 
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Voiding...';
+
     try {
-        const response = await fetch(`/pos/held-orders/${orderId}`, {
+        const response = await fetch(`/pos/saved-orders/${orderId}`, {
             method: 'DELETE',
             headers: {
                 'Accept': 'application/json',
+                'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
+            },
+            body: JSON.stringify({ reason })
         });
 
         const data = await response.json();
+        modal.style.display = 'none';
         if (data.success) {
             openHeldOrdersModal();
             loadHeldOrdersCount();
-            showPosFeedback(data.message || 'Held order discarded.', 'success');
+            showPosFeedback(data.message || 'Saved ticket voided.', 'success');
+        } else {
+            showPosFeedback(data.message || 'Failed to void ticket.', 'error');
         }
     } catch (e) {
-        alert('Failed to discard order.');
+        modal.style.display = 'none';
+        showPosFeedback('Failed to void saved ticket.', 'error');
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Void Ticket';
     }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
     loadHeldOrdersCount();
+
+    document.getElementById('main-content')?.addEventListener('scroll', updateMobileOrderShortcut, { passive: true });
+    window.addEventListener('resize', updateMobileOrderShortcut, { passive: true });
+    updateMobileOrderShortcut();
 });
 
 window.addEventListener('pageshow', function () {

@@ -136,15 +136,7 @@ class Order extends Model
         return $this->status === 'refunded';
     }
 
-    public function isPayLater(): bool
-    {
-        return $this->status === 'pay_later';
-    }
 
-    public function debt()
-    {
-        return $this->hasOne(Debt::class);
-    }
 
     // Generate a unique order number without relying on a single incremented counter.
     public static function generateOrderNumber(string $prefix = 'ORD-'): string
@@ -154,7 +146,7 @@ class Order extends Model
             $prefix = 'ORD-';
         }
 
-        $datePrefix = $prefix.now()->format('Ymd').'-';
+        $datePrefix = $prefix.now(config('app.business_timezone', 'Asia/Manila'))->format('Ymd').'-';
 
         for ($attempt = 0; $attempt < 20; $attempt++) {
             $candidate = $datePrefix.str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);

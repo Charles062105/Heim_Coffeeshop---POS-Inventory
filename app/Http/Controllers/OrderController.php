@@ -6,6 +6,7 @@ use App\Models\CashierShift;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\AuditService;
+use App\Support\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -15,6 +16,11 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
         $query = Order::with(['payments', 'orderItems'])
             ->latest();
 
@@ -32,20 +38,21 @@ class OrderController extends Controller
         }
 
         // Filter by date
-        if ($date = $request->get('date')) {
-            $query->whereDate('created_at', $date);
+        if ($date = $filters['date'] ?? null) {
+            $query->where('created_at', '>=', BusinessDateRange::startUtc($date))
+                ->where('created_at', '<', BusinessDateRange::endExclusiveUtc($date));
         }
 
         // Date range
-        if ($from = $request->get('from')) {
-            $query->whereDate('created_at', '>=', $from);
+        if ($from = $filters['from'] ?? null) {
+            $query->where('created_at', '>=', BusinessDateRange::startUtc($from));
         }
-        if ($to = $request->get('to')) {
-            $query->whereDate('created_at', '<=', $to);
+        if ($to = $filters['to'] ?? null) {
+            $query->where('created_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
 
         $orders = $query->paginate(20)->withQueryString();
-        $statuses = ['completed', 'partially_paid', 'pending', 'pay_later', 'cancelled', 'refunded', 'voided'];
+        $statuses = ['completed', 'partially_paid', 'pending', 'cancelled', 'refunded', 'voided'];
 
         return view('orders.index', compact('orders', 'statuses'));
     }
@@ -106,8 +113,8 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'amount_paid' => 'required|numeric|min:0.01',
-            'amount_received' => 'nullable|numeric|min:0',
+            'amount_paid' => 'required|numeric|decimal:0,2|min:0.01',
+            'amount_received' => 'nullable|numeric|decimal:0,2|min:0',
             'payment_method' => 'required|in:cash,online,grabfood,grab',
             'payment_status' => 'nullable|in:paid,pending,failed',
             'person_name' => 'nullable|string|max:150',

@@ -101,6 +101,86 @@
         .sidebar-scroll::-webkit-scrollbar-thumb:hover {
             background: rgba(100, 116, 139, 0.7);
         }
+        .pos-main {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 1rem;
+        }
+        .pos-main > .pos-terminal {
+            flex: 1 1 0%;
+            min-height: 0;
+        }
+        @media (min-width: 1280px) and (max-height: 950px) {
+            .pos-order-panel {
+                overflow-y: auto !important;
+                overscroll-behavior: contain;
+            }
+            .pos-order-panel #cart-items {
+                flex: 0 0 15rem;
+                max-height: 32vh;
+                min-height: 15rem;
+            }
+        }
+        @media (max-width: 1279px) {
+            .pos-shell {
+                zoom: 100% !important;
+            }
+            .pos-main {
+                overflow-y: auto;
+                overscroll-behavior-y: contain;
+            }
+            .pos-main > .pos-terminal {
+                flex: 0 0 auto;
+                height: auto;
+                min-height: 0;
+                overflow: visible;
+            }
+            .pos-terminal > .grid {
+                display: flex;
+                flex: 0 0 auto;
+                flex-direction: column;
+                min-height: 0;
+            }
+            .pos-terminal > .grid > :first-child {
+                flex: 0 0 auto;
+                height: min(55vh, 34rem);
+                min-height: 20rem;
+            }
+            .pos-terminal > .grid > .pos-order-panel {
+                flex: 0 0 auto;
+                height: auto;
+                max-height: none;
+                min-height: 0;
+                overflow: visible;
+            }
+            .pos-order-panel > .sticky.bottom-0 {
+                position: static;
+            }
+            .pos-order-panel #cart-items {
+                flex: 0 0 15rem;
+                max-height: 50vh;
+                min-height: 12rem;
+            }
+        }
+        .pos-main [class~="text-xs"],
+        .pos-main [class~="text-[10px]"],
+        .pos-main [class~="text-[11px]"] {
+            font-size: 0.8125rem;
+            line-height: 1.2rem;
+        }
+        .pos-main input:not([type="checkbox"]):not([type="radio"]),
+        .pos-main select,
+        .pos-main textarea {
+            min-height: 2.5rem;
+            font-size: 0.875rem;
+        }
+        .pos-main input.text-lg {
+            font-size: 1.125rem;
+        }
+        .pos-main button:not(.cat-btn) {
+            min-height: 2.5rem;
+        }
         @media print {
             html, body {
                 height: auto !important;
@@ -150,7 +230,7 @@
     $u = auth()->user(); 
     $nb = $u ? \App\Models\Notification::where('is_resolved', false)->whereNull('read_at')->count() : 0;
 @endphp
-<div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="flex h-full w-full overflow-hidden bg-gray-50" style="zoom: 90%">
+<div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="app-shell flex h-full w-full overflow-hidden bg-gray-50 {{ request()->routeIs('pos.index') ? 'pos-shell' : '' }}" style="zoom: 90%">
 
     {{-- ── Mobile Sidebar Backdrop ─────────────────────────────────────────────── --}}
     <div 
@@ -290,11 +370,11 @@
                 @endif
 
                 {{-- Date pill --}}
-                <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100/90 text-gray-600 text-xs font-medium border border-gray-200/60 shadow-xs">
+                <div class="{{ request()->routeIs('pos.index') ? 'hidden' : 'hidden md:flex' }} items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100/90 text-gray-600 text-xs font-medium border border-gray-200/60 shadow-xs">
                     <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
-                    <span>{{ now()->format('D, M j, Y') }}</span>
+                    <span>{{ now(config('app.business_timezone', 'Asia/Manila'))->format('D, M j, Y') }}</span>
                 </div>
 
                 {{-- Notifications bell --}}
@@ -433,7 +513,7 @@
         @endphp
 
         {{-- Page Content --}}
-        <main id="main-content" class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 relative">
+        <main id="main-content" class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 relative {{ request()->routeIs('pos.index') ? 'pos-main' : '' }}">
             @if($navigationTabs)
                 @include('components.navigation-tabs', ['tabs' => $navigationTabs])
             @endif

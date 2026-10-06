@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductSize;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -55,14 +56,6 @@ class DashboardTest extends TestCase
             'status' => 'paid',
         ]);
 
-        Order::create([
-            'order_number' => 'ORD-20260917-PAYLATER',
-            'cashier_name' => 'Maria Santos',
-            'subtotal' => 80,
-            'discount' => 0,
-            'total' => 80,
-            'status' => 'pay_later',
-        ]);
 
         Order::create([
             'order_number' => 'ORD-20260917-PARTIAL',
@@ -84,8 +77,8 @@ class DashboardTest extends TestCase
         InventoryTransaction::create([
             'ingredient_id' => $milk->id,
             'type' => 'sales_consumption',
-            'quantity' => 0.25,
-            'previous_stock' => 2.75,
+            'quantity' => 0.257,
+            'previous_stock' => 2.757,
             'new_stock' => 2.5,
             'performed_by' => 'POS System',
             'performed_role' => 'cashier',
@@ -103,10 +96,11 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($manager)->get(route('dashboard'));
         $response->assertOk();
+        $response->assertSee('style="zoom: 90%"', false);
 
         // Verify view data
-        $response->assertViewHas('todaySales', 275.0);
-        $response->assertViewHas('todayOrders', 3);
+        $response->assertViewHas('todaySales', 195.0);
+        $response->assertViewHas('todayOrders', 2);
         $response->assertViewHas('lowStockCount', 1);
         $response->assertViewHas('outOfStockCount', 1);
 
@@ -121,7 +115,8 @@ class DashboardTest extends TestCase
         $todayConsumption = $response->viewData('todayConsumption');
         $this->assertCount(1, $todayConsumption);
         $this->assertEquals('Fresh Milk', $todayConsumption->first()->name);
-        $this->assertEquals(0.25, $todayConsumption->first()->consumed);
+        $this->assertEquals(0.257, $todayConsumption->first()->consumed);
+        $response->assertSee('0.257 L');
 
         $recentLogs = $response->viewData('recentLogs');
         $this->assertCount(1, $recentLogs);
@@ -170,5 +165,45 @@ class DashboardTest extends TestCase
         $response->assertSee('My Sales Today');
         $response->assertSee('My Shift Orders');
         $response->assertSee('Open Register');
+    }
+
+    public function test_dashboard_daily_sales_use_the_business_timezone(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        Carbon::setTestNow(Carbon::parse('2026-10-06 17:00:00', 'UTC'));
+
+        try {
+            foreach ([
+                ['before-business-day', '2026-10-06 15:59:59', 100],
+                ['at-business-day-start', '2026-10-06 16:00:00', 90],
+                ['during-business-day', '2026-10-07 15:59:59', 30],
+                ['at-next-business-day', '2026-10-07 16:00:00', 200],
+            ] as [$number, $createdAt, $total]) {
+                $order = Order::create([
+                    'order_number' => 'ORD-TZ-'.$number,
+                    'cashier_name' => 'Cashier',
+                    'subtotal' => $total,
+                    'discount' => 0,
+                    'total' => $total,
+                    'status' => 'completed',
+                ]);
+                $order->forceFill([
+                    'created_at' => Carbon::parse($createdAt, 'UTC'),
+                    'updated_at' => Carbon::parse($createdAt, 'UTC'),
+                ])->save();
+            }
+
+            $response = $this->actingAs($manager)->get(route('dashboard'));
+
+            $response->assertOk();
+            $response->assertViewHas('todaySales', 120.0);
+            $response->assertViewHas('todayOrders', 2);
+
+            $todayTrend = $response->viewData('salesTrend')->firstWhere('date', 'Oct 7');
+            $this->assertSame(120.0, $todayTrend['total']);
+            $this->assertSame(2, $todayTrend['count']);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }

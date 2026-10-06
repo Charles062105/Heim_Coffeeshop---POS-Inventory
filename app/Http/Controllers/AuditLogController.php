@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Services\ExportService;
+use App\Support\BusinessDateRange;
 use Illuminate\Http\Request;
 
 class AuditLogController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
         $query = AuditLog::orderByDesc('created_at');
 
         if ($search = $request->get('search')) {
@@ -27,16 +32,16 @@ class AuditLogController extends Controller
         if ($role = $request->get('actor_role')) {
             $query->where('actor_role', $role);
         }
-        if ($from = $request->get('from')) {
-            $query->whereDate('created_at', '>=', $from);
+        if ($from = $filters['from'] ?? null) {
+            $query->where('created_at', '>=', BusinessDateRange::startUtc($from));
         }
-        if ($to = $request->get('to')) {
-            $query->whereDate('created_at', '<=', $to);
+        if ($to = $filters['to'] ?? null) {
+            $query->where('created_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
 
         if ($request->get('export') === 'excel') {
             abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
-            $filename = 'audit-logs-'.now()->format('Y-m-d').'.csv';
+            $filename = 'audit-logs-'.now(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d').'.csv';
             $columns = [
                 'Log ID',
                 'Date & Time',
@@ -52,7 +57,7 @@ class AuditLogController extends Controller
             $logs = $query->get()->map(function ($log) {
                 return [
                     $log->id,
-                    $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : '',
+                    $log->created_at ? $log->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s') : '',
                     $log->actor_name ?? 'System',
                     ucfirst($log->actor_role ?? 'System'),
                     $log->action,

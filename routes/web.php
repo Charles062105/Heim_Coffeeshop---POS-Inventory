@@ -5,7 +5,7 @@ use App\Http\Controllers\AuthorizationController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ConsumptionController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DebtController;
+
 use App\Http\Controllers\IngredientController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
@@ -46,11 +46,11 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('pos')->name('pos.')->group(function () {
         Route::get('/', [PosController::class, 'index'])->name('index');
         Route::post('/store', [PosController::class, 'store'])->name('store');
-        Route::post('/hold', [PosController::class, 'hold'])->name('hold');
-        Route::get('/held-orders', [PosController::class, 'heldOrders'])->name('held-orders');
-        Route::post('/held-orders/{order}/resume', [PosController::class, 'resumeHeld'])->name('resume-held');
-        Route::patch('/held-orders/{order}/pin', [PosController::class, 'togglePin'])->name('toggle-pin');
-        Route::delete('/held-orders/{order}', [PosController::class, 'discardHeld'])->name('discard-held');
+        Route::post('/save', [PosController::class, 'hold'])->name('hold');
+        Route::get('/saved-orders', [PosController::class, 'heldOrders'])->name('held-orders');
+        Route::post('/saved-orders/{order}/resume', [PosController::class, 'resumeHeld'])->name('resume-held');
+        Route::patch('/saved-orders/{order}/pin', [PosController::class, 'togglePin'])->name('toggle-pin');
+        Route::delete('/saved-orders/{order}', [PosController::class, 'discardHeld'])->name('discard-held');
         Route::get('/products', [PosController::class, 'products'])->name('products');       // AJAX
         Route::get('/products/{product}/sizes', [PosController::class, 'sizes'])->name('sizes');           // AJAX
         Route::get('/order-success/{order}', [PosController::class, 'success'])->name('success');
@@ -84,13 +84,7 @@ Route::middleware(['auth'])->group(function () {
     // ── Authorization modal endpoint (for refunds / cancellations / adjustments) ──
     Route::post('/authorize', [AuthorizationController::class, 'verify'])->name('authorize');
 
-    // ── Debt Management (Pay Later) — cashier can record payments, manager+ can view all ──
-    Route::prefix('debts')->name('debts.')->group(function () {
-        Route::get('/', [DebtController::class, 'index'])->name('index');
-        Route::get('/{debt}', [DebtController::class, 'show'])->name('show');
-        Route::post('/{debt}/payment', [DebtController::class, 'recordPayment'])->name('payment');
-        Route::post('/{debt}/mark-paid', [DebtController::class, 'markPaid'])->name('mark-paid');
-    });
+
 
     // ── Refunds History List (Owner, Manager) ───────────────────────────
     Route::middleware('role:owner,manager')->group(function () {
@@ -152,6 +146,8 @@ Route::middleware(['auth'])->group(function () {
         // Tax Configuration
         Route::get('/settings/tax', [TaxConfigurationController::class, 'edit'])->name('settings.tax.edit');
         Route::put('/settings/tax', [TaxConfigurationController::class, 'update'])->name('settings.tax.update');
+        Route::patch('/settings/tax/archive', [TaxConfigurationController::class, 'archive'])->name('settings.tax.archive');
+        Route::patch('/settings/tax/unarchive', [TaxConfigurationController::class, 'unarchive'])->name('settings.tax.unarchive');
     });
 
     // ── Manager / Owner inventory routes ──────────────────────────────────

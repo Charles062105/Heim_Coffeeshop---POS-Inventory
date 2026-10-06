@@ -76,6 +76,88 @@ class SystemAuditTest extends TestCase
         $this->assertEquals('Milk', $ingredients->first()->name);
     }
 
+    public function test_inventory_capacity_percentage_matches_reorder_level_bar(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $ingredient = Ingredient::create([
+            'name' => 'Capacity Check Beans',
+            'unit' => 'g',
+            'minimum_stock' => 50,
+            'reorder_level' => 200,
+            'status' => 'active',
+        ]);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 120]);
+        $adequateIngredient = Ingredient::create([
+            'name' => 'Above Threshold Beans',
+            'unit' => 'g',
+            'minimum_stock' => 50,
+            'reorder_level' => 200,
+            'status' => 'active',
+        ]);
+        Inventory::create(['ingredient_id' => $adequateIngredient->id, 'current_stock' => 400]);
+
+        $response = $this->actingAs($manager)->get(route('inventory.index'));
+
+        $response->assertOk()
+            ->assertSee('60%')
+            ->assertSee('width: 60%', false)
+            ->assertSee('100%')
+            ->assertSee('width: 100%', false)
+            ->assertDontSee('200%')
+            ->assertDontSee('240%');
+    }
+
+    public function test_ingredient_threshold_precision_matches_inventory_storage(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $this->actingAs($manager)->from(route('ingredients.create'))->post(route('ingredients.store'), [
+            'name' => 'Precision Threshold Beans',
+            'unit' => 'g',
+            'minimum_stock' => '1.2345',
+            'reorder_level' => '2.3456',
+            'cost' => '3.456',
+            'status' => 'active',
+        ])->assertSessionHasErrors(['minimum_stock', 'reorder_level', 'cost']);
+
+        $this->assertDatabaseMissing('ingredients', ['name' => 'Precision Threshold Beans']);
+
+        $ingredient = Ingredient::create([
+            'name' => 'Editable Threshold Beans',
+            'unit' => 'g',
+            'minimum_stock' => 1.234,
+            'reorder_level' => 2.345,
+            'cost' => 3.45,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($manager)->from(route('ingredients.edit', $ingredient))->put(route('ingredients.update', $ingredient), [
+            'name' => $ingredient->name,
+            'unit' => $ingredient->unit,
+            'minimum_stock' => '1.2345',
+            'reorder_level' => '2.345',
+            'cost' => '3.45',
+            'status' => $ingredient->status,
+        ])->assertSessionHasErrors('minimum_stock');
+
+        $this->assertSame('1.234', $ingredient->fresh()->minimum_stock);
+    }
+
+    public function test_tax_rate_rejects_precision_above_tax_configuration_storage(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $taxSetting = \App\Models\TaxSetting::current();
+        $originalRate = (float) $taxSetting->rate;
+
+        $this->actingAs($manager)->from(route('settings.tax.edit'))->put(route('settings.tax.update'), [
+            'name' => $taxSetting->name,
+            'rate' => '12.345',
+            'is_inclusive' => '1',
+            'is_active' => '1',
+        ])->assertSessionHasErrors('rate');
+
+        $this->assertSame($originalRate, (float) $taxSetting->fresh()->rate);
+    }
+
     public function test_historical_consumption_opens_filtered_stock_movement_ledger(): void
     {
         $manager = User::factory()->create(['role' => 'manager']);
@@ -327,10 +409,15 @@ class SystemAuditTest extends TestCase
         $ing2 = Ingredient::create(['name' => 'Ingredient Out Of Stock', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
         Inventory::create(['ingredient_id' => $ing2->id, 'current_stock' => 0]);
 
+        Ingredient::create(['name' => 'Ingredient Missing Inventory', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
+
         $response = $this->actingAs($manager)->get(route('ingredients.index', ['stock_status' => 'out_of_stock']));
         $response->assertOk();
         $ingredients = $response->viewData('ingredients');
-        $this->assertEquals(1, $ingredients->total());
-        $this->assertEquals('Ingredient Out Of Stock', $ingredients->first()->name);
+        $this->assertSame(2, $ingredients->total());
+        $this->assertEqualsCanonicalizing(
+            ['Ingredient Out Of Stock', 'Ingredient Missing Inventory'],
+            $ingredients->getCollection()->pluck('name')->all()
+        );
     }
 }

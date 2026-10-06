@@ -31,7 +31,6 @@
         <div class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
             <div class="flex justify-between"><span>Starting cash</span><strong>₱{{ number_format((float) $shift->beginning_cash, 2) }}</strong></div>
             <div class="flex justify-between"><span>Cash sales</span><strong>₱{{ number_format($summary['cash_sales'], 2) }}</strong></div>
-            <div class="flex justify-between"><span>Debt collections (cash)</span><strong>₱{{ number_format($summary['debt_cash_collections'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Cash refunds</span><strong class="text-rose-700">−₱{{ number_format($summary['cash_refunds'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Cash voids</span><strong class="text-rose-700">−₱{{ number_format($summary['cash_voids'], 2) }}</strong></div>
             <div class="flex justify-between border-t border-gray-100 pt-2 font-bold"><span>Expected cash</span><strong>₱{{ number_format($expectedCash, 2) }}</strong></div>
@@ -57,10 +56,8 @@
         <h2 class="mb-4 font-bold text-gray-900">Other activity (not drawer cash)</h2>
         <div class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
             <div class="flex justify-between"><span>Online / e-wallet</span><strong>₱{{ number_format($summary['online_sales'], 2) }}</strong></div>
-            <div class="flex justify-between"><span>Debt collections (online)</span><strong>₱{{ number_format($summary['debt_online_collections'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Grab orders</span><strong>₱{{ number_format($summary['grab_sales'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Grab settlements received</span><strong>₱{{ number_format($summary['grab_settlements'], 2) }}</strong></div>
-            <div class="flex justify-between"><span>Pay Later charged</span><strong>₱{{ number_format($summary['pay_later_charged'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Dine-in sales</span><strong>₱{{ number_format($summary['dine_in_sales'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Take-out sales</span><strong>₱{{ number_format($summary['take_out_sales'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Voids</span><strong>{{ $summary['void_count'] }} · ₱{{ number_format($summary['void_amount'], 2) }}</strong></div>
@@ -173,12 +170,6 @@
             @empty
                 <p class="text-sm text-gray-500">No order payments.</p>
             @endforelse
-            @foreach($debtPayments as $payment)
-                <div class="flex justify-between gap-3 border-t border-gray-100 py-2 text-xs">
-                    <span>Debt collection · {{ $payment->debt?->customer_name }} · {{ ucfirst($payment->payment_method) }}</span>
-                    <strong>₱{{ number_format((float) $payment->amount, 2) }}</strong>
-                </div>
-            @endforeach
         </div>
         <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 class="mb-3 font-bold text-gray-900">Refunds and voids</h2>

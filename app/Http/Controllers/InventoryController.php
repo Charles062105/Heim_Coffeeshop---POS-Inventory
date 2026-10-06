@@ -30,7 +30,7 @@ class InventoryController extends Controller
 
         if ($request->get('export') === 'excel') {
             abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
-            $filename = 'stock-overview-'.now()->format('Y-m-d').'.csv';
+            $filename = 'stock-overview-'.now(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d').'.csv';
             $columns = [
                 'Ingredient ID',
                 'Ingredient Name',
@@ -57,10 +57,10 @@ class InventoryController extends Controller
                 return [
                     $ing->id,
                     $ing->name,
-                    number_format($stock, 2, '.', ''),
+                    number_format($stock, 3, '.', ''),
                     $ing->unit,
-                    number_format($reorderLevel, 2, '.', ''),
-                    number_format((float) $ing->minimum_stock, 2, '.', ''),
+                    number_format($reorderLevel, 3, '.', ''),
+                    number_format((float) $ing->minimum_stock, 3, '.', ''),
                     number_format((float) $ing->cost, 2, '.', ''),
                     $ing->supplier?->name ?? '',
                     $ing->expiration_date?->format('Y-m-d') ?? '',

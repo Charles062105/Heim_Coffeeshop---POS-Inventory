@@ -42,7 +42,7 @@ class StockAdjustmentController extends Controller
         if ($request->get('export') === 'excel') {
             abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
             $idLabel = 'Transaction ID';
-            $filename = 'stock-movements-'.now()->format('Y-m-d').'.csv';
+            $filename = 'stock-movements-'.now(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d').'.csv';
             $columns = [
                 $idLabel,
                 'Movement Date',
@@ -67,8 +67,10 @@ class StockAdjustmentController extends Controller
 
                 return [
                     $tx->id,
-                    $tx->transaction_date?->format('Y-m-d') ?? $tx->created_at?->format('Y-m-d') ?? '',
-                    $tx->created_at?->format('Y-m-d H:i:s') ?? '',
+                    $tx->transaction_date?->format('Y-m-d')
+                        ?? $tx->created_at?->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d')
+                        ?? '',
+                    $tx->created_at?->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s') ?? '',
                     $tx->unit_cost !== null ? number_format((float) $tx->unit_cost, 2, '.', '') : '',
                     $tx->expiration_date?->format('Y-m-d') ?? '',
                     $tx->ingredient->name ?? 'Deleted Item',

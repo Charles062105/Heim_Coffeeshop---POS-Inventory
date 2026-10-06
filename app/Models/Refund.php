@@ -10,7 +10,7 @@ class Refund extends Model
     use HasFactory;
 
     protected $fillable = [
-        'order_id', 'payment_id', 'debt_payment_id', 'shift_id', 'amount', 'method', 'status', 'reason', 'authorized_by', 'authorized_role',
+        'order_id', 'payment_id', 'shift_id', 'amount', 'method', 'status', 'reason', 'authorized_by', 'authorized_role',
         'authorized_user_id', 'stock_restored', 'refunded_at',
     ];
 
@@ -41,10 +41,5 @@ class Refund extends Model
     public function payment()
     {
         return $this->belongsTo(Payment::class);
-    }
-
-    public function debtPayment()
-    {
-        return $this->belongsTo(DebtPayment::class);
     }
 }

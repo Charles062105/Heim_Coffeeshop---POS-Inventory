@@ -58,10 +58,10 @@
                         </td>
                         <td class="px-5 py-4 text-right">
                             <div class="text-xs font-medium text-gray-700">
-                                {{ $refund->refunded_at ? \Carbon\Carbon::parse($refund->refunded_at)->format('M d, Y') : '—' }}
+                                {{ $refund->refunded_at ? $refund->refunded_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') : '—' }}
                             </div>
                             <div class="text-[11px] text-gray-400">
-                                {{ $refund->refunded_at ? \Carbon\Carbon::parse($refund->refunded_at)->format('h:i A') : '' }}
+                                {{ $refund->refunded_at ? $refund->refunded_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') : '' }}
                             </div>
                         </td>
                     </tr>
@@ -121,7 +121,7 @@
                         <td class="px-5 py-3 text-center">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700">Cash</span>
                         </td>
-                        <td class="px-5 py-3 text-right text-xs text-gray-400">{{ $ord->created_at->format('M d, Y h:i A') }}</td>
+                        <td class="px-5 py-3 text-right text-xs text-gray-400">{{ $ord->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}</td>
                         <td class="px-5 py-3 text-right">
                             <a href="{{ route('orders.show', $ord) }}" class="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors">
                                 Process →

@@ -8,6 +8,7 @@ use App\Models\OrderAdjustment;
 use App\Models\Refund;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Support\BusinessDateRange;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,14 +18,18 @@ class RefundController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
         $query = Refund::with(['order', 'authorizedUser'])
-            ->orderByDesc('created_at');
+            ->orderByDesc('refunded_at');
 
-        if ($from = $request->get('from')) {
-            $query->whereDate('created_at', '>=', $from);
+        if ($from = $filters['from'] ?? null) {
+            $query->where('refunded_at', '>=', BusinessDateRange::startUtc($from));
         }
-        if ($to = $request->get('to')) {
-            $query->whereDate('created_at', '<=', $to);
+        if ($to = $filters['to'] ?? null) {
+            $query->where('refunded_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
 
         $refunds = $query->paginate(20)->withQueryString();

@@ -30,12 +30,10 @@ class CashierShift extends Model
         'review_note',
         'denomination_count',
         'cash_voids',
-        'debt_cash_collections',
         'online_sales',
-        'debt_online_collections',
         'grab_sales',
         'grab_settlements',
-        'pay_later_charged',
+
         'void_count',
         'void_amount',
         'dine_in_sales',
@@ -58,12 +56,10 @@ class CashierShift extends Model
             'reviewed_at' => 'datetime',
             'denomination_count' => 'array',
             'cash_voids' => 'decimal:2',
-            'debt_cash_collections' => 'decimal:2',
             'online_sales' => 'decimal:2',
-            'debt_online_collections' => 'decimal:2',
             'grab_sales' => 'decimal:2',
             'grab_settlements' => 'decimal:2',
-            'pay_later_charged' => 'decimal:2',
+
             'void_amount' => 'decimal:2',
             'dine_in_sales' => 'decimal:2',
             'take_out_sales' => 'decimal:2',
@@ -121,9 +117,6 @@ class CashierShift extends Model
             ->where('method', 'cash')
             ->whereIn('status', ['paid', 'refunded', 'voided'])
             ->sum('amount_paid');
-        $debtCashCollections = (float) DebtPayment::where('shift_id', $this->id)
-            ->where('payment_method', 'cash')
-            ->sum('amount');
         $cashVoidQuery = $this->refunds()
             ->where('method', 'cash')
             ->where('status', 'completed')
@@ -142,23 +135,17 @@ class CashierShift extends Model
 
         return [
             'cash_sales' => $cashSales,
-            'debt_cash_collections' => $debtCashCollections,
             'cash_refunds' => $cashRefunds,
             'cash_voids' => $cashVoids,
             'online_sales' => (float) $this->payments()
                 ->whereIn('method', ['online', 'other'])
                 ->whereIn('status', ['paid', 'refunded', 'voided'])
                 ->sum('amount_paid'),
-            'debt_online_collections' => (float) DebtPayment::where('shift_id', $this->id)
-                ->whereIn('payment_method', ['online', 'other'])
-                ->sum('amount'),
             'grab_sales' => (float) (clone $orders)->where('order_type', 'grab')->sum('total'),
             'grab_settlements' => (float) $this->payments()
                 ->whereIn('method', ['grab', 'grabfood'])
                 ->whereIn('status', ['paid', 'refunded', 'voided'])
                 ->sum('amount_paid'),
-            'pay_later_charged' => (float) Debt::whereHas('order', fn ($query) => $query->where('shift_id', $this->id))
-                ->sum('original_amount'),
             'void_count' => $voids->count(),
             'void_amount' => (float) $voids->sum('amount'),
             'dine_in_sales' => (float) (clone $orders)->where('order_type', 'dine_in')->sum('total'),

@@ -121,8 +121,8 @@
                         @include('components.status-badge', ['status' => $order->status])
                     </td>
                     <td class="px-5 py-4 text-right">
-                        <div class="text-xs font-medium text-gray-700">{{ $order->created_at->format('M d, Y') }}</div>
-                        <div class="text-[11px] text-gray-400">{{ $order->created_at->format('h:i A') }}</div>
+                        <div class="text-xs font-medium text-gray-700">{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') }}</div>
+                        <div class="text-[11px] text-gray-400">{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') }}</div>
                     </td>
                     <td class="px-5 py-4 text-right whitespace-nowrap">
                         <div class="inline-flex items-center gap-2">

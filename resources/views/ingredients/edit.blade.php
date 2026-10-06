@@ -42,7 +42,7 @@
                 </div>
                 <div>
                     <label class="brand-label mb-1.5">Minimum Threshold</label>
-                    <input type="number" name="minimum_stock" value="{{ old('minimum_stock', $ingredient->minimum_stock) }}" min="0" step="0.01" class="brand-input font-semibold text-gray-800">
+                    <input type="number" name="minimum_stock" value="{{ old('minimum_stock', $ingredient->minimum_stock) }}" min="0" step="0.001" class="brand-input font-semibold text-gray-800">
                 </div>
                 <div>
                     <label class="brand-label mb-1.5">Reorder Level</label>

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashierShift;
-use App\Models\DebtPayment;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
@@ -13,9 +12,11 @@ use App\Models\Refund;
 use App\Models\VoidLog;
 use App\Services\AuditService;
 use App\Services\ExportService;
+use App\Support\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Carbon\CarbonImmutable;
 
 class ReportController extends Controller
 {
@@ -29,29 +30,34 @@ class ReportController extends Controller
         ]);
 
         $type = $filters['type'] ?? 'daily';
-        $date = $filters['date'] ?? now()->toDateString();
+        $date = $filters['date'] ?? now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         $from = $filters['from'] ?? null;
         $to = $filters['to'] ?? null;
 
         [$startDate, $endDate] = $this->resolveDateRange($type, $date, $from, $to);
+        $startUtc = BusinessDateRange::startUtc($startDate);
+        $endExclusiveUtc = BusinessDateRange::endExclusiveUtc($endDate);
 
-        $query = Order::whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate]);
+        $query = Order::where('created_at', '>=', $startUtc)
+            ->where('created_at', '<', $endExclusiveUtc);
 
-        $completedQuery = (clone $query)->whereIn('status', ['completed', 'partially_paid', 'pay_later']);
+        $completedQuery = (clone $query)->whereIn('status', ['completed', 'partially_paid']);
 
         $totalSales = $completedQuery->sum('total');
         $totalOrders = $completedQuery->count();
         $totalItems = OrderItem::where('order_items.status', 'active')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', ['completed', 'partially_paid', 'pay_later'])
-                ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->whereHas('order', fn ($q) => $q->whereIn('status', ['completed', 'partially_paid'])
+                ->where('orders.created_at', '>=', $startUtc)
+                ->where('orders.created_at', '<', $endExclusiveUtc)
             )->sum('quantity');
 
         // Payment breakdown (Cash vs Online Payment)
         $paymentBreakdown = DB::table('payments')
             ->join('orders', 'payments.order_id', '=', 'orders.id')
             ->where('payments.status', 'paid')
-            ->whereIn('orders.status', ['completed', 'partially_paid', 'pay_later'])
-            ->whereBetween(DB::raw('DATE(orders.created_at)'), [$startDate, $endDate])
+            ->whereIn('orders.status', ['completed', 'partially_paid'])
+            ->where('orders.created_at', '>=', $startUtc)
+            ->where('orders.created_at', '<', $endExclusiveUtc)
             ->select(
                 DB::raw("CASE WHEN LOWER(payments.method) = 'cash' THEN 'cash' ELSE 'online' END as method"),
                 DB::raw('SUM(payments.amount_paid) as total'),
@@ -66,8 +72,9 @@ class ReportController extends Controller
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('product_sizes', 'order_items.product_size_id', '=', 'product_sizes.id')
             ->where('order_items.status', 'active')
-            ->whereIn('orders.status', ['completed', 'partially_paid', 'pay_later'])
-            ->whereBetween(DB::raw('DATE(orders.created_at)'), [$startDate, $endDate])
+            ->whereIn('orders.status', ['completed', 'partially_paid'])
+            ->where('orders.created_at', '>=', $startUtc)
+            ->where('orders.created_at', '<', $endExclusiveUtc)
             ->select(
                 'products.name as product',
                 'product_sizes.size_name',
@@ -80,8 +87,9 @@ class ReportController extends Controller
             ->get();
 
         // Sales by cashier
-        $byCashier = Order::whereIn('status', ['completed', 'partially_paid', 'pay_later'])
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $byCashier = Order::whereIn('status', ['completed', 'partially_paid'])
+            ->where('created_at', '>=', $startUtc)
+            ->where('created_at', '<', $endExclusiveUtc)
             ->select('cashier_name', DB::raw('SUM(total) as total_sales'), DB::raw('COUNT(*) as total_orders'))
             ->groupBy('cashier_name')
             ->orderByDesc('total_sales')
@@ -89,18 +97,36 @@ class ReportController extends Controller
 
         // Refunds in period
         $refundsCount = Order::where('status', 'refunded')
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+            ->where('created_at', '>=', $startUtc)
+            ->where('created_at', '<', $endExclusiveUtc)
             ->count();
-        $refundsAmount = Refund::whereHas('order', fn ($q) => $q->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
+        $refundsAmount = Refund::whereHas('order', fn ($q) => $q->where('orders.created_at', '>=', $startUtc)
+            ->where('orders.created_at', '<', $endExclusiveUtc)
         )->sum('amount');
 
-        // Daily breakdown (for multi-day reports)
-        $dailyBreakdown = Order::whereIn('status', ['completed', 'partially_paid', 'pay_later'])
-            ->whereBetween(DB::raw('DATE(created_at)'), [$startDate, $endDate])
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as orders'))
-            ->groupBy(DB::raw('DATE(created_at)'))
-            ->orderBy(DB::raw('DATE(created_at)'))
-            ->get();
+        // Group by the business-local date; stored timestamps are UTC.
+        $dailyTotals = [];
+        (clone $completedQuery)
+            ->select(['created_at', 'total'])
+            ->orderBy('created_at')
+            ->cursor()
+            ->each(function ($order) use (&$dailyTotals) {
+                $date = $order->created_at
+                    ->copy()
+                    ->timezone(config('app.business_timezone', 'Asia/Manila'))
+                    ->toDateString();
+                $dailyTotals[$date] ??= ['total' => 0.0, 'orders' => 0];
+                $dailyTotals[$date]['total'] += (float) $order->total;
+                $dailyTotals[$date]['orders']++;
+            });
+        $dailyBreakdown = collect($dailyTotals)
+            ->sortKeys()
+            ->map(fn ($totals, $date) => (object) [
+                'date' => $date,
+                'total' => $totals['total'],
+                'orders' => $totals['orders'],
+            ])
+            ->values();
 
         $user = $request->user();
         AuditService::logFromUser($user, 'generated_sales_report', 'Reports', [
@@ -134,7 +160,7 @@ class ReportController extends Controller
                 $rows[] = [
                     $order->id,
                     $order->order_number ?? ('#'.$order->id),
-                    $order->created_at->format('Y-m-d H:i:s'),
+                    $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s'),
                     $order->cashier_name ?? '—',
                     $payment ? ucfirst($payment->method) : '—',
                     $payment?->reference_number ?? '—',
@@ -179,7 +205,7 @@ class ReportController extends Controller
             'to' => 'nullable|date|after_or_equal:from',
         ]);
 
-        $defaultDate = now()->toDateString();
+        $defaultDate = now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         $from = $filters['from'] ?? $filters['to'] ?? $defaultDate;
         $to = $filters['to'] ?? $from;
 
@@ -324,11 +350,15 @@ class ReportController extends Controller
             ->where('order_type', 'grab')
             ->orderByDesc('created_at');
 
-        if ($from = $request->get('from')) {
-            $query->whereDate('created_at', '>=', $from);
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+        if ($from = $filters['from'] ?? null) {
+            $query->where('created_at', '>=', BusinessDateRange::startUtc($from));
         }
-        if ($to = $request->get('to')) {
-            $query->whereDate('created_at', '<=', $to);
+        if ($to = $filters['to'] ?? null) {
+            $query->where('created_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
         if ($code = $request->get('grab_order_code')) {
             $query->where('grab_order_code', 'like', "%{$code}%");
@@ -348,14 +378,14 @@ class ReportController extends Controller
 
         // Summary totals
         $summaryQuery = clone $query;
-        $completedSummary = (clone $summaryQuery)->whereIn('status', ['completed', 'partially_paid', 'pay_later']);
+        $completedSummary = (clone $summaryQuery)->whereIn('status', ['completed', 'partially_paid']);
         $totalGrabSales = $completedSummary->sum('total');
         $totalGrabOrders = $summaryQuery->count();
         $completedCount = $completedSummary->count();
 
         if ($request->get('export') === 'excel') {
             abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
-            $filename = 'grab-orders-report-'.now()->format('Y-m-d').'.csv';
+            $filename = 'grab-orders-report-'.now(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d').'.csv';
             $headers = [
                 'Order #',
                 'Grab Order Code',
@@ -380,7 +410,6 @@ class ReportController extends Controller
                         'cash' => 'Cash',
                         'grabfood', 'grab' => 'GrabFood',
                         'online' => 'Online Payment',
-                        'pay_later' => 'Pay Later',
                         default => ucfirst($method),
                     })
                     ->join(', ');
@@ -390,7 +419,7 @@ class ReportController extends Controller
                     $ord->grab_order_code ?? '—',
                     $ord->rider_code ?? '—',
                     $ord->customer_name ?? '—',
-                    $ord->created_at ? $ord->created_at->format('Y-m-d H:i:s') : '',
+                    $ord->created_at ? $ord->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s') : '',
                     $ord->cashier_name,
                     $paymentMethods ?: '—',
                     $itemsText,
@@ -454,7 +483,7 @@ class ReportController extends Controller
 
         if ($request->get('export') === 'excel') {
             abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
-            $filename = 'cashier-shifts-report-'.now()->format('Y-m-d').'.csv';
+            $filename = 'cashier-shifts-report-'.now(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d').'.csv';
             $headers = [
                 'Shift ID',
                 'Cashier',
@@ -463,14 +492,11 @@ class ReportController extends Controller
                 'End Time',
                 'Beginning Cash',
                 'Cash Sales',
-                'Debt Collections (Cash)',
                 'Cash Refunds',
                 'Cash Voids',
                 'Online Sales',
-                'Debt Collections (Online)',
                 'Grab Sales',
                 'Grab Settlements',
-                'Pay Later Charged',
                 'Dine-in Sales',
                 'Take-out Sales',
                 'Void Count',
@@ -493,14 +519,11 @@ class ReportController extends Controller
                     $shift->localEndTime()?->format('Y-m-d H:i:s') ?? 'In Progress',
                     number_format((float) $shift->beginning_cash, 2, '.', ''),
                     number_format((float) $shift->cash_sales, 2, '.', ''),
-                    number_format((float) $shift->debt_cash_collections, 2, '.', ''),
                     number_format((float) $shift->cash_refunds, 2, '.', ''),
                     number_format((float) $shift->cash_voids, 2, '.', ''),
                     number_format((float) $shift->online_sales, 2, '.', ''),
-                    number_format((float) $shift->debt_online_collections, 2, '.', ''),
                     number_format((float) $shift->grab_sales, 2, '.', ''),
                     number_format((float) $shift->grab_settlements, 2, '.', ''),
-                    number_format((float) $shift->pay_later_charged, 2, '.', ''),
                     number_format((float) $shift->dine_in_sales, 2, '.', ''),
                     number_format((float) $shift->take_out_sales, 2, '.', ''),
                     $shift->void_count,
@@ -538,14 +561,11 @@ class ReportController extends Controller
 
         $summary = $shift->cashSummary();
         $shift->setAttribute('cash_sales', $summary['cash_sales']);
-        $shift->setAttribute('debt_cash_collections', $summary['debt_cash_collections']);
         $shift->setAttribute('cash_refunds', $summary['cash_refunds']);
         $shift->setAttribute('cash_voids', $summary['cash_voids']);
         $shift->setAttribute('online_sales', $summary['online_sales']);
-        $shift->setAttribute('debt_online_collections', $summary['debt_online_collections']);
         $shift->setAttribute('grab_sales', $summary['grab_sales']);
         $shift->setAttribute('grab_settlements', $summary['grab_settlements']);
-        $shift->setAttribute('pay_later_charged', $summary['pay_later_charged']);
         $shift->setAttribute('void_count', $summary['void_count']);
         $shift->setAttribute('void_amount', $summary['void_amount']);
         $shift->setAttribute('dine_in_sales', $summary['dine_in_sales']);
@@ -553,7 +573,6 @@ class ReportController extends Controller
         $shift->setAttribute('expected_cash', round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
-            + $summary['debt_cash_collections']
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2
@@ -568,7 +587,6 @@ class ReportController extends Controller
         $expectedCash = round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
-            + $summary['debt_cash_collections']
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2
@@ -578,7 +596,6 @@ class ReportController extends Controller
             ->latest()
             ->get();
         $payments = $shift->payments()->with('order')->latest()->get();
-        $debtPayments = DebtPayment::where('shift_id', $shift->id)->with('debt.order')->latest()->get();
         $refunds = Refund::where('shift_id', $shift->id)->with('order')->latest()->get();
         $voidLogs = VoidLog::where('shift_id', $shift->id)->with('order', 'orderItem.product')->latest('voided_at')->get();
         $adjustments = $shift->cashMovements()->with('recordedBy')->latest()->get();
@@ -589,7 +606,6 @@ class ReportController extends Controller
             'expectedCash',
             'orders',
             'payments',
-            'debtPayments',
             'refunds',
             'voidLogs',
             'adjustments',
@@ -598,13 +614,16 @@ class ReportController extends Controller
 
     private function resolveDateRange(string $type, string $date, ?string $from, ?string $to): array
     {
+        $timezone = config('app.business_timezone', 'Asia/Manila');
+        $businessDate = CarbonImmutable::parse($date, $timezone);
+
         return match ($type) {
             'daily' => [$date, $date],
-            'weekly' => [now()->parse($date)->startOfWeek()->toDateString(),  now()->parse($date)->endOfWeek()->toDateString()],
-            'monthly' => [now()->parse($date)->startOfMonth()->toDateString(), now()->parse($date)->endOfMonth()->toDateString()],
-            'yearly' => [now()->parse($date)->startOfYear()->toDateString(),  now()->parse($date)->endOfYear()->toDateString()],
+            'weekly' => [$businessDate->startOfWeek()->toDateString(), $businessDate->endOfWeek()->toDateString()],
+            'monthly' => [$businessDate->startOfMonth()->toDateString(), $businessDate->endOfMonth()->toDateString()],
+            'yearly' => [$businessDate->startOfYear()->toDateString(), $businessDate->endOfYear()->toDateString()],
             'custom' => [$from ?? $date, $to ?? $date],
-            default => ['2000-01-01', now()->toDateString()],
+            default => ['2000-01-01', now($timezone)->toDateString()],
         };
     }
 }

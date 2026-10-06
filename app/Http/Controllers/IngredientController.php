@@ -24,7 +24,9 @@ class IngredientController extends Controller
         }
         if ($stockStatus = $request->get('stock_status')) {
             if ($stockStatus === 'out_of_stock') {
-                $query->whereHas('inventory', fn ($q) => $q->where('current_stock', '<=', 0));
+                $query->where(fn ($q) => $q
+                    ->whereDoesntHave('inventory')
+                    ->orWhereHas('inventory', fn ($inventory) => $inventory->where('current_stock', '<=', 0)));
             } elseif ($stockStatus === 'low_stock') {
                 $query->whereHas('inventory', fn ($q) => $q
                     ->whereRaw('inventories.current_stock <= CASE WHEN ingredients.reorder_level > 0 THEN ingredients.reorder_level ELSE ingredients.minimum_stock END')
@@ -49,9 +51,9 @@ class IngredientController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:150|unique:ingredients,name',
             'unit' => 'required|in:ml,g,kg,L,pc,tbsp,tsp',
-            'minimum_stock' => 'required|numeric|min:0',
-            'reorder_level' => 'nullable|numeric|min:0',
-            'cost' => 'nullable|numeric|min:0',
+            'minimum_stock' => 'required|numeric|decimal:0,3|min:0',
+            'reorder_level' => 'nullable|numeric|decimal:0,3|min:0',
+            'cost' => 'nullable|numeric|decimal:0,2|min:0',
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expiration_date' => 'nullable|date',
             'status' => 'required|in:active,inactive',
@@ -81,9 +83,9 @@ class IngredientController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:150|unique:ingredients,name,'.$ingredient->id,
             'unit' => 'required|in:ml,g,kg,L,pc,tbsp,tsp',
-            'minimum_stock' => 'required|numeric|min:0',
-            'reorder_level' => 'nullable|numeric|min:0',
-            'cost' => 'nullable|numeric|min:0',
+            'minimum_stock' => 'required|numeric|decimal:0,3|min:0',
+            'reorder_level' => 'nullable|numeric|decimal:0,3|min:0',
+            'cost' => 'nullable|numeric|decimal:0,2|min:0',
             'supplier_id' => 'nullable|exists:suppliers,id',
             'expiration_date' => 'nullable|date',
             'status' => 'required|in:active,inactive',

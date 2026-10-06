@@ -24,7 +24,7 @@
             </div>
             <div class="text-xs text-gray-500 font-medium bg-gray-50 px-4 py-3 rounded-xl border border-gray-100 self-start sm:self-center">
                 <div>Member since</div>
-                <div class="font-bold text-gray-800 text-sm mt-0.5">{{ $user->created_at ? $user->created_at->format('M d, Y') : '—' }}</div>
+                <div class="font-bold text-gray-800 text-sm mt-0.5">{{ $user->created_at ? $user->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') : '—' }}</div>
             </div>
         </div>
 

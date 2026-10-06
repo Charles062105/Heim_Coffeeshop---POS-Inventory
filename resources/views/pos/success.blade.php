@@ -237,7 +237,7 @@
 
             <div class="flex items-center justify-between text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100">
                 <span>Cashier: <strong class="text-gray-600">{{ $order->cashier_name }}</strong></span>
-                <span>{{ $order->created_at->format('M d, Y h:i A') }}</span>
+                <span>{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}</span>
             </div>
         </div>
 

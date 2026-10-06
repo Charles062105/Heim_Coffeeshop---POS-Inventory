@@ -146,7 +146,6 @@
                     <th class="px-5 py-3.5 text-left">Shift Timing</th>
                     <th class="px-5 py-3.5 text-right">Beginning Cash</th>
                     <th class="px-5 py-3.5 text-right">Cash Sales</th>
-                    <th class="px-5 py-3.5 text-right">Debt Collections (Cash)</th>
                     <th class="px-5 py-3.5 text-right">Cash Refunds</th>
                     <th class="px-5 py-3.5 text-right">Cash Voids</th>
                     <th class="px-5 py-3.5 text-right">Expected Cash</th>
@@ -176,7 +175,6 @@
                     </td>
                     <td class="px-5 py-3.5 text-right font-semibold text-gray-700">₱{{ number_format($s->beginning_cash, 2) }}</td>
                     <td class="px-5 py-3.5 text-right font-semibold text-gray-700">₱{{ number_format($s->cash_sales, 2) }}</td>
-                    <td class="px-5 py-3.5 text-right font-semibold text-gray-700">₱{{ number_format($s->debt_cash_collections, 2) }}</td>
                     <td class="px-5 py-3.5 text-right font-semibold text-rose-700">−₱{{ number_format($s->cash_refunds, 2) }}</td>
                     <td class="px-5 py-3.5 text-right font-semibold text-rose-700">−₱{{ number_format($s->cash_voids, 2) }}</td>
                     <td class="px-5 py-3.5 text-right font-bold text-gray-900">₱{{ number_format($s->expected_cash, 2) }}</td>

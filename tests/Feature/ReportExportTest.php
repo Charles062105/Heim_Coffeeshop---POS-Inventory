@@ -9,7 +9,10 @@ use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\Refund;
 use App\Models\User;
+use App\Models\VoidLog;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -409,6 +412,56 @@ class ReportExportTest extends TestCase
         ]))->assertOk()->assertSee('Backdated Milk Delivery');
     }
 
+    public function test_inventory_created_at_fallback_filters_by_philippine_business_date(): void
+    {
+        $ingredient = Ingredient::create([
+            'name' => 'Legacy Dated Ingredient',
+            'unit' => 'L',
+            'minimum_stock' => 2,
+            'status' => 'active',
+        ]);
+
+        foreach ([
+            ['before-business-day', '2026-10-06 15:59:59'],
+            ['at-business-day-start', '2026-10-06 16:00:00'],
+            ['at-next-business-day-start', '2026-10-07 16:00:00'],
+        ] as [$reason, $createdAt]) {
+            $transaction = InventoryTransaction::create([
+                'ingredient_id' => $ingredient->id,
+                'type' => 'waste',
+                'quantity' => 1,
+                'previous_stock' => 10,
+                'new_stock' => 9,
+                'reason' => $reason,
+                'performed_by' => $this->manager->name,
+                'performed_role' => 'manager',
+            ]);
+            $transaction->forceFill([
+                'transaction_date' => null,
+                'created_at' => Carbon::parse($createdAt, 'UTC'),
+                'updated_at' => Carbon::parse($createdAt, 'UTC'),
+            ])->save();
+        }
+
+        $response = $this->actingAs($this->manager)->get(route('adjustments.index', [
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+        ]));
+
+        $response->assertOk();
+        $this->assertSame(
+            ['at-business-day-start'],
+            $response->viewData('transactions')->getCollection()->pluck('reason')->all()
+        );
+
+        $export = $this->get(route('adjustments.index', [
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+            'export' => 'excel',
+        ]));
+        $this->assertStringContainsString('2026-10-07,"2026-10-07 00:00:00"', $export->streamedContent());
+    }
+
     public function test_stock_in_keeps_low_stock_alert_when_stock_remains_below_reorder_threshold(): void
     {
         $ingredient = Ingredient::create([
@@ -443,13 +496,13 @@ class ReportExportTest extends TestCase
             'reorder_level' => 12,
             'status' => 'active',
         ]);
-        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 15]);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 10]);
         InventoryTransaction::create([
             'ingredient_id' => $ingredient->id,
             'type' => 'stock_in',
             'quantity' => 5,
-            'previous_stock' => 10,
-            'new_stock' => 15,
+            'previous_stock' => 5,
+            'new_stock' => 10,
             'transaction_date' => now()->subDays(3)->toDateString(),
             'performed_by' => $this->manager->name,
             'performed_role' => 'manager',
@@ -463,7 +516,9 @@ class ReportExportTest extends TestCase
 
         $response->assertOk();
         $response->assertViewHas('stockIns', fn ($stockIns) => $stockIns->contains('ingredient_id', $ingredient->id));
-        $response->assertSee('Backdated Report Milk');
+        $response->assertSee('Backdated Report Milk')
+            ->assertSee('12.000 L')
+            ->assertDontSee('3.00 L');
     }
 
     public function test_inventory_report_defaults_blank_dates_and_validates_reversed_ranges(): void
@@ -495,7 +550,7 @@ class ReportExportTest extends TestCase
         $milliliters = Ingredient::create(['name' => 'Milk', 'unit' => 'ml', 'minimum_stock' => 1, 'status' => 'active']);
         Inventory::create(['ingredient_id' => $grams->id, 'current_stock' => 10]);
         Inventory::create(['ingredient_id' => $milliliters->id, 'current_stock' => 20]);
-        foreach ([[$grams, 10], [$milliliters, 20]] as [$ingredient, $quantity]) {
+        foreach ([[$grams, 10.125], [$milliliters, 20.125]] as [$ingredient, $quantity]) {
             InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
                 'type' => 'stock_in',
@@ -508,10 +563,13 @@ class ReportExportTest extends TestCase
         }
 
         $response = $this->actingAs($this->manager)->get(route('inventory.transactions'));
-        $response->assertOk();
+        $response->assertOk()
+            ->assertSee('+10.125')
+            ->assertSee('+20.125');
         $additions = $response->viewData('summary')['additions'];
         $this->assertCount(2, $additions);
         $this->assertSame(['g', 'ml'], $additions->pluck('unit')->all());
+        $this->assertEqualsCanonicalizing([10.125, 20.125], $additions->pluck('total')->map(fn ($total) => (float) $total)->all());
     }
 
     public function test_adjustment_deduction_is_displayed_as_stock_out(): void
@@ -560,10 +618,11 @@ class ReportExportTest extends TestCase
         $ing = Ingredient::create([
             'name' => 'Arabica Coffee Beans',
             'unit' => 'g',
-            'minimum_stock' => 500,
+            'minimum_stock' => 500.125,
+            'reorder_level' => 600.875,
             'status' => 'active',
         ]);
-        Inventory::create(['ingredient_id' => $ing->id, 'current_stock' => 1200]);
+        Inventory::create(['ingredient_id' => $ing->id, 'current_stock' => 1200.375]);
 
         $response = $this->actingAs($this->manager)->get(route('inventory.index', ['export' => 'excel']));
         $response->assertOk();
@@ -571,6 +630,9 @@ class ReportExportTest extends TestCase
         $content = $response->streamedContent();
         $this->assertStringContainsString('Ingredient ID', $content);
         $this->assertStringContainsString('Arabica Coffee Beans', $content);
+        $this->assertStringContainsString('1200.375', $content);
+        $this->assertStringContainsString('600.875', $content);
+        $this->assertStringContainsString('500.125', $content);
 
         $printResponse = $this->actingAs($this->manager)->get(route('inventory.index', ['print' => 'all']));
         $printResponse->assertOk();
@@ -660,6 +722,146 @@ class ReportExportTest extends TestCase
         ]))->assertSessionHasErrors('to');
     }
 
+    public function test_order_ledger_and_sales_report_filter_by_business_day(): void
+    {
+        foreach ([
+            ['outside-business-day', '2026-10-06 15:59:59', 100],
+            ['inside-business-day-start', '2026-10-06 16:00:00', 90],
+            ['inside-business-day-end', '2026-10-07 15:59:59', 30],
+            ['outside-next-business-day', '2026-10-07 16:00:00', 200],
+        ] as [$number, $createdAt, $total]) {
+            $order = Order::create([
+                'order_number' => 'ORD-TZ-'.$number,
+                'cashier_name' => $this->manager->name,
+                'subtotal' => $total,
+                'total' => $total,
+                'status' => 'completed',
+            ]);
+            $order->forceFill([
+                'created_at' => Carbon::parse($createdAt, 'UTC'),
+                'updated_at' => Carbon::parse($createdAt, 'UTC'),
+            ])->save();
+        }
+
+        $ordersResponse = $this->actingAs($this->manager)->get(route('orders.index', [
+            'date' => '2026-10-07',
+        ]));
+        $ordersResponse->assertOk();
+        $ordersResponse->assertSee('Oct 07, 2026');
+        $ordersResponse->assertSee('11:59 PM');
+        $this->assertSame(
+            ['ORD-TZ-inside-business-day-end', 'ORD-TZ-inside-business-day-start'],
+            $ordersResponse->viewData('orders')->getCollection()->pluck('order_number')->sort()->values()->all()
+        );
+
+        $reportResponse = $this->get(route('reports.sales', [
+            'type' => 'daily',
+            'date' => '2026-10-07',
+        ]));
+        $reportResponse->assertOk();
+        $reportResponse->assertViewHas('totalSales', 120.0);
+        $reportResponse->assertViewHas('totalOrders', 2);
+        $this->assertSame('2026-10-07', $reportResponse->viewData('dailyBreakdown')->first()->date);
+        $this->assertSame(120.0, $reportResponse->viewData('dailyBreakdown')->first()->total);
+
+        $exportResponse = $this->get(route('reports.sales', [
+            'type' => 'daily',
+            'date' => '2026-10-07',
+            'export' => 'excel',
+        ]));
+        $this->assertStringContainsString('2026-10-07 23:59:59', $exportResponse->streamedContent());
+    }
+
+    public function test_void_history_filters_by_philippine_business_day(): void
+    {
+        $order = Order::create([
+            'order_number' => 'ORD-TZ-VOID',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'voided',
+        ]);
+
+        foreach ([
+            ['outside-business-day', '2026-10-06 15:59:59'],
+            ['inside-business-day-start', '2026-10-06 16:00:00'],
+            ['inside-business-day-end', '2026-10-07 15:59:59'],
+            ['outside-next-business-day', '2026-10-07 16:00:00'],
+        ] as [$reason, $voidedAt]) {
+            $void = VoidLog::create([
+                'order_id' => $order->id,
+                'amount' => 100,
+                'void_type' => 'order',
+                'reason' => $reason,
+                'cashier_name' => $this->manager->name,
+                'authorized_by' => $this->manager->name,
+                'authorized_role' => 'manager',
+                'stock_restored' => false,
+                'voided_at' => Carbon::parse($voidedAt, 'UTC'),
+            ]);
+            $void->forceFill([
+                'created_at' => Carbon::parse($voidedAt, 'UTC'),
+                'updated_at' => Carbon::parse($voidedAt, 'UTC'),
+            ])->save();
+        }
+
+        $response = $this->actingAs($this->manager)->get(route('voids.index', [
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+        ]));
+
+        $response->assertOk();
+        $this->assertSame(
+            ['inside-business-day-end', 'inside-business-day-start'],
+            $response->viewData('voidLogs')->getCollection()->pluck('reason')->all()
+        );
+    }
+
+    public function test_refund_history_filters_by_refund_timestamp_in_philippine_time(): void
+    {
+        $order = Order::create([
+            'order_number' => 'ORD-TZ-REFUND',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'refunded',
+        ]);
+
+        foreach ([
+            ['outside-business-day', '2026-10-06 15:59:59', '2026-10-06 15:59:59'],
+            ['inside-business-day-start', '2026-10-05 12:00:00', '2026-10-06 16:00:00'],
+            ['inside-business-day-end', '2026-10-08 12:00:00', '2026-10-07 15:59:59'],
+            ['outside-next-business-day', '2026-10-07 15:00:00', '2026-10-07 16:00:00'],
+        ] as [$reason, $createdAt, $refundedAt]) {
+            $refund = Refund::create([
+                'order_id' => $order->id,
+                'amount' => 100,
+                'method' => 'cash',
+                'status' => 'completed',
+                'reason' => $reason,
+                'authorized_by' => $this->manager->name,
+                'authorized_role' => 'manager',
+                'stock_restored' => false,
+                'refunded_at' => Carbon::parse($refundedAt, 'UTC'),
+            ]);
+            $refund->forceFill([
+                'created_at' => Carbon::parse($createdAt, 'UTC'),
+                'updated_at' => Carbon::parse($createdAt, 'UTC'),
+            ])->save();
+        }
+
+        $response = $this->actingAs($this->manager)->get(route('refunds.index', [
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+        ]));
+
+        $response->assertOk();
+        $this->assertSame(
+            ['inside-business-day-end', 'inside-business-day-start'],
+            $response->viewData('refunds')->getCollection()->pluck('reason')->all()
+        );
+    }
+
     public function test_sales_report_payment_breakdown_excludes_unpaid_payment_attempts(): void
     {
         $order = Order::create([
@@ -747,6 +949,13 @@ class ReportExportTest extends TestCase
             'review_note' => 'Drawer count verified.',
         ])->assertSessionHasNoErrors();
 
+        $this->actingAs($this->manager)->from(route('reports.shifts.show', $shift))
+            ->post(route('reports.shifts.adjustments.store', $shift), [
+                'amount' => '12.501',
+                'reason' => 'Correcting documented cash discrepancy',
+            ])->assertSessionHasErrors('amount');
+        $this->assertDatabaseCount('shift_cash_movements', 0);
+
         $this->actingAs($this->manager)->post(route('reports.shifts.adjustments.store', $shift), [
             'amount' => '12.50',
             'reason' => 'Correcting documented cash discrepancy',
@@ -805,12 +1014,10 @@ class ReportExportTest extends TestCase
         $this->actingAs($cashier)->getJson(route('shifts.current'))
             ->assertOk()
             ->assertJsonPath('shift.non_cash_summary.dine_in_sales', 20)
-            ->assertJsonPath('shift.non_cash_summary.take_out_sales', 0)
-            ->assertJsonPath('shift.non_cash_summary.debt_online_collections', 0);
+            ->assertJsonPath('shift.non_cash_summary.take_out_sales', 0);
 
         $this->actingAs($this->manager)->get(route('reports.shifts'))
             ->assertOk()
-            ->assertSee('Debt Collections (Cash)')
             ->assertSee('Cash Voids')
             ->assertSee('₱20.00')
             ->assertSee('₱120.00');
