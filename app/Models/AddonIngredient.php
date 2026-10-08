@@ -30,6 +30,7 @@ class AddonIngredient extends Model
     protected $fillable = [
         'product_addon_id',
         'ingredient_id',
+        'replaces_ingredient_id',
         'quantity',
     ];
 
@@ -50,5 +51,10 @@ class AddonIngredient extends Model
     public function ingredient(): BelongsTo
     {
         return $this->belongsTo(Ingredient::class);
+    }
+
+    public function replacesIngredient(): BelongsTo
+    {
+        return $this->belongsTo(Ingredient::class, 'replaces_ingredient_id');
     }
 }

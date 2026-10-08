@@ -228,7 +228,10 @@
 
 @php 
     $u = auth()->user(); 
-    $nb = $u ? \App\Models\Notification::where('is_resolved', false)->whereNull('read_at')->count() : 0;
+    $nb = $u ? \App\Models\Notification::forRole($u->role)
+        ->where('is_resolved', false)
+        ->unreadForUser($u)
+        ->count() : 0;
 @endphp
 <div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="app-shell flex h-full w-full overflow-hidden bg-gray-50 {{ request()->routeIs('pos.index') ? 'pos-shell' : '' }}" style="zoom: 90%">
 
@@ -280,7 +283,7 @@
 
             @if($u && $u->canManageInventory())
             <p class="sidebar-section-label pt-6">Menu</p>
-            <a href="{{ route('products.index') }}" class="nav-link {{ request()->routeIs('products.*', 'categories.*', 'recipes.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4v10l8 4 8-4V7zm-8 4l8-4m-8 4v10M4 7l8 4"/></svg><span>Menu</span></a>
+            <a href="{{ route('products.index') }}" class="nav-link {{ request()->routeIs('products.*', 'addons.*', 'categories.*', 'recipes.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4v10l8 4 8-4V7zm-8 4l8-4m-8 4v10M4 7l8 4"/></svg><span>Menu</span></a>
             @endif
 
             @if($u && $u->canManageInventory())
@@ -467,9 +470,10 @@
                 if ($u && $u->canManageInventory()) {
                     $navigationTabs[] = ['label' => 'Voids', 'route' => 'voids.index', 'active' => ['voids.*']];
                 }
-            } elseif (str_starts_with($currentRoute, 'products.') || str_starts_with($currentRoute, 'categories.') || str_starts_with($currentRoute, 'recipes.')) {
+            } elseif (str_starts_with($currentRoute, 'products.') || str_starts_with($currentRoute, 'addons.') || str_starts_with($currentRoute, 'categories.') || str_starts_with($currentRoute, 'recipes.')) {
                 $navigationTabs = [
                     ['label' => 'Products', 'route' => 'products.index', 'active' => ['products.*']],
+                    ['label' => 'Add-ons', 'route' => 'addons.index', 'active' => ['addons.*']],
                     ['label' => 'Categories', 'route' => 'categories.index', 'active' => ['categories.*']],
                     ['label' => 'Recipes', 'route' => 'recipes.index', 'active' => ['recipes.*']],
                 ];

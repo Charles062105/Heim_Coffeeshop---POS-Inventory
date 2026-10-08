@@ -104,7 +104,7 @@
                 {{-- Sizes & Pricing --}}
                 <div class="mt-4 pt-3 border-t border-gray-100 space-y-2">
                     <div class="flex items-center justify-between text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        <span>Sizes & Prices</span>
+                        <span>Regular / GrabFood Prices</span>
                         <span>{{ $product->sizes->count() }} {{ Str::plural('size', $product->sizes->count()) }}</span>
                     </div>
 
@@ -112,8 +112,9 @@
                         @forelse($product->sizes as $size)
                         <div class="flex items-center justify-between bg-gray-50/80 hover:bg-heim-50/40 border border-gray-100 rounded-xl px-3 py-1.5 text-xs transition-colors">
                             <span class="font-medium text-gray-700">{{ $size->size_name }}</span>
-                            <div class="flex items-center gap-1.5">
-                                <span class="font-bold text-heim-700">₱{{ number_format($size->price, 2) }}</span>
+                            <div class="flex flex-col items-end gap-0.5">
+                                <span class="font-bold text-heim-700">Regular ₱{{ number_format($size->price, 2) }}</span>
+                                <span class="font-semibold text-emerald-700">GrabFood ₱{{ number_format($size->getGrabPrice(), 2) }}{{ $size->grab_price === null ? ' (same as regular)' : '' }}</span>
                                 @if($size->status === 'inactive')
                                 <span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold uppercase">Archived</span>
                                 @endif

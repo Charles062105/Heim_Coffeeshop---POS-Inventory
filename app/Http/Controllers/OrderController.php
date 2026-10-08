@@ -114,13 +114,19 @@ class OrderController extends Controller
 
         $validated = $request->validate([
             'amount_paid' => 'required|numeric|decimal:0,2|min:0.01',
-            'amount_received' => 'nullable|numeric|decimal:0,2|min:0',
+            'amount_received' => 'required_if:payment_method,cash|numeric|decimal:0,2|min:0',
             'payment_method' => 'required|in:cash,online,grabfood,grab',
             'payment_status' => 'nullable|in:paid,pending,failed',
             'person_name' => 'nullable|string|max:150',
             'payment_comment' => 'nullable|string|max:255',
             'reference_number' => 'nullable|string|max:100',
         ]);
+
+        if (($order->order_type ?? 'dine_in') !== 'grab' && in_array($validated['payment_method'], ['grabfood', 'grab'], true)) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'GrabFood platform settlements are only valid for Grab orders.',
+            ]);
+        }
 
         if ($validated['payment_method'] === 'online' && blank($validated['reference_number'] ?? null)) {
             throw ValidationException::withMessages([
@@ -179,7 +185,7 @@ class OrderController extends Controller
             $amountReceived = $paymentStatus !== 'paid'
                 ? 0
                 : ($validated['payment_method'] === 'cash'
-                    ? (float) ($validated['amount_received'] ?? $amountPaid)
+                    ? (float) $validated['amount_received']
                     : $amountPaid);
             if ($validated['payment_method'] === 'cash' && $amountReceived < $amountPaid) {
                 throw ValidationException::withMessages([
@@ -217,7 +223,7 @@ class OrderController extends Controller
             ], $payment);
 
             return $payment;
-        });
+        }, 3);
 
         if ($request->wantsJson()) {
             return response()->json([

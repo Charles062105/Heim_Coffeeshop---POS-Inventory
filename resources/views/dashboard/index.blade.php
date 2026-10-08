@@ -23,7 +23,7 @@
         {{-- My Sales Today --}}
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div class="flex items-center justify-between gap-3 mb-3">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">My Sales Today</span>
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">My Payments Today</span>
                 <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -36,7 +36,7 @@
                     {{ $cashierTodayOrders }} {{ Str::plural('order', $cashierTodayOrders) }}
                 </span>
             </div>
-            <p class="text-xs text-gray-400 mt-2">Processed during your shift today</p>
+            <p class="text-xs text-gray-400 mt-2">Tender received today; refunds are reported separately</p>
         </div>
 
         {{-- My Orders Today --}}
@@ -50,7 +50,7 @@
                 </div>
             </div>
             <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{{ $cashierTodayOrders }}</p>
-            <p class="text-xs text-gray-400 mt-2">Completed customer tickets today</p>
+            <p class="text-xs text-gray-400 mt-2">Customer tickets with payments today</p>
         </div>
 
         {{-- All-Time Sales Handled --}}
@@ -82,7 +82,7 @@
         {{-- Today's Sales --}}
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div class="flex items-center justify-between gap-3 mb-3">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Today's Sales</span>
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Payments Received Today</span>
                 <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -95,13 +95,13 @@
                     {{ $todayOrders }} {{ Str::plural('order', $todayOrders) }}
                 </span>
             </div>
-            <p class="text-xs text-gray-400 mt-2">{{ $todayOrders }} paid {{ Str::plural('order', $todayOrders) }} today</p>
+            <p class="text-xs text-gray-400 mt-2">{{ $todayOrders }} {{ Str::plural('order', $todayOrders) }} with tender received today; refunds shown separately</p>
         </div>
 
-        {{-- Total Sales (renamed from Total Revenue) --}}
+        {{-- Total payments received --}}
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div class="flex items-center justify-between gap-3 mb-3">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Sales</span>
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Payments Received</span>
                 <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
@@ -109,7 +109,7 @@
                 </div>
             </div>
             <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">₱{{ number_format($totalRevenue, 2) }}</p>
-            <p class="text-xs text-gray-400 mt-2">All-time completed sales</p>
+            <p class="text-xs text-gray-400 mt-2">All-time tender; refunds reported separately</p>
         </div>
 
         {{-- Low Stock --}}
@@ -274,7 +274,7 @@
                         </div>
                         <h2 class="font-bold text-gray-900 text-base">Sales Overview</h2>
                     </div>
-                    <p class="text-xs text-gray-400 mt-0.5">7-day revenue velocity and sales trajectory</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ $userRole === 'cashier' ? 'Your tender received by payment date' : 'Tender received by payment date; refunds reported separately' }}</p>
                 </div>
                 
                 <div class="flex items-center gap-2">
@@ -282,9 +282,11 @@
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span>This Week</span>
                     </span>
-                    <a href="{{ route('reports.sales') }}" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline">
-                        Full Report →
-                    </a>
+                    @if($userRole !== 'cashier')
+                        <a href="{{ route('reports.sales') }}" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline">
+                            Full Report →
+                        </a>
+                    @endif
                 </div>
             </div>
 
@@ -295,7 +297,7 @@
                     <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">₱{{ number_format($weekTotal, 2) }}</span>
                 </div>
                 <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Completed Orders</span>
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Orders with Payments</span>
                     <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">{{ $weekOrders }}</span>
                 </div>
                 <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
@@ -411,13 +413,13 @@
                         <span class="font-bold text-heim-300" x-text="`${tooltipData.label} · ${tooltipData.date}`"></span>
                     </div>
                     <div class="text-sm font-extrabold text-white mt-0.5" x-text="`₱${tooltipData.total}`"></div>
-                    <div class="text-[10px] text-gray-400 mt-0.5" x-text="`${tooltipData.count} completed order(s)`"></div>
+                    <div class="text-[10px] text-gray-400 mt-0.5" x-text="`${tooltipData.count} order(s) with payment`"></div>
                 </div>
             </div>
 
             @if($weekTotal == 0)
             <div class="text-center py-2 text-xs text-gray-400">
-                Waiting for completed orders this week to plot daily sales.
+                Waiting for payments this week to plot daily sales.
             </div>
             @endif
         </div>
@@ -432,7 +434,7 @@
                         </div>
                         <div>
                             <h2 class="font-bold text-gray-900 text-sm uppercase tracking-wider">Payment Breakdown</h2>
-                            <p class="text-[11px] text-gray-400">{{ $isTodayPaymentsEmpty ? 'All-time tender settlement' : "Today's register tender" }}</p>
+                            <p class="text-[11px] text-gray-400">{{ $isTodayPaymentsEmpty ? 'All-time tender received; refunds reported separately' : "Tender received today; refunds reported separately" }}</p>
                         </div>
                     </div>
                     <span class="text-xs font-black text-heim-800 bg-heim-50 px-2.5 py-1 rounded-xl border border-heim-200/50">₱{{ number_format($paymentTotal, 2) }}</span>
@@ -473,11 +475,13 @@
                 </div>
             </div>
 
-            <div class="pt-4 border-t border-gray-100 text-center">
-                <a href="{{ route('reports.sales') }}" class="text-xs font-bold text-heim-700 hover:text-heim-800 hover:underline">
-                    Detailed Tender Breakdown & History →
-                </a>
-            </div>
+            @if($userRole !== 'cashier')
+                <div class="pt-4 border-t border-gray-100 text-center">
+                    <a href="{{ route('reports.sales') }}" class="text-xs font-bold text-heim-700 hover:text-heim-800 hover:underline">
+                        Detailed Tender Breakdown & History →
+                    </a>
+                </div>
+            @endif
         </div>
 
     </div>
@@ -489,7 +493,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {{-- ── 📋 Recent Orders Table (Col 8) ───────────────────────────────── --}}
-        <div class="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+        <div class="{{ $userRole === 'cashier' ? 'lg:col-span-12' : 'lg:col-span-8' }} bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div class="flex items-center gap-2.5">
                     <div class="w-7 h-7 rounded-lg bg-heim-50 text-heim-700 flex items-center justify-center">
@@ -499,13 +503,15 @@
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-900 text-base">Recent Orders</h2>
-                        <p class="text-xs text-gray-400">Latest settled customer tickets</p>
+                        <p class="text-xs text-gray-400">{{ $userRole === 'cashier' ? 'Your latest customer tickets' : 'Latest settled customer tickets' }}</p>
                     </div>
                 </div>
-                <a href="{{ route('orders.index') }}" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline flex items-center gap-1">
-                    <span>View all orders</span>
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                </a>
+                @if($userRole !== 'cashier')
+                    <a href="{{ route('orders.index') }}" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline flex items-center gap-1">
+                        <span>View all orders</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </a>
+                @endif
             </div>
 
             <div class="overflow-x-auto flex-1">
@@ -566,6 +572,7 @@
         </div>
 
         {{-- ── 📝 Recent Activity (Col 4) ───────────────────────────────────── --}}
+        @if($userRole !== 'cashier')
         <div class="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div class="flex items-center gap-2">
@@ -616,6 +623,7 @@
                 </a>
             </div>
         </div>
+        @endif
 
     </div>
 
@@ -623,6 +631,7 @@
          SECTION 3: INVENTORY HEALTH & DAILY CONSUMPTION (6 cols + 6 cols)
          Inventory Alerts (Left) + Recipe Deductions Today (Right)
        ══════════════════════════════════════════════════════════════════════════ --}}
+    @if($userRole !== 'cashier')
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {{-- ── 🚨 INVENTORY ALERTS (Col 6) ─────────────────────────────────── --}}
@@ -695,11 +704,11 @@
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-900 text-xs uppercase tracking-wider">Daily Consumption</h2>
-                        <p class="text-[11px] text-gray-400">Today's recipe ingredient deductions from POS sales</p>
+                        <p class="text-[11px] text-gray-400">Today's POS ingredient usage, net of sales returns</p>
                     </div>
                 </div>
                 <a href="{{ route('consumption.index') }}" class="text-xs font-semibold text-heim-700 hover:underline">
-                    View matrix →
+                    View net report →
                 </a>
             </div>
 
@@ -726,19 +735,20 @@
                         <p class="font-bold text-gray-700 text-sm">No recipe consumption recorded yet today</p>
                         <p class="text-xs text-gray-400 mt-0.5">Completed orders will automatically deduct recipe ingredients here.</p>
                         <a href="{{ route('consumption.index') }}" class="mt-3 text-xs font-bold text-heim-700 hover:underline">
-                            Inspect Daily Consumption matrix →
+                            Inspect net consumption report →
                         </a>
                     </div>
                 @endforelse
             </div>
 
             <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs">
-                <span class="text-gray-400">Live POS recipe deductions</span>
+                <span class="text-gray-400">Live POS usage, net of returns</span>
                 <a href="{{ route('consumption.index') }}" class="font-bold text-heim-700 hover:underline">
                     View report →
                 </a>
             </div>
         </div>
+        @endif
 
     </div>
 

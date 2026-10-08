@@ -57,7 +57,7 @@
                 <div class="flex items-center justify-between mb-3">
                     <div>
                         <label class="brand-label">Sizes & Pricing <span class="text-rose-500">*</span></label>
-                        <p class="text-xs text-gray-400 mt-0.5">Specify at least one serving size and selling price</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Set a separate optional GrabFood price for each size. Leave it blank to use the regular price.</p>
                     </div>
                     <button type="button" onclick="addSizeRow()" class="inline-flex items-center gap-1 text-xs bg-heim-50 text-heim-700 hover:bg-heim-100 border border-heim-200/60 px-3 py-1.5 rounded-xl font-semibold transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
@@ -72,9 +72,9 @@
                             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-gray-400">₱</span>
                             <input type="number" name="sizes[0][price]" placeholder="Reg 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-gray-800 text-xs" required>
                         </div>
-                        <div class="relative w-28" title="Optional GrabFood price override">
+                        <div class="relative w-28" title="Optional GrabFood price. Leave blank to use the regular price.">
                             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-emerald-600">₱</span>
-                            <input type="number" name="sizes[0][grab_price]" placeholder="Grab 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-700 text-xs">
+                            <input type="number" name="sizes[0][grab_price]" placeholder="GrabFood" aria-label="Optional GrabFood price" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-700 text-xs">
                         </div>
                         <select name="sizes[0][status]" class="w-24 brand-input text-xs font-medium">
                             <option value="active">Unarchived</option>
@@ -112,9 +112,9 @@ function addSizeRow() {
             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-gray-400">₱</span>
             <input type="number" name="sizes[${sizeIdx}][price]" placeholder="Reg 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-gray-800 text-xs" required>
         </div>
-        <div class="relative w-28" title="Optional GrabFood price override">
+        <div class="relative w-28" title="Optional GrabFood price. Leave blank to use the regular price.">
             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-emerald-600">₱</span>
-            <input type="number" name="sizes[${sizeIdx}][grab_price]" placeholder="Grab 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-700 text-xs">
+            <input type="number" name="sizes[${sizeIdx}][grab_price]" placeholder="GrabFood" aria-label="Optional GrabFood price" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-700 text-xs">
         </div>
         <select name="sizes[${sizeIdx}][status]" class="w-24 brand-input text-xs font-medium">
             <option value="active">Unarchived</option>

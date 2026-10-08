@@ -12,11 +12,15 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'role' => ['nullable', 'in:owner,manager,cashier'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
         $query = User::orderBy('name');
-        if ($role = $request->get('role')) {
+        if ($role = $filters['role'] ?? null) {
             $query->where('role', $role);
         }
-        if ($status = $request->get('status')) {
+        if ($status = $filters['status'] ?? null) {
             $query->where('status', $status);
         }
         $users = $query->paginate(20)->withQueryString();
@@ -37,7 +41,7 @@ class UserController extends Controller
         $request->validate([
             'name' => 'required|string|max:150',
             'email' => 'required|email|unique:users,email',
-            'password' => ['required', Password::defaults()],
+            'password' => ['required', 'confirmed', Password::defaults()],
             'role' => 'required|in:owner,manager,cashier',
         ]);
 
@@ -68,7 +72,7 @@ class UserController extends Controller
         $request->validate([
             'name' => 'required|string|max:150',
             'email' => 'required|email|unique:users,email,'.$user->id,
-            'password' => ['nullable', Password::defaults()],
+            'password' => ['nullable', 'confirmed', Password::defaults()],
             'role' => 'nullable|in:owner,manager,cashier',
         ]);
 
@@ -89,27 +93,17 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', 'User updated.');
     }
 
-    public function destroy(User $user)
-    {
-        if ($user->id === request()->user()->id) {
-            return back()->with('error', 'You cannot delete your own account.');
-        }
-        AuditService::logFromUser(request()->user(), 'deleted_user', 'Users', ['deleted_user' => $user->name]);
-        $user->delete();
-
-        return redirect()->route('users.index')->with('success', 'User deleted.');
-    }
-
     public function toggle(User $user)
     {
         if ($user->id === request()->user()->id) {
             return back()->with('error', 'You cannot archive your own account.');
         }
         $user->update(['status' => $user->status === 'active' ? 'inactive' : 'active']);
+        $status = $user->status === 'active' ? 'unarchived' : 'archived';
         AuditService::logFromUser(request()->user(), 'toggled_user_status', 'Users', [
             'user' => $user->name, 'status' => $user->status,
         ], $user);
 
-        return back()->with('success', "User \"{$user->name}\" is now {$user->status}.");
+        return back()->with('success', "User \"{$user->name}\" is now {$status}.");
     }
 }

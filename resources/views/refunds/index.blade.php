@@ -58,10 +58,10 @@
                         </td>
                         <td class="px-5 py-4 text-right">
                             <div class="text-xs font-medium text-gray-700">
-                                {{ $refund->refunded_at ? $refund->refunded_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') : '—' }}
+                                {{ ($refund->refunded_at ?? $refund->created_at)?->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') ?? '—' }}
                             </div>
                             <div class="text-[11px] text-gray-400">
-                                {{ $refund->refunded_at ? $refund->refunded_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') : '' }}
+                                {{ ($refund->refunded_at ?? $refund->created_at)?->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('h:i A') ?? '' }}
                             </div>
                         </td>
                     </tr>

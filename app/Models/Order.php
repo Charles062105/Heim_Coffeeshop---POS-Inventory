@@ -11,6 +11,7 @@ class Order extends Model
 
     protected $fillable = [
         'order_number',
+        'checkout_request_id',
         'order_type',
         'grab_order_code',
         'rider_code',
@@ -114,6 +115,11 @@ class Order extends Model
     public function isCompleted(): bool
     {
         return $this->status === 'completed';
+    }
+
+    public function isPayable(): bool
+    {
+        return in_array($this->status, ['pending', 'partially_paid'], true);
     }
 
     public function isHeld(): bool

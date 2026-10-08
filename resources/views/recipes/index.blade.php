@@ -148,7 +148,7 @@
             </span>
         </div>
         <p class="text-xs text-gray-400 mb-4 -mt-2">
-            These are the ingredient deductions applied automatically when an add-on is selected in POS.
+            These mappings are configured on the Add-ons page. Additive mappings are deducted on top of the recipe; substitutions replace the named recipe ingredient.
             Flavor selectors (₱0.00) have no ingredient mapping as they are modifier choices only.
         </p>
 
@@ -181,7 +181,7 @@
                                     @foreach($addon->addonIngredients as $ai)
                                     <span class="inline-flex items-center gap-1 bg-purple-50 text-purple-800 text-[11px] px-2 py-0.5 rounded-md border border-purple-200 font-medium">
                                         <span class="font-black">{{ $ai->quantity }} {{ $ai->ingredient?->unit }}</span>
-                                        <span class="text-purple-600">{{ $ai->ingredient?->name }}</span>
+                                        <span class="text-purple-600">{{ $ai->ingredient?->name }}{{ $ai->replacesIngredient ? ' replaces ' . $ai->replacesIngredient->name : '' }}</span>
                                     </span>
                                     @endforeach
                                 </div>
@@ -214,4 +214,3 @@
 
 </div>
 @endsection
-

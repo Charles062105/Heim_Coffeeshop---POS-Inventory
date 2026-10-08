@@ -14,15 +14,20 @@ class IngredientController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'in:active,inactive'],
+            'stock_status' => ['nullable', 'in:low_stock,out_of_stock'],
+        ]);
         $query = Ingredient::with(['inventory', 'supplier'])->orderBy('name');
 
-        if ($search = $request->get('search')) {
+        if ($search = $filters['search'] ?? null) {
             $query->where('name', 'like', "%{$search}%");
         }
-        if ($status = $request->get('status')) {
+        if ($status = $filters['status'] ?? null) {
             $query->where('status', $status);
         }
-        if ($stockStatus = $request->get('stock_status')) {
+        if ($stockStatus = $filters['stock_status'] ?? null) {
             if ($stockStatus === 'out_of_stock') {
                 $query->where(fn ($q) => $q
                     ->whereDoesntHave('inventory')
@@ -112,9 +117,12 @@ class IngredientController extends Controller
 
     public function destroy(Ingredient $ingredient)
     {
-        $inUse = $ingredient->recipeIngredients()->exists();
+        $inUse = $ingredient->recipeIngredients()->exists()
+            || AddonIngredient::where('ingredient_id', $ingredient->id)->exists()
+            || $ingredient->inventoryTransactions()->exists()
+            || $ingredient->getCurrentStock() > 0;
         if ($inUse) {
-            return back()->with('error', 'Cannot delete an ingredient used in recipes. Deactivate it instead.');
+            return back()->with('error', 'Cannot delete an ingredient with recipe usage, stock, or inventory history. Archive it instead.');
         }
         AuditService::logFromUser(request()->user(), 'deleted_ingredient', 'Inventory', ['ingredient' => $ingredient->name]);
         $ingredient->delete();
@@ -126,6 +134,8 @@ class IngredientController extends Controller
     {
         $ingredient->update(['status' => $ingredient->status === 'active' ? 'inactive' : 'active']);
 
-        return back()->with('success', "Ingredient \"{$ingredient->name}\" is now {$ingredient->status}.");
+        $status = $ingredient->status === 'active' ? 'unarchived' : 'archived';
+
+        return back()->with('success', "Ingredient \"{$ingredient->name}\" is now {$status}.");
     }
 }

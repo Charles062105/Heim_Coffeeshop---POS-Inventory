@@ -21,13 +21,52 @@ class InventoryService
     public static function deductFromSale(Order $order, string $performedBy, string $performedRole): void
     {
         foreach ($order->orderItems->where('status', 'active') as $item) {
-            // ── 1. Recipe ingredients (base product) ─────────────────────────
+            $item->loadMissing(['addons.addon.addonIngredients.ingredient.inventory']);
+            $addonMappings = $item->addons
+                ->pluck('addon.addonIngredients')
+                ->flatten()
+                ->filter();
+            $substitutions = $addonMappings->whereNotNull('replaces_ingredient_id');
+            $replacementSourceIds = $substitutions
+                ->pluck('replaces_ingredient_id')
+                ->map(fn ($id) => (int) $id);
+
+            if ($replacementSourceIds->count() !== $replacementSourceIds->unique()->count()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Only one selected add-on can replace each recipe ingredient.',
+                ]);
+            }
+
             $recipe = Recipe::where('product_size_id', $item->product_size_id)
                 ->with('recipeIngredients.ingredient.inventory')
                 ->first();
+            $recipeIngredientIds = $recipe
+                ? $recipe->recipeIngredients->pluck('ingredient_id')->map(fn ($id) => (int) $id)
+                : collect();
 
+            if ($substitutions->isNotEmpty()) {
+                if (! $recipe) {
+                    throw ValidationException::withMessages([
+                        'items' => 'A selected ingredient substitute cannot be applied because this product size has no recipe.',
+                    ]);
+                }
+
+                foreach ($substitutions as $substitution) {
+                    if (! $recipeIngredientIds->contains((int) $substitution->replaces_ingredient_id)) {
+                        throw ValidationException::withMessages([
+                            'items' => 'A selected ingredient substitute does not match an ingredient in this product size recipe.',
+                        ]);
+                    }
+                }
+            }
+
+            // ── 1. Recipe ingredients (base product) ─────────────────────────
             if ($recipe) {
                 foreach ($recipe->recipeIngredients as $ri) {
+                    if ($replacementSourceIds->contains((int) $ri->ingredient_id)) {
+                        continue;
+                    }
+
                     $totalQty = $ri->quantity * $item->quantity;
                     $ingredient = $ri->ingredient;
 
@@ -45,11 +84,7 @@ class InventoryService
                 }
             }
 
-            // ── 2. Addon ingredients ──────────────────────────────────────────
-            // Load the addons for this order item, then find each addon's
-            // ingredient mappings and deduct them × item quantity.
-            $item->loadMissing(['addons.addon.addonIngredients.ingredient.inventory']);
-
+            // ── 2. Add-on ingredients ─────────────────────────────────────────
             foreach ($item->addons as $orderItemAddon) {
                 $addon = $orderItemAddon->addon;
 
@@ -58,6 +93,10 @@ class InventoryService
                 }
 
                 foreach ($addon->addonIngredients as $ai) {
+                    if ($ai->replaces_ingredient_id && ! $recipeIngredientIds->contains((int) $ai->replaces_ingredient_id)) {
+                        continue;
+                    }
+
                     $totalQty = $ai->quantity * $item->quantity;
                     $ingredient = $ai->ingredient;
 
@@ -148,58 +187,7 @@ class InventoryService
                 continue;
             }
 
-            // ── 1. Recipe ingredients ─────────────────────────────────────────
-            $recipe = Recipe::where('product_size_id', $item->product_size_id)
-                ->with('recipeIngredients.ingredient.inventory')
-                ->first();
-
-            if ($recipe) {
-                foreach ($recipe->recipeIngredients as $ri) {
-                    $totalQty = $ri->quantity * $item->quantity;
-                    $ingredient = $ri->ingredient;
-
-                    if (! $ingredient || ! $ingredient->inventory) {
-                        continue;
-                    }
-
-                    static::restoreIngredient(
-                        $ingredient,
-                        $totalQty,
-                        $order,
-                        "Refund stock restore: {$order->order_number}",
-                        $performedBy,
-                        $performedRole
-                    );
-                }
-            }
-
-            // ── 2. Addon ingredients ──────────────────────────────────────────
-            $item->loadMissing(['addons.addon.addonIngredients.ingredient.inventory']);
-
-            foreach ($item->addons as $orderItemAddon) {
-                $addon = $orderItemAddon->addon;
-                if (! $addon) {
-                    continue;
-                }
-
-                foreach ($addon->addonIngredients as $ai) {
-                    $totalQty = $ai->quantity * $item->quantity;
-                    $ingredient = $ai->ingredient;
-
-                    if (! $ingredient || ! $ingredient->inventory) {
-                        continue;
-                    }
-
-                    static::restoreIngredient(
-                        $ingredient,
-                        $totalQty,
-                        $order,
-                        "Addon '{$addon->name}' refund restore: {$order->order_number}",
-                        $performedBy,
-                        $performedRole
-                    );
-                }
-            }
+            static::restoreUnrecordedItemConsumption($item, $order, $performedBy, $performedRole, 'Refund');
         }
     }
 
@@ -239,57 +227,90 @@ class InventoryService
                 continue;
             }
 
-            // ── 1. Recipe ingredients ─────────────────────────────────────────
-            $recipe = Recipe::where('product_size_id', $item->product_size_id)
-                ->with('recipeIngredients.ingredient.inventory')
-                ->first();
+            static::restoreUnrecordedItemConsumption($item, $order, $performedBy, $performedRole, 'Void');
+        }
+    }
 
-            if ($recipe) {
-                foreach ($recipe->recipeIngredients as $ri) {
-                    $totalQty = $ri->quantity * $item->quantity;
-                    $ingredient = $ri->ingredient;
+    private static function restoreUnrecordedItemConsumption(
+        OrderItem $item,
+        Order $order,
+        string $performedBy,
+        string $performedRole,
+        string $action
+    ): void {
+        $recipe = Recipe::where('product_size_id', $item->product_size_id)
+            ->with('recipeIngredients.ingredient.inventory')
+            ->first();
+        $recipeIngredientIds = $recipe
+            ? $recipe->recipeIngredients->pluck('ingredient_id')->map(fn ($id) => (int) $id)
+            : collect();
 
-                    if (! $ingredient || ! $ingredient->inventory) {
-                        continue;
-                    }
+        $item->loadMissing(['addons.addon.addonIngredients.ingredient.inventory']);
+        $mappings = $item->addons->pluck('addon.addonIngredients')->flatten()->filter();
+        $substitutions = $mappings->whereNotNull('replaces_ingredient_id');
+        $replacementIds = $substitutions->pluck('replaces_ingredient_id')->map(fn ($id) => (int) $id);
 
-                    static::restoreIngredient(
-                        $ingredient,
-                        $totalQty,
-                        $order,
-                        "Void stock restore: {$order->order_number}",
-                        $performedBy,
-                        $performedRole
-                    );
-                }
+        if ($replacementIds->count() !== $replacementIds->unique()->count()) {
+            throw ValidationException::withMessages([
+                'item' => 'Stock cannot be restored accurately because multiple add-ons replace the same recipe ingredient.',
+            ]);
+        }
+
+        foreach ($substitutions as $substitution) {
+            if (! $recipe || ! $recipeIngredientIds->contains((int) $substitution->replaces_ingredient_id)) {
+                throw ValidationException::withMessages([
+                    'item' => 'Stock cannot be restored accurately because a selected substitute no longer matches the product recipe.',
+                ]);
             }
+        }
 
-            // ── 2. Addon ingredients ──────────────────────────────────────────
-            $item->loadMissing(['addons.addon.addonIngredients.ingredient.inventory']);
-
-            foreach ($item->addons as $orderItemAddon) {
-                $addon = $orderItemAddon->addon;
-                if (! $addon) {
+        $actionReason = $action === 'Refund' ? 'Refund stock restore' : 'Void stock restore';
+        if ($recipe) {
+            foreach ($recipe->recipeIngredients as $recipeIngredient) {
+                if ($replacementIds->contains((int) $recipeIngredient->ingredient_id)) {
                     continue;
                 }
 
-                foreach ($addon->addonIngredients as $ai) {
-                    $totalQty = $ai->quantity * $item->quantity;
-                    $ingredient = $ai->ingredient;
-
-                    if (! $ingredient || ! $ingredient->inventory) {
-                        continue;
-                    }
-
-                    static::restoreIngredient(
-                        $ingredient,
-                        $totalQty,
-                        $order,
-                        "Addon '{$addon->name}' void restore: {$order->order_number}",
-                        $performedBy,
-                        $performedRole
-                    );
+                $ingredient = $recipeIngredient->ingredient;
+                if (! $ingredient || ! $ingredient->inventory) {
+                    continue;
                 }
+
+                static::restoreIngredient(
+                    $ingredient,
+                    $recipeIngredient->quantity * $item->quantity,
+                    $order,
+                    "{$actionReason}: {$order->order_number}",
+                    $performedBy,
+                    $performedRole
+                );
+            }
+        }
+
+        foreach ($item->addons as $orderItemAddon) {
+            $addon = $orderItemAddon->addon;
+            if (! $addon) {
+                continue;
+            }
+
+            foreach ($addon->addonIngredients as $mapping) {
+                if ($mapping->replaces_ingredient_id && ! $recipeIngredientIds->contains((int) $mapping->replaces_ingredient_id)) {
+                    continue;
+                }
+
+                $ingredient = $mapping->ingredient;
+                if (! $ingredient || ! $ingredient->inventory) {
+                    continue;
+                }
+
+                static::restoreIngredient(
+                    $ingredient,
+                    $mapping->quantity * $item->quantity,
+                    $order,
+                    "Addon '{$addon->name}' {$actionReason}: {$order->order_number}",
+                    $performedBy,
+                    $performedRole
+                );
             }
         }
     }
@@ -494,7 +515,7 @@ class InventoryService
             static::checkAndNotify($ingredient->fresh(['inventory']));
 
             return $tx;
-        });
+        }, 3);
     }
 
     /**
@@ -530,7 +551,7 @@ class InventoryService
             static::checkAndNotify($ingredient->fresh(['inventory']));
 
             return $tx;
-        });
+        }, 3);
     }
 
     /**
@@ -575,7 +596,7 @@ class InventoryService
             static::checkAndNotify($ingredient->fresh(['inventory']));
 
             return $tx;
-        });
+        }, 3);
     }
 
     private static function lockedInventory(Ingredient $ingredient): Inventory

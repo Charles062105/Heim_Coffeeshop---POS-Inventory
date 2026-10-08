@@ -13,6 +13,7 @@ use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class RefundController extends Controller
 {
@@ -23,13 +24,13 @@ class RefundController extends Controller
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
         $query = Refund::with(['order', 'authorizedUser'])
-            ->orderByDesc('refunded_at');
+            ->orderByDesc(DB::raw('COALESCE(refunded_at, created_at)'));
 
         if ($from = $filters['from'] ?? null) {
-            $query->where('refunded_at', '>=', BusinessDateRange::startUtc($from));
+            $query->whereRaw('COALESCE(refunded_at, created_at) >= ?', [BusinessDateRange::startUtc($from)]);
         }
         if ($to = $filters['to'] ?? null) {
-            $query->where('refunded_at', '<', BusinessDateRange::endExclusiveUtc($to));
+            $query->whereRaw('COALESCE(refunded_at, created_at) < ?', [BusinessDateRange::endExclusiveUtc($to)]);
         }
 
         $refunds = $query->paginate(20)->withQueryString();
@@ -137,7 +138,7 @@ class RefundController extends Controller
             );
 
             return $refundAmount;
-        });
+        }, 3);
 
         if ($refundAmount <= 0) {
             return back()->with('error', 'This order has no remaining paid amount to refund.');
@@ -171,16 +172,19 @@ class RefundController extends Controller
             return back()->with('error', 'Authorizer does not have permission.')->withInput();
         }
 
-        if (! in_array($order->status, ['pending', 'completed'])) {
-            return back()->with('error', 'Order cannot be cancelled in its current state.');
-        }
-
         DB::transaction(function () use ($request, $order, $authorizer) {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if ($lockedOrder->status !== 'pending' || $lockedOrder->payments()->where('status', 'paid')->exists()) {
+                throw ValidationException::withMessages([
+                    'order' => 'Only unpaid pending orders can be cancelled. Use the void or refund action for paid orders.',
+                ]);
+            }
+
             // Store before-state snapshot
-            $beforeState = $order->toArray();
+            $beforeState = $lockedOrder->toArray();
 
             OrderAdjustment::create([
-                'order_id' => $order->id,
+                'order_id' => $lockedOrder->id,
                 'action' => 'cancel',
                 'reason' => $request->reason,
                 'authorized_by' => $authorizer->name,
@@ -189,7 +193,7 @@ class RefundController extends Controller
                 'before_state' => $beforeState,
             ]);
 
-            $order->update(['status' => 'cancelled']);
+            $lockedOrder->update(['status' => 'cancelled']);
 
             AuditService::log(
                 action: 'order_cancelled',
@@ -197,13 +201,13 @@ class RefundController extends Controller
                 actorName: $authorizer->name,
                 actorRole: $authorizer->role,
                 details: [
-                    'order_number' => $order->order_number,
+                    'order_number' => $lockedOrder->order_number,
                     'reason' => $request->reason,
                 ],
-                reference: $order,
+                reference: $lockedOrder,
                 actorUserId: $authorizer->id,
             );
-        });
+        }, 3);
 
         return redirect()->route('orders.show', $order)
             ->with('success', "Order #{$order->order_number} has been cancelled.");

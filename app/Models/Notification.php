@@ -28,9 +28,20 @@ class Notification extends Model
         return $this->belongsTo(Ingredient::class);
     }
 
+    public function reads()
+    {
+        return $this->hasMany(NotificationRead::class);
+    }
+
     public function scopeUnread($query)
     {
         return $query->whereNull('read_at');
+    }
+
+    public function scopeUnreadForUser($query, User $user)
+    {
+        return $query->whereNull('read_at')
+            ->whereDoesntHave('reads', fn ($reads) => $reads->where('user_id', $user->id));
     }
 
     public function scopeUnresolved($query)
@@ -40,8 +51,12 @@ class Notification extends Model
 
     public function scopeForRole($query, string $role)
     {
-        return $query->where(function ($q) use ($role) {
-            $q->where('target_role', $role)->orWhere('target_role', 'all');
-        });
+        $visibleRoles = match ($role) {
+            'owner' => ['owner', 'manager', 'all'],
+            'manager' => ['manager', 'all'],
+            default => ['all'],
+        };
+
+        return $query->whereIn('target_role', $visibleRoles);
     }
 }

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Sales Reports')
 @section('header', 'Sales Reports & Analytics')
-@section('subheader', 'Financial revenue, order velocity, payment distribution, and cashier performance')
+@section('subheader', 'Order sales after discounts by order date, tender received, refunds by refund date, and cashier performance')
 
 @section('header-actions')
     <div class="flex items-center gap-2">
@@ -80,7 +80,7 @@
     <div class="bg-gradient-to-br from-heim-700 via-heim-800 to-heim-900 rounded-2xl p-5 text-white shadow-md shadow-heim-900/10 relative overflow-hidden group">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-xs font-bold text-heim-200 uppercase tracking-wider mb-1">Total Gross Sales</p>
+                <p class="text-xs font-bold text-heim-200 uppercase tracking-wider mb-1">Sales After Discounts</p>
                 <p class="text-2xl sm:text-3xl font-black">₱{{ number_format($totalSales, 2) }}</p>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white backdrop-blur-sm group-hover:scale-110 transition-transform">
@@ -88,7 +88,7 @@
             </div>
         </div>
         <p class="text-[11px] text-heim-300 mt-3 flex items-center gap-1">
-            <span>Net of voids & canceled orders</span>
+            <span>Includes completed refunds by order date; refunds are also listed by refund date</span>
         </p>
     </div>
 
@@ -125,7 +125,7 @@
     <div class="bg-white rounded-2xl p-5 shadow-sm border {{ $refundsCount > 0 ? 'border-red-200 bg-red-50/30' : 'border-gray-100' }} relative overflow-hidden group hover:shadow-md transition-all">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-xs font-bold {{ $refundsCount > 0 ? 'text-red-600' : 'text-gray-500' }} uppercase tracking-wider mb-1">Returns / Refunds</p>
+                <p class="text-xs font-bold {{ $refundsCount > 0 ? 'text-red-600' : 'text-gray-500' }} uppercase tracking-wider mb-1">Completed Refunds</p>
                 <p class="text-2xl sm:text-3xl font-black {{ $refundsCount > 0 ? 'text-red-700' : 'text-gray-900' }}">{{ $refundsCount }}</p>
             </div>
             <div class="w-12 h-12 rounded-2xl {{ $refundsCount > 0 ? 'bg-red-100 text-red-600 border border-red-200' : 'bg-gray-50 text-gray-400 border border-gray-100' }} flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -136,7 +136,7 @@
             @if($refundsCount > 0)
                 -₱{{ number_format($refundsAmount, 2) }} total refunded
             @else
-                No refund deductions
+                No completed refunds
             @endif
         </p>
     </div>
@@ -148,7 +148,7 @@
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
                 <h2 class="font-bold text-gray-900 text-base">Payment Methods</h2>
-                <p class="text-xs text-gray-400">Share of total tender volume</p>
+                <p class="text-xs text-gray-400">Tender received for orders created in this period; refunds shown separately</p>
             </div>
             <span class="text-xs font-semibold text-gray-400">Tender breakdown</span>
         </div>
@@ -192,7 +192,7 @@
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
                 <h2 class="font-bold text-gray-900 text-base">Top Selling Products</h2>
-                <p class="text-xs text-gray-400">Ranked by units sold and revenue contribution</p>
+                <p class="text-xs text-gray-400">Ranked by units; item subtotals are before order discounts</p>
             </div>
             <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-heim-50 text-heim-700">
                 Top {{ $bestSellers->count() }} items
@@ -205,7 +205,7 @@
                         <th class="px-5 py-3 text-center w-12">#</th>
                         <th class="px-5 py-3 text-left">Product / Size</th>
                         <th class="px-5 py-3 text-right">Units Sold</th>
-                        <th class="px-5 py-3 text-right">Revenue</th>
+                        <th class="px-5 py-3 text-right">Item Subtotal</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
@@ -321,7 +321,7 @@
                 <tr>
                     <th class="px-5 py-3.5 text-left">Date</th>
                     <th class="px-5 py-3.5 text-right">Orders</th>
-                    <th class="px-5 py-3.5 text-right">Gross Sales</th>
+                    <th class="px-5 py-3.5 text-right">Sales After Discounts</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">

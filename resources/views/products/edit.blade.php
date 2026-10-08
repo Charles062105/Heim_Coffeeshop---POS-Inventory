@@ -34,7 +34,7 @@
                     <label class="brand-label mb-1.5">Category <span class="text-rose-500">*</span></label>
                     <select name="category_id" required class="brand-input">
                         @foreach($categories as $cat)
-                        <option value="{{ $cat->id }}" {{ old('category_id', $product->category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                        <option value="{{ $cat->id }}" {{ old('category_id', $product->category_id) == $cat->id ? 'selected' : '' }}>                        {{ $cat->name }}{{ $cat->status === 'inactive' ? ' (Archived - choose an unarchived category)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -56,7 +56,7 @@
                 <div class="flex items-center justify-between mb-3">
                     <div>
                         <label class="brand-label">Configured Sizes & Prices</label>
-                        <p class="text-xs text-gray-400 mt-0.5">Manage existing serving portions and assign prices</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Existing size labels are fixed; use Add Size for another size or temperature. Prices remain editable.</p>
                     </div>
                     <button type="button" onclick="addSizeRow()" class="inline-flex items-center gap-1 text-xs bg-heim-50 text-heim-700 hover:bg-heim-100 border border-heim-200/60 px-3 py-1.5 rounded-xl font-semibold transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
@@ -68,26 +68,29 @@
                     @foreach($product->sizes as $i => $size)
                     <div class="size-row flex items-center gap-2.5 p-2 rounded-xl bg-gray-50/70 border border-gray-100">
                         <input type="hidden" name="sizes[{{ $i }}][id]" value="{{ $size->id }}">
-                        <input type="text" name="sizes[{{ $i }}][size_name]" value="{{ $size->size_name }}" class="flex-1 brand-input" required placeholder="Size Name">
+                        <input type="text" name="sizes[{{ $i }}][size_name]" value="{{ $size->size_name }}" class="flex-1 brand-input bg-gray-100 text-gray-500" required readonly aria-label="Fixed size label: {{ $size->size_name }}" title="Existing size labels are fixed. Use Add Size to create another size or temperature.">
                         <div class="relative w-28">
                             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-gray-400">₱</span>
                             <input type="number" name="sizes[{{ $i }}][price]" value="{{ $size->price }}" min="0" step="0.01" class="brand-input pl-6 font-bold text-gray-800 text-xs" required placeholder="Reg Price">
                         </div>
-                        <div class="relative w-28">
+                        <div class="relative w-28" title="Optional GrabFood price. Leave blank to use the regular price.">
                             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-emerald-600">₱</span>
-                            <input type="number" name="sizes[{{ $i }}][grab_price]" value="{{ $size->grab_price }}" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-800 text-xs" placeholder="Grab Price">
+                            <input type="number" name="sizes[{{ $i }}][grab_price]" value="{{ $size->grab_price }}" aria-label="GrabFood price for {{ $size->size_name }}" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-800 text-xs" placeholder="GrabFood">
                         </div>
                         <select name="sizes[{{ $i }}][status]" class="w-24 brand-input text-xs font-medium">
                             <option value="active" {{ $size->status === 'active' ? 'selected' : '' }}>Unarchived</option>
                             <option value="inactive" {{ $size->status === 'inactive' ? 'selected' : '' }}>Archived</option>
                         </select>
-                        <a href="{{ route('products.sizes.destroy', [$product, $size]) }}"
+                        <form method="POST" action="{{ route('products.sizes.destroy', [$product, $size]) }}"
                             data-confirm="Delete this size? This cannot be undone if it has no orders."
-                            data-confirm-title="Delete product size"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 flex-shrink-0 transition-colors"
-                            title="Delete size">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </a>
+                            data-confirm-title="Delete product size">
+                            @csrf @method('DELETE')
+                            <button type="submit"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 flex-shrink-0 transition-colors"
+                                title="Delete size">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </form>
                     </div>
                     @endforeach
                 </div>
@@ -119,9 +122,9 @@ function addSizeRow() {
             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-gray-400">₱</span>
             <input type="number" name="sizes[${newIdx}][price]" placeholder="Reg 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-gray-800 text-xs" required>
         </div>
-        <div class="relative w-28">
+        <div class="relative w-28" title="Optional GrabFood price. Leave blank to use the regular price.">
             <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-emerald-600">₱</span>
-            <input type="number" name="sizes[${newIdx}][grab_price]" placeholder="Grab 0.00" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-800 text-xs">
+            <input type="number" name="sizes[${newIdx}][grab_price]" placeholder="GrabFood" aria-label="Optional GrabFood price" min="0" step="0.01" class="brand-input pl-6 font-bold text-emerald-800 text-xs">
         </div>
         <select name="sizes[${newIdx}][status]" class="w-24 brand-input text-xs font-medium">
             <option value="active">Unarchived</option>

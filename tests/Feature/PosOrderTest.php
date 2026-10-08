@@ -8,6 +8,8 @@ use App\Models\Category;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderItemAddon;
 use App\Models\Product;
 use App\Models\ProductAddon;
 use App\Models\ProductSize;
@@ -15,6 +17,7 @@ use App\Models\Recipe;
 use App\Models\RecipeIngredient;
 use App\Models\Refund;
 use App\Models\User;
+use App\Services\InventoryService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -61,7 +64,262 @@ class PosOrderTest extends TestCase
         $this->assertEquals('Regular', $order->orderItems()->first()->size->size_name);
 
         $detail = $this->actingAs($user)->get(route('pos.success', ['order' => $order]));
-        $detail->assertOk();
+        $detail->assertOk()
+            ->assertSee("sessionStorage.removeItem('pos-checkout-request-id-{$user->id}')", false)
+            ->assertSee("sessionStorage.removeItem('pos-cart-recovery-{$user->id}')", false);
+    }
+
+    public function test_pos_warns_before_shift_out_when_the_cart_has_unsaved_items(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+
+        $this->actingAs($cashier)->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('max-h-[calc(100dvh-2rem)]', false)
+            ->assertSee('overflow-y-auto overscroll-contain', false)
+            ->assertSee('if (cart.length > 0) {', false)
+            ->assertSee('Save or complete the current cart, then clear it before ending the shift.', false)
+            ->assertSee("document.getElementById('hold-btn')?.focus()", false);
+    }
+
+    public function test_pos_product_endpoints_only_return_active_products_categories_and_sizes(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $activeCategory = Category::create(['name' => 'Active Menu Category', 'status' => 'active']);
+        $inactiveCategory = Category::create(['name' => 'Inactive Menu Category', 'status' => 'inactive']);
+        $activeProduct = Product::create([
+            'category_id' => $activeCategory->id,
+            'name' => 'Active Menu Product',
+            'status' => 'active',
+        ]);
+        $inactiveProduct = Product::create([
+            'category_id' => $activeCategory->id,
+            'name' => 'Inactive Menu Product',
+            'status' => 'inactive',
+        ]);
+        $productInInactiveCategory = Product::create([
+            'category_id' => $inactiveCategory->id,
+            'name' => 'Product In Inactive Category',
+            'status' => 'active',
+        ]);
+        foreach ([$activeProduct, $inactiveProduct, $productInInactiveCategory] as $product) {
+            ProductSize::create([
+                'product_id' => $product->id,
+                'size_name' => 'Regular',
+                'price' => 100,
+                'status' => 'active',
+            ]);
+        }
+
+        $this->actingAs($cashier)->getJson(route('pos.products'))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.name', 'Active Menu Product');
+        $this->getJson(route('pos.products', ['category_id' => $inactiveCategory->id]))
+            ->assertOk()
+            ->assertExactJson([]);
+        $this->getJson(route('pos.sizes', $activeProduct))
+            ->assertOk()
+            ->assertJsonCount(1);
+        $this->getJson(route('pos.sizes', $inactiveProduct))
+            ->assertOk()
+            ->assertExactJson([]);
+        $this->getJson(route('pos.sizes', $productInInactiveCategory))
+            ->assertOk()
+            ->assertExactJson([]);
+    }
+
+    public function test_repeated_pos_checkout_request_returns_the_original_order_without_charging_twice(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Idempotent Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $payload = [
+            'checkout_request_id' => 'e2d91bf9-e973-4f55-8ca2-544320809abc',
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ];
+
+        $firstResponse = $this->actingAs($cashier)->post(route('pos.store'), $payload);
+        $firstOrder = Order::firstOrFail();
+        $firstResponse->assertRedirect(route('pos.success', ['order' => $firstOrder]));
+
+        $retryResponse = $this->actingAs($cashier)->post(route('pos.store'), $payload);
+        $retryResponse->assertRedirect(route('pos.success', ['order' => $firstOrder]));
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseHas('orders', [
+            'id' => $firstOrder->id,
+            'checkout_request_id' => $payload['checkout_request_id'],
+        ]);
+    }
+
+    public function test_checkout_rejects_a_saved_ticket_that_another_cashier_already_used(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Saved Ticket Conflict Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $heldOrder = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertOk()->json('order');
+
+        Order::query()->findOrFail($heldOrder['id'])->update(['status' => 'completed']);
+
+        $this->from(route('pos.index'))->post(route('pos.store'), [
+            'held_order_id' => $heldOrder['id'],
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('held_order_id');
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_checkout_request_id_cannot_be_reused_by_a_different_cashier(): void
+    {
+        $firstCashier = User::factory()->create(['role' => 'cashier']);
+        $secondCashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($firstCashier);
+        $this->startShiftFor($secondCashier);
+        $category = Category::create(['name' => 'Scoped Checkout Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $payload = [
+            'checkout_request_id' => 'a97ad75c-cb19-4b08-9819-09211b56101a',
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ];
+
+        $this->actingAs($firstCashier)->post(route('pos.store'), $payload)->assertRedirect();
+        $this->actingAs($secondCashier)->from(route('pos.index'))
+            ->post(route('pos.store'), $payload)
+            ->assertSessionHasErrors('checkout_request_id');
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('payments', 1);
+    }
+
+    public function test_pos_checkout_rejects_cash_payment_when_no_cash_was_received(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Cash Validation Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $response = $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ]);
+        $response->assertSessionHasErrors('amount_received');
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('payments', 0);
+        $this->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('less than the payment amount', false)
+            ->assertSee('function persistPosCartRecovery()', false)
+            ->assertSee('function restorePosCartRecovery()', false)
+            ->assertSee('discountIdInput.value = state.discount_id_number ||', false);
+    }
+
+    public function test_grabfood_settlement_is_rejected_for_non_grab_pos_orders(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Settlement Validation Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'order_type' => 'dine_in',
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'payments' => [[
+                'method' => 'grabfood',
+                'amount_paid' => 100,
+            ]],
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_partial_pos_payment_is_labeled_as_payment_recorded_with_balance_due(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Partial Receipt Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_paid' => 40,
+            'amount_received' => 40,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertRedirect()->assertSessionHas('success', 'Payment recorded. Balance due: ₱60.00.');
+        $order = Order::firstOrFail();
+
+        $this->get(route('pos.success', $order))
+            ->assertOk()
+            ->assertSee('Payment Recorded')
+            ->assertSee('Balance due: ₱60.00')
+            ->assertDontSee('Order Complete!');
+        $this->get(route('orders.receipt', $order))
+            ->assertOk()
+            ->assertSee('PARTIALLY PAID • BALANCE DUE')
+            ->assertSee('₱60.00');
+    }
+
+    public function test_terminal_order_receipts_do_not_show_a_balance_due(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Terminal Receipt Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertRedirect();
+
+        $order = Order::firstOrFail();
+        foreach (['voided', 'refunded', 'cancelled'] as $status) {
+            $order->update(['status' => $status]);
+            $order->payments()->update(['status' => $status === 'refunded' ? 'refunded' : 'voided']);
+
+            $this->actingAs($cashier)->get(route('pos.success', $order))
+                ->assertOk()
+                ->assertSee(ucfirst($status))
+                ->assertSee('No balance due')
+                ->assertDontSee('Balance due: ₱100.00');
+
+            $this->actingAs($cashier)->get(route('orders.receipt', $order))
+                ->assertOk()
+                ->assertSee('Order Status')
+                ->assertSee('No balance due')
+                ->assertDontSee('Remaining Balance:');
+
+            $this->actingAs($cashier)->get(route('orders.show', $order))
+                ->assertOk()
+                ->assertSee('Order Settlement')
+                ->assertSee('No balance due')
+                ->assertDontSee('Paid / Remaining');
+        }
     }
 
     public function test_checkout_and_held_orders_reject_item_quantities_above_the_pos_limit(): void
@@ -88,6 +346,60 @@ class PosOrderTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_saved_orders_enforce_custom_discount_authorization_and_subtotal_limit(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $manager = User::factory()->create(['role' => 'manager']);
+        $this->startShiftFor($cashier);
+        $this->startShiftFor($manager);
+        $category = Category::create(['name' => 'Saved Discount Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $items = [['product_size_id' => $size->id, 'quantity' => 1]];
+
+        $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'discount' => 10,
+            'discount_type' => 'custom',
+            'items' => $items,
+        ])->assertJsonValidationErrors('discount');
+        $this->assertDatabaseCount('orders', 0);
+
+        $this->actingAs($manager)->postJson(route('pos.hold'), [
+            'discount' => 101,
+            'discount_type' => 'custom',
+            'items' => $items,
+        ])->assertJsonValidationErrors('discount');
+        $this->assertDatabaseCount('orders', 0);
+
+        $this->actingAs($manager)->postJson(route('pos.hold'), [
+            'discount' => 100,
+            'discount_type' => 'custom',
+            'items' => $items,
+        ])->assertJsonValidationErrors('discount');
+        $this->assertDatabaseCount('orders', 0);
+
+        $this->actingAs($manager)->from(route('pos.index'))->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'discount' => 100,
+            'discount_type' => 'custom',
+            'items' => $items,
+        ])->assertSessionHasErrors('discount');
+        $this->assertDatabaseCount('orders', 0);
+
+        $this->postJson(route('pos.hold'), [
+            'discount' => 10,
+            'discount_type' => 'custom',
+            'items' => $items,
+        ])->assertOk();
+        $this->assertDatabaseHas('orders', [
+            'status' => 'held',
+            'discount_type' => 'custom',
+            'discount' => 10,
+            'total' => 90,
+        ]);
+    }
+
     public function test_resuming_a_held_order_returns_unique_cart_keys_for_duplicate_products(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);
@@ -107,14 +419,74 @@ class PosOrderTest extends TestCase
         $resumeResponse = $this->postJson(route('pos.resume-held', ['order' => $heldOrderId]))
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonMissingPath('data.held_order_id');
+            ->assertJsonPath('data.held_order_id', $heldOrderId);
 
         $cart = $resumeResponse->json('data.cart');
         $this->assertCount(2, $cart);
         $this->assertNotSame($cart[0]['key'], $cart[1]['key']);
         $this->assertSame(['Less ice', 'No sugar'], array_column($cart, 'comment'));
         $this->assertSame(['Alex', 'Blair'], array_column($cart, 'assigned_to'));
+        $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'held']);
+    }
+
+    public function test_checkout_removes_a_resumed_held_ticket_only_when_order_is_created(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Held Checkout Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $heldResponse = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertOk();
+        $heldOrderId = $heldResponse->json('order.id');
+
+        $this->postJson(route('pos.resume-held', ['order' => $heldOrderId]))
+            ->assertOk()
+            ->assertJsonPath('data.held_order_id', $heldOrderId);
+        $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'held']);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'held_order_id' => $heldOrderId,
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasErrors('amount_received');
+        $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'held']);
+
+        $this->post(route('pos.store'), [
+            'held_order_id' => $heldOrderId,
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertRedirect();
+
         $this->assertDatabaseMissing('orders', ['id' => $heldOrderId]);
+        $this->assertDatabaseHas('orders', ['status' => 'completed', 'total' => 100]);
+    }
+
+    public function test_reholding_a_resumed_ticket_replaces_the_saved_copy(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Held Rehold Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+        $heldResponse = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertOk();
+        $heldOrderId = $heldResponse->json('order.id');
+
+        $this->postJson(route('pos.resume-held', ['order' => $heldOrderId]))
+            ->assertOk();
+        $reheldResponse = $this->postJson(route('pos.hold'), [
+            'held_order_id' => $heldOrderId,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 2]],
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('orders', ['id' => $heldOrderId]);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertSame(2, $reheldResponse->json('order.order_items.0.quantity'));
     }
 
     public function test_resumed_held_order_uses_current_addon_price_in_cart_total(): void
@@ -160,7 +532,7 @@ class PosOrderTest extends TestCase
         $this->actingAs($cashier)->post(route('pos.store'), [
             'cashier_name' => $cashier->name,
             'payment_method' => 'cash',
-            'amount_received' => 50,
+            'amount_received' => 100,
             'amount_paid' => 50,
             'person_name' => 'Alex',
             'payment_comment' => 'First cash installment',
@@ -331,6 +703,7 @@ class PosOrderTest extends TestCase
             $this->actingAs($cashier)->post(route('orders.payments.store', $order), [
                 ...$payment,
                 'payment_method' => 'cash',
+                'amount_received' => $payment['amount_paid'],
             ])->assertSessionHasNoErrors();
         }
 
@@ -457,6 +830,249 @@ class PosOrderTest extends TestCase
             'new_stock' => 199.25,
         ]);
         $this->assertDatabaseCount('inventory_transactions', 3);
+    }
+
+    public function test_selected_substitute_replaces_recipe_stock_and_void_restores_exact_consumption(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager', 'name' => 'Manager']);
+        $this->startShiftFor($manager);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $freshMilk = Ingredient::create(['name' => 'Fresh Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $oatMilk = Ingredient::create(['name' => 'Oat Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $freshMilk->id, 'current_stock' => 100]);
+        Inventory::create(['ingredient_id' => $oatMilk->id, 'current_stock' => 500]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $freshMilk->id, 'quantity' => 180]);
+        $addon = ProductAddon::create(['name' => 'Oat Milk Substitute', 'price' => 0, 'status' => 'active']);
+        AddonIngredient::create([
+            'product_addon_id' => $addon->id,
+            'ingredient_id' => $oatMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+
+        $this->actingAs($manager)->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('&quot;substitution_required&quot;:true', false);
+
+        $this->actingAs($manager)->post(route('pos.store'), [
+            'cashier_name' => $manager->name,
+            'payment_method' => 'cash',
+            'amount_received' => 100,
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 2,
+                'addon_ids' => [$addon->id],
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $order = Order::firstOrFail();
+        $this->assertSame(100.0, (float) $freshMilk->fresh()->getCurrentStock());
+        $this->assertSame(140.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseHas('inventory_transactions', [
+            'ingredient_id' => $oatMilk->id,
+            'type' => 'sales_consumption',
+            'quantity' => 360,
+        ]);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'ingredient_id' => $freshMilk->id,
+            'type' => 'sales_consumption',
+        ]);
+
+        $this->actingAs($manager)->post(route('orders.void', $order), [
+            'reason' => 'Customer changed order',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(100.0, (float) $freshMilk->fresh()->getCurrentStock());
+        $this->assertSame(500.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseHas('inventory_transactions', [
+            'ingredient_id' => $oatMilk->id,
+            'type' => 'sales_return',
+            'quantity' => 360,
+        ]);
+    }
+
+    public function test_legacy_substitution_fallback_restores_substitute_without_restoring_replaced_ingredient(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $freshMilk = Ingredient::create(['name' => 'Fresh Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $oatMilk = Ingredient::create(['name' => 'Oat Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $freshMilk->id, 'current_stock' => 0]);
+        Inventory::create(['ingredient_id' => $oatMilk->id, 'current_stock' => 0]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $freshMilk->id, 'quantity' => 180]);
+        $addon = ProductAddon::create(['name' => 'Oat Milk Substitute', 'price' => 0, 'status' => 'active']);
+        AddonIngredient::create([
+            'product_addon_id' => $addon->id,
+            'ingredient_id' => $oatMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+        $order = Order::create([
+            'order_number' => 'ORD-LEGACY-SUBSTITUTE-001',
+            'cashier_name' => $manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+        $item = OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_size_id' => $size->id,
+            'quantity' => 2,
+            'unit_price' => 50,
+            'subtotal' => 100,
+            'status' => 'active',
+        ]);
+        OrderItemAddon::create([
+            'order_item_id' => $item->id,
+            'product_addon_id' => $addon->id,
+            'price' => 0,
+        ]);
+
+        InventoryService::restoreFromVoid($order->load('orderItems.addons.addon'), $manager->name, $manager->role);
+
+        $this->assertSame(0.0, (float) $freshMilk->fresh()->getCurrentStock());
+        $this->assertSame(360.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'ingredient_id' => $freshMilk->id,
+            'type' => 'sales_return',
+        ]);
+        $this->assertDatabaseHas('inventory_transactions', [
+            'ingredient_id' => $oatMilk->id,
+            'type' => 'sales_return',
+            'quantity' => 360,
+        ]);
+    }
+
+    public function test_substitute_checkout_rolls_back_when_replacement_stock_is_insufficient(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $freshMilk = Ingredient::create(['name' => 'Fresh Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $oatMilk = Ingredient::create(['name' => 'Oat Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $freshMilk->id, 'current_stock' => 500]);
+        Inventory::create(['ingredient_id' => $oatMilk->id, 'current_stock' => 100]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $freshMilk->id, 'quantity' => 180]);
+        $addon = ProductAddon::create(['name' => 'Oat Milk Substitute', 'price' => 0, 'status' => 'active']);
+        AddonIngredient::create([
+            'product_addon_id' => $addon->id,
+            'ingredient_id' => $oatMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'cashier_name' => $cashier->name,
+            'payment_method' => 'cash',
+            'amount_received' => 50,
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'addon_ids' => [$addon->id],
+            ]],
+        ])->assertSessionHasErrors('items');
+
+        $this->assertSame(500.0, (float) $freshMilk->fresh()->getCurrentStock());
+        $this->assertSame(100.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('inventory_transactions', 0);
+    }
+
+    public function test_two_selected_substitutes_cannot_replace_the_same_recipe_ingredient(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $freshMilk = Ingredient::create(['name' => 'Fresh Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $oatMilk = Ingredient::create(['name' => 'Oat Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $almondMilk = Ingredient::create(['name' => 'Almond Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $freshMilk->id, 'current_stock' => 500]);
+        Inventory::create(['ingredient_id' => $oatMilk->id, 'current_stock' => 500]);
+        Inventory::create(['ingredient_id' => $almondMilk->id, 'current_stock' => 500]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $freshMilk->id, 'quantity' => 180]);
+        $oatSubstitute = ProductAddon::create(['name' => 'Oat Milk Substitute', 'price' => 0, 'status' => 'active']);
+        $almondSubstitute = ProductAddon::create(['name' => 'Almond Milk Substitute', 'price' => 0, 'status' => 'active']);
+        AddonIngredient::create([
+            'product_addon_id' => $oatSubstitute->id,
+            'ingredient_id' => $oatMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+        AddonIngredient::create([
+            'product_addon_id' => $almondSubstitute->id,
+            'ingredient_id' => $almondMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'cashier_name' => $cashier->name,
+            'payment_method' => 'cash',
+            'amount_received' => 50,
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'addon_ids' => [$oatSubstitute->id, $almondSubstitute->id],
+            ]],
+        ])->assertSessionHasErrors('items');
+
+        $this->assertSame(500.0, (float) $freshMilk->fresh()->getCurrentStock());
+        $this->assertSame(500.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertSame(500.0, (float) $almondMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('inventory_transactions', 0);
+    }
+
+    public function test_checkout_rejects_a_substitute_for_an_ingredient_not_in_the_recipe(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 50, 'status' => 'active']);
+        $espresso = Ingredient::create(['name' => 'Espresso', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $freshMilk = Ingredient::create(['name' => 'Fresh Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        $oatMilk = Ingredient::create(['name' => 'Oat Milk', 'unit' => 'ml', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $espresso->id, 'current_stock' => 100]);
+        Inventory::create(['ingredient_id' => $oatMilk->id, 'current_stock' => 100]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $espresso->id, 'quantity' => 18]);
+        $addon = ProductAddon::create(['name' => 'Oat Milk Substitute', 'price' => 0, 'status' => 'active']);
+        AddonIngredient::create([
+            'product_addon_id' => $addon->id,
+            'ingredient_id' => $oatMilk->id,
+            'replaces_ingredient_id' => $freshMilk->id,
+            'quantity' => 180,
+        ]);
+
+        $this->actingAs($cashier)->from(route('pos.index'))->post(route('pos.store'), [
+            'cashier_name' => $cashier->name,
+            'payment_method' => 'cash',
+            'amount_received' => 50,
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'addon_ids' => [$addon->id],
+            ]],
+        ])->assertSessionHasErrors('items');
+
+        $this->assertSame(100.0, (float) $espresso->fresh()->getCurrentStock());
+        $this->assertSame(100.0, (float) $oatMilk->fresh()->getCurrentStock());
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('inventory_transactions', 0);
     }
 
     public function test_duplicate_or_inactive_addons_cannot_be_submitted_to_an_order(): void
@@ -627,6 +1243,32 @@ class PosOrderTest extends TestCase
             ->assertJsonPath('expected_cash', 2060);
     }
 
+    public function test_held_orders_are_not_included_in_shift_sales_totals(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $shift = CashierShift::activeForUser($cashier->id);
+
+        foreach ([
+            ['order_number' => 'ORD-HELD-SHIFT-001', 'order_type' => 'dine_in'],
+            ['order_number' => 'ORD-HELD-SHIFT-002', 'order_type' => 'grab'],
+        ] as $attributes) {
+            Order::create(array_merge($attributes, [
+                'cashier_name' => $cashier->name,
+                'shift_id' => $shift->id,
+                'subtotal' => 100,
+                'total' => 100,
+                'status' => 'held',
+            ]));
+        }
+
+        $this->actingAs($cashier)->getJson(route('shifts.current'))
+            ->assertOk()
+            ->assertJsonPath('shift.unresolved_orders', 2)
+            ->assertJsonPath('shift.non_cash_summary.dine_in_sales', 0)
+            ->assertJsonPath('shift.non_cash_summary.grab_sales', 0);
+    }
+
     public function test_follow_up_order_payment_is_attributed_to_the_shift_receiving_it(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Order Cashier']);
@@ -674,6 +1316,54 @@ class PosOrderTest extends TestCase
         $this->actingAs($manager)->postJson(route('shifts.preview-end'), ['actual_cash' => 600])
             ->assertJsonPath('summary.cash_sales', 100)
             ->assertJsonPath('expected_cash', 600);
+    }
+
+    public function test_follow_up_grabfood_settlement_is_rejected_for_non_grab_orders(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Settlement Cashier']);
+        $this->startShiftFor($cashier);
+        $order = Order::create([
+            'order_number' => 'ORD-NO-GRAB-SETTLEMENT',
+            'order_type' => 'dine_in',
+            'cashier_name' => $cashier->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($cashier)->from(route('orders.show', $order))
+            ->post(route('orders.payments.store', $order), [
+                'amount_paid' => 100,
+                'payment_method' => 'grabfood',
+            ])
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $order->id]);
+    }
+
+    public function test_follow_up_cash_payment_requires_cash_received(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Cash Tender Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_paid' => 50,
+            'amount_received' => 50,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertSessionHasNoErrors();
+        $order = Order::firstOrFail();
+
+        $this->actingAs($cashier)->from(route('orders.show', $order))->post(route('orders.payments.store', $order), [
+            'amount_paid' => 50,
+            'payment_method' => 'cash',
+        ])->assertSessionHasErrors('amount_received');
+
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertSame(50.0, $order->fresh()->remainingBalance());
     }
 
     public function test_manager_can_create_consecutive_pos_orders_with_a_discount(): void
@@ -1068,11 +1758,18 @@ class PosOrderTest extends TestCase
         $response->assertSee('pm-online', false);
         $response->assertSee('Online Payment');
         $response->assertSee('pm-grabfood', false);
+        $response->assertSee('disabled aria-disabled="true"', false);
+        $response->assertSee('pos-cart-recovery-', false);
+        $response->assertSee('persistPosCartRecovery()', false)
+            ->assertSee('restorePosCartRecovery()', false);
+        $response->assertSee("onclick=\"setCashAmount('exact')\"", false)
+            ->assertSee("const amount = val === 'exact' ? due : Number(val)", false)
+            ->assertSee("onclick=\"setCashAmount(100)\"", false);
         $response->assertSee('Platform settlement');
         $response->assertSee('Grab orders can be paid in cash at the counter');
         $response->assertSee("cashSec.style.display = showCash ? '' : 'none'", false);
         $response->assertDontSee('checkout-hold-btn', false);
-        $response->assertSee('Held Orders');
+        $response->assertSee('Saved Orders');
         $response->assertSee('>Orders</span>', false);
         $response->assertSee('Senior/PWD discounts require an ID.', false);
         $response->assertSee('Custom discounts are limited to managers and owners.', false);
@@ -1306,10 +2003,11 @@ class PosOrderTest extends TestCase
 
         $grabExport = $this->actingAs($manager)->get(route('reports.grab', ['export' => 'excel']));
         $grabExport->assertOk();
-        $this->assertStringContainsString('Payment Method', $grabExport->streamedContent());
-        $this->assertStringContainsString(',Cash,', $grabExport->streamedContent());
+        $this->assertStringContainsString('Payment Methods (Amount)', $grabExport->streamedContent());
+        $this->assertStringContainsString('Cash (170.00)', $grabExport->streamedContent());
 
-        $this->actingAs($manager)->get(route('reports.sales', ['date' => now()->toDateString()]))
+        $businessDate = now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
+        $this->actingAs($manager)->get(route('reports.sales', ['date' => $businessDate]))
             ->assertOk()
             ->assertSee('Cash')
             ->assertSee('170.00');

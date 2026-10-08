@@ -13,21 +13,32 @@ use App\Models\VoidLog;
 use App\Services\AuditService;
 use App\Services\ExportService;
 use App\Support\BusinessDateRange;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Carbon\CarbonImmutable;
 
 class ReportController extends Controller
 {
+    private function normalizeDateFilters(array $filters): array
+    {
+        foreach ($filters as $key => $value) {
+            if (is_string($value) && trim($value) === '') {
+                $filters[$key] = null;
+            }
+        }
+
+        return $filters;
+    }
+
     public function sales(Request $request)
     {
-        $filters = $request->validate([
+        $filters = $this->normalizeDateFilters($request->validate([
             'type' => ['nullable', 'in:daily,weekly,monthly,yearly,custom,all'],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'required_if:type,custom', 'date_format:Y-m-d'],
             'to' => ['nullable', 'required_if:type,custom', 'date_format:Y-m-d', 'after_or_equal:from'],
-        ]);
+        ]));
 
         $type = $filters['type'] ?? 'daily';
         $date = $filters['date'] ?? now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
@@ -37,16 +48,17 @@ class ReportController extends Controller
         [$startDate, $endDate] = $this->resolveDateRange($type, $date, $from, $to);
         $startUtc = BusinessDateRange::startUtc($startDate);
         $endExclusiveUtc = BusinessDateRange::endExclusiveUtc($endDate);
+        $saleStatuses = ['completed', 'partially_paid', 'refunded'];
 
         $query = Order::where('created_at', '>=', $startUtc)
             ->where('created_at', '<', $endExclusiveUtc);
 
-        $completedQuery = (clone $query)->whereIn('status', ['completed', 'partially_paid']);
+        $salesOrdersQuery = (clone $query)->whereIn('status', $saleStatuses);
 
-        $totalSales = $completedQuery->sum('total');
-        $totalOrders = $completedQuery->count();
+        $totalSales = $salesOrdersQuery->sum('total');
+        $totalOrders = $salesOrdersQuery->count();
         $totalItems = OrderItem::where('order_items.status', 'active')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', ['completed', 'partially_paid'])
+            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses)
                 ->where('orders.created_at', '>=', $startUtc)
                 ->where('orders.created_at', '<', $endExclusiveUtc)
             )->sum('quantity');
@@ -54,8 +66,8 @@ class ReportController extends Controller
         // Payment breakdown (Cash vs Online Payment)
         $paymentBreakdown = DB::table('payments')
             ->join('orders', 'payments.order_id', '=', 'orders.id')
-            ->where('payments.status', 'paid')
-            ->whereIn('orders.status', ['completed', 'partially_paid'])
+            ->whereIn('payments.status', ['paid', 'refunded'])
+            ->whereIn('orders.status', $saleStatuses)
             ->where('orders.created_at', '>=', $startUtc)
             ->where('orders.created_at', '<', $endExclusiveUtc)
             ->select(
@@ -72,7 +84,7 @@ class ReportController extends Controller
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('product_sizes', 'order_items.product_size_id', '=', 'product_sizes.id')
             ->where('order_items.status', 'active')
-            ->whereIn('orders.status', ['completed', 'partially_paid'])
+            ->whereIn('orders.status', $saleStatuses)
             ->where('orders.created_at', '>=', $startUtc)
             ->where('orders.created_at', '<', $endExclusiveUtc)
             ->select(
@@ -87,7 +99,7 @@ class ReportController extends Controller
             ->get();
 
         // Sales by cashier
-        $byCashier = Order::whereIn('status', ['completed', 'partially_paid'])
+        $byCashier = Order::whereIn('status', $saleStatuses)
             ->where('created_at', '>=', $startUtc)
             ->where('created_at', '<', $endExclusiveUtc)
             ->select('cashier_name', DB::raw('SUM(total) as total_sales'), DB::raw('COUNT(*) as total_orders'))
@@ -95,18 +107,25 @@ class ReportController extends Controller
             ->orderByDesc('total_sales')
             ->get();
 
-        // Refunds in period
-        $refundsCount = Order::where('status', 'refunded')
-            ->where('created_at', '>=', $startUtc)
-            ->where('created_at', '<', $endExclusiveUtc)
-            ->count();
-        $refundsAmount = Refund::whereHas('order', fn ($q) => $q->where('orders.created_at', '>=', $startUtc)
-            ->where('orders.created_at', '<', $endExclusiveUtc)
-        )->sum('amount');
+        $refundsInPeriod = Refund::query()
+            ->where('status', 'completed')
+            ->where(function ($query) use ($startUtc, $endExclusiveUtc) {
+                $query->where(function ($query) use ($startUtc, $endExclusiveUtc) {
+                    $query->whereNotNull('refunded_at')
+                        ->where('refunded_at', '>=', $startUtc)
+                        ->where('refunded_at', '<', $endExclusiveUtc);
+                })->orWhere(function ($query) use ($startUtc, $endExclusiveUtc) {
+                    $query->whereNull('refunded_at')
+                        ->where('created_at', '>=', $startUtc)
+                        ->where('created_at', '<', $endExclusiveUtc);
+                });
+            });
+        $refundsCount = (clone $refundsInPeriod)->count();
+        $refundsAmount = (float) (clone $refundsInPeriod)->sum('amount');
 
         // Group by the business-local date; stored timestamps are UTC.
         $dailyTotals = [];
-        (clone $completedQuery)
+        (clone $salesOrdersQuery)
             ->select(['created_at', 'total'])
             ->orderBy('created_at')
             ->cursor()
@@ -141,8 +160,8 @@ class ReportController extends Controller
                 'Order Number',
                 'Date & Time',
                 'Cashier',
-                'Payment Method',
-                'Reference Number',
+                'Payment Methods',
+                'Reference Numbers',
                 'Items Count',
                 'Subtotal (PHP)',
                 'Discount (PHP)',
@@ -150,20 +169,31 @@ class ReportController extends Controller
                 'Status',
             ];
 
-            $orders = (clone $completedQuery)
-                ->with(['payment', 'items' => fn ($items) => $items->where('status', 'active')])
+            $orders = (clone $salesOrdersQuery)
+                ->with([
+                    'payments' => fn ($payments) => $payments->whereIn('status', ['paid', 'refunded']),
+                    'items' => fn ($items) => $items->where('status', 'active'),
+                ])
                 ->orderBy('created_at')
                 ->get();
             $rows = [];
             foreach ($orders as $order) {
-                $payment = $order->payment;
+                $paymentMethods = $order->payments
+                    ->groupBy(fn ($payment) => ucfirst($payment->method))
+                    ->map(fn ($payments, $method) => $method.' ('.number_format((float) $payments->sum('amount_paid'), 2, '.', '').')')
+                    ->implode(', ');
+                $referenceNumbers = $order->payments
+                    ->pluck('reference_number')
+                    ->filter()
+                    ->unique()
+                    ->implode(', ');
                 $rows[] = [
                     $order->id,
                     $order->order_number ?? ('#'.$order->id),
                     $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s'),
                     $order->cashier_name ?? '—',
-                    $payment ? ucfirst($payment->method) : '—',
-                    $payment?->reference_number ?? '—',
+                    $paymentMethods ?: '—',
+                    $referenceNumbers ?: '—',
                     $order->items->sum('quantity'),
                     number_format((float) $order->subtotal, 2, '.', ''),
                     number_format((float) $order->discount, 2, '.', ''),
@@ -180,8 +210,8 @@ class ReportController extends Controller
                 '',
                 '',
                 $totalItems,
-                number_format((float) $completedQuery->sum('subtotal'), 2, '.', ''),
-                number_format((float) $completedQuery->sum('discount'), 2, '.', ''),
+                number_format((float) $salesOrdersQuery->sum('subtotal'), 2, '.', ''),
+                number_format((float) $salesOrdersQuery->sum('discount'), 2, '.', ''),
                 number_format((float) $totalSales, 2, '.', ''),
                 '',
             ];
@@ -200,10 +230,10 @@ class ReportController extends Controller
 
     public function inventory(Request $request)
     {
-        $filters = $request->validate([
+        $filters = $this->normalizeDateFilters($request->validate([
             'from' => 'nullable|date',
             'to' => 'nullable|date|after_or_equal:from',
-        ]);
+        ]));
 
         $defaultDate = now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         $from = $filters['from'] ?? $filters['to'] ?? $defaultDate;
@@ -345,7 +375,7 @@ class ReportController extends Controller
         $query = Order::with([
             'orderItems.product',
             'orderItems.productSize',
-            'payments' => fn ($payments) => $payments->where('status', 'paid'),
+            'payments' => fn ($payments) => $payments->whereIn('status', ['paid', 'refunded']),
         ])
             ->where('order_type', 'grab')
             ->orderByDesc('created_at');
@@ -353,6 +383,11 @@ class ReportController extends Controller
         $filters = $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'grab_order_code' => ['nullable', 'string', 'max:100'],
+            'rider_code' => ['nullable', 'string', 'max:100'],
+            'cashier_name' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'in:completed,refunded,voided,held'],
+            'product_id' => ['nullable', 'integer', 'exists:products,id'],
         ]);
         if ($from = $filters['from'] ?? null) {
             $query->where('created_at', '>=', BusinessDateRange::startUtc($from));
@@ -360,19 +395,19 @@ class ReportController extends Controller
         if ($to = $filters['to'] ?? null) {
             $query->where('created_at', '<', BusinessDateRange::endExclusiveUtc($to));
         }
-        if ($code = $request->get('grab_order_code')) {
+        if ($code = $filters['grab_order_code'] ?? null) {
             $query->where('grab_order_code', 'like', "%{$code}%");
         }
-        if ($rider = $request->get('rider_code')) {
+        if ($rider = $filters['rider_code'] ?? null) {
             $query->where('rider_code', 'like', "%{$rider}%");
         }
-        if ($cashier = $request->get('cashier_name')) {
+        if ($cashier = $filters['cashier_name'] ?? null) {
             $query->where('cashier_name', 'like', "%{$cashier}%");
         }
-        if ($status = $request->get('status')) {
+        if ($status = $filters['status'] ?? null) {
             $query->where('status', $status);
         }
-        if ($productId = $request->get('product_id')) {
+        if ($productId = $filters['product_id'] ?? null) {
             $query->whereHas('orderItems', fn ($q) => $q->where('product_id', $productId));
         }
 
@@ -393,7 +428,7 @@ class ReportController extends Controller
                 'Customer Name',
                 'Date & Time',
                 'Cashier',
-                'Payment Method',
+                'Payment Methods (Amount)',
                 'Items Summary',
                 'Subtotal',
                 'Discount',
@@ -404,14 +439,13 @@ class ReportController extends Controller
             $rows = $query->get()->map(function ($ord) {
                 $itemsText = $ord->orderItems->map(fn ($it) => "{$it->product?->name} ({$it->productSize?->size_name}) x{$it->quantity}".($it->comment ? " [{$it->comment}]" : ''))->join('; ');
                 $paymentMethods = $ord->payments
-                    ->pluck('method')
-                    ->unique()
-                    ->map(fn ($method) => match (strtolower($method)) {
+                    ->groupBy(fn ($payment) => match (strtolower($payment->method)) {
                         'cash' => 'Cash',
                         'grabfood', 'grab' => 'GrabFood',
                         'online' => 'Online Payment',
-                        default => ucfirst($method),
+                        default => ucfirst($payment->method),
                     })
+                    ->map(fn ($payments, $method) => $method.' ('.number_format((float) $payments->sum('amount_paid'), 2, '.', '').')')
                     ->join(', ');
 
                 return [
@@ -445,6 +479,13 @@ class ReportController extends Controller
 
     public function shifts(Request $request)
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'cashier_name' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'in:open,balanced,short,over,reviewed'],
+        ]);
+
         $query = CashierShift::with('user')->orderByDesc('start_time');
 
         if ($from = $request->get('from')) {

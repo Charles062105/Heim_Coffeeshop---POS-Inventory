@@ -10,32 +10,34 @@ use App\Services\ExportService;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class StockAdjustmentController extends Controller
 {
     public function index(Request $request)
     {
         $types = ['stock_in', 'sales_consumption', 'sales_return', 'waste', 'adjustment_add', 'adjustment_deduct'];
-        $request->validate([
-            'type' => 'nullable|in:'.implode(',', $types),
-            'from' => 'nullable|date',
-            'to' => 'nullable|date|after_or_equal:from',
+        $filters = $request->validate([
+            'type' => ['nullable', 'in:'.implode(',', $types)],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'ingredient_id' => ['nullable', 'integer', 'exists:ingredients,id'],
         ]);
 
         $query = InventoryTransaction::with(['ingredient', 'supplier'])
             ->orderByRaw('COALESCE(transaction_date, created_at) DESC')
             ->orderByDesc('created_at');
 
-        if ($type = $request->get('type')) {
+        if ($type = $filters['type'] ?? null) {
             $query->where('type', $type);
         }
-        if ($ingredientId = $request->get('ingredient_id')) {
+        if ($ingredientId = $filters['ingredient_id'] ?? null) {
             $query->where('ingredient_id', $ingredientId);
         }
-        if ($from = $request->get('from')) {
+        if ($from = $filters['from'] ?? null) {
             $query->effectiveDateFrom($from);
         }
-        if ($to = $request->get('to')) {
+        if ($to = $filters['to'] ?? null) {
             $query->effectiveDateTo($to);
         }
 
@@ -113,7 +115,7 @@ class StockAdjustmentController extends Controller
             ? (abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can print reports.') ?: $query->get())
             : $query->paginate(20)->withQueryString();
 
-        $ingredients = Ingredient::active()->orderBy('name')->get();
+        $ingredients = Ingredient::with('inventory')->orderBy('name')->get();
         $suppliers = Supplier::where('status', 'active')->orderBy('name')->get();
 
         // $reportType is passed to the view so the template can detect it even
@@ -141,6 +143,12 @@ class StockAdjustmentController extends Controller
             'transaction_date' => 'required_if:type,stock_in|nullable|date',
             'expiration_date' => 'nullable|date|after_or_equal:transaction_date',
         ]);
+
+        if ($request->type === 'stock_in' && Ingredient::whereKey($request->ingredient_id)->where('status', 'inactive')->exists()) {
+            throw ValidationException::withMessages([
+                'ingredient_id' => 'Unarchive this ingredient before recording a new stock-in delivery.',
+            ]);
+        }
 
         if (in_array($request->type, ['adjustment_add', 'adjustment_deduct']) && empty($request->reason)) {
             return back()->withErrors(['reason' => 'Reason / Notes is required for this transaction type.'])->withInput();
@@ -233,7 +241,7 @@ class StockAdjustmentController extends Controller
 
             return $this->movementRedirect($request)
                 ->with('success', "Adjustment recorded successfully: {$direction}{$request->quantity} {$ingredient->unit} for {$ingredient->name}.");
-        });
+        }, 3);
     }
 
     private function movementRedirect(Request $request, ?string $type = null)

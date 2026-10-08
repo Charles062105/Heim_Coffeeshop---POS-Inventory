@@ -54,7 +54,7 @@ class OrderAuthorizationTest extends TestCase
             ->assertOk()
             ->assertSee('Order Actions')
             ->assertSee('Process Refund')
-            ->assertSee('Cancel Order')
+            ->assertDontSee('Cancel Unpaid Order')
             ->assertSee('Void Full Order')
             ->assertSee('Enter an active Manager or Owner email and password to authorize refunds, cancellations, and voids.');
     }
@@ -77,8 +77,61 @@ class OrderAuthorizationTest extends TestCase
             ->assertOk()
             ->assertSee('Order Actions')
             ->assertSee('Refund Unavailable')
-            ->assertSee('Cancel Order')
+            ->assertDontSee('Cancel Unpaid Order')
             ->assertSee('Void Full Order');
+    }
+
+    public function test_paid_order_cannot_be_cancelled_without_voiding_or_refunding_its_payment(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager', 'status' => 'active']);
+        $order = Order::create([
+            'order_number' => 'ORD-CANCEL-PAID',
+            'cashier_name' => 'Jane Cashier',
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => 'cash',
+            'amount_received' => 100,
+            'amount_paid' => 100,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $this->actingAs($manager)->post(route('refunds.cancel', $order), [
+            'authorizer_email' => $manager->email,
+            'authorizer_password' => 'password',
+            'reason' => 'Attempt to cancel completed paid order',
+        ])->assertSessionHasErrors('order');
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'completed']);
+        $this->assertDatabaseHas('payments', ['order_id' => $order->id, 'status' => 'paid']);
+        $this->assertDatabaseMissing('order_adjustments', ['order_id' => $order->id, 'action' => 'cancel']);
+    }
+
+    public function test_unpaid_pending_order_can_be_cancelled_with_authorization(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager', 'status' => 'active']);
+        $order = Order::create([
+            'order_number' => 'ORD-CANCEL-PENDING',
+            'cashier_name' => 'Jane Cashier',
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($manager)->post(route('refunds.cancel', $order), [
+            'authorizer_email' => $manager->email,
+            'authorizer_password' => 'password',
+            'reason' => 'Customer cancelled before payment',
+        ])->assertRedirect(route('orders.show', $order));
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled']);
+        $this->assertDatabaseHas('order_adjustments', ['order_id' => $order->id, 'action' => 'cancel']);
     }
 
     public function test_cashier_can_view_another_cashiers_order(): void
@@ -98,6 +151,9 @@ class OrderAuthorizationTest extends TestCase
             ->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee('Order Actions');
+        $this->get(route('pos.success', $order))
+            ->assertOk()
+            ->assertSee($order->order_number);
     }
 
     public function test_cashier_cannot_record_payment_for_another_cashiers_order(): void

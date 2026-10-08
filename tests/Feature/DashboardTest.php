@@ -12,6 +12,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductSize;
+use App\Models\Refund;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,13 +57,27 @@ class DashboardTest extends TestCase
             'status' => 'paid',
         ]);
 
-
         Order::create([
             'order_number' => 'ORD-20260917-PARTIAL',
             'cashier_name' => 'Maria Santos',
             'subtotal' => 45,
             'discount' => 0,
             'total' => 45,
+            'status' => 'partially_paid',
+        ])->payments()->create([
+            'method' => 'cash',
+            'amount_received' => 20,
+            'amount_paid' => 20,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        Order::create([
+            'order_number' => 'ORD-20260917-UNPAID',
+            'cashier_name' => 'Maria Santos',
+            'subtotal' => 30,
+            'discount' => 0,
+            'total' => 30,
             'status' => 'partially_paid',
         ]);
 
@@ -99,8 +114,9 @@ class DashboardTest extends TestCase
         $response->assertSee('style="zoom: 90%"', false);
 
         // Verify view data
-        $response->assertViewHas('todaySales', 195.0);
+        $response->assertViewHas('todaySales', 170.0);
         $response->assertViewHas('todayOrders', 2);
+        $response->assertViewHas('totalRevenue', 170.0);
         $response->assertViewHas('lowStockCount', 1);
         $response->assertViewHas('outOfStockCount', 1);
 
@@ -129,7 +145,7 @@ class DashboardTest extends TestCase
         $response->assertSee('Daily Consumption');
         $response->assertSee('Recent Activity');
         $response->assertSee('Payment Breakdown');
-        $response->assertSee('Total Sales');
+        $response->assertSee('Total Payments Received');
     }
 
     public function test_cashier_dashboard_displays_shift_specific_metrics(): void
@@ -145,9 +161,32 @@ class DashboardTest extends TestCase
             'total' => 96,
             'status' => 'completed',
         ]);
+        $order->payments()->create([
+            'method' => 'cash',
+            'amount_received' => 96,
+            'amount_paid' => 96,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $partialOrder = Order::create([
+            'order_number' => 'ORD-CASHIER-PARTIAL',
+            'cashier_name' => 'Charles',
+            'subtotal' => 50,
+            'discount' => 0,
+            'total' => 50,
+            'status' => 'partially_paid',
+        ]);
+        $partialOrder->payments()->create([
+            'method' => 'cash',
+            'amount_received' => 20,
+            'amount_paid' => 20,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
 
         // Create order by someone else
-        Order::create([
+        $otherOrder = Order::create([
             'order_number' => 'ORD-OTHER-2',
             'cashier_name' => 'Juan',
             'subtotal' => 250,
@@ -155,16 +194,43 @@ class DashboardTest extends TestCase
             'total' => 250,
             'status' => 'completed',
         ]);
+        $otherOrder->payments()->create([
+            'method' => 'online',
+            'amount_received' => 250,
+            'amount_paid' => 250,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
 
         $response = $this->actingAs($cashier)->get(route('dashboard'));
         $response->assertOk();
 
-        $response->assertViewHas('cashierTodaySales', 96.0);
-        $response->assertViewHas('cashierTodayOrders', 1);
+        $response->assertViewHas('cashierTodaySales', 116.0);
+        $response->assertViewHas('cashierTodayOrders', 2);
+        $response->assertViewHas('cashierAllTimeSales', 116.0);
+        $response->assertViewHas('todaySales', 116.0);
+        $response->assertViewHas('totalRevenue', 116.0);
+        $response->assertViewHas('todayOrders', 2);
+        $response->assertViewHas('totalOrders', 2);
 
-        $response->assertSee('My Sales Today');
+        $this->assertSame(116.0, (float) $response->viewData('paymentSummary')->first()->total);
+        $this->assertSame(116.0, (float) $response->viewData('weekTotal'));
+        $this->assertSame(2, $response->viewData('weekOrders'));
+        $this->assertCount(2, $response->viewData('recentOrders'));
+        $this->assertNotContains(
+            'ORD-OTHER-2',
+            $response->viewData('recentOrders')->pluck('order_number')->all()
+        );
+
+        $response->assertSee('My Payments Today');
         $response->assertSee('My Shift Orders');
         $response->assertSee('Open Register');
+        $response->assertDontSee('Inventory Alerts');
+        $response->assertDontSee('Daily Consumption');
+        $response->assertDontSee('Recent Activity');
+        $response->assertDontSee(route('audit-logs.index'));
+        $response->assertDontSee(route('reports.sales'));
+        $response->assertDontSee(route('inventory.index'));
     }
 
     public function test_dashboard_daily_sales_use_the_business_timezone(): void
@@ -191,6 +257,17 @@ class DashboardTest extends TestCase
                     'created_at' => Carbon::parse($createdAt, 'UTC'),
                     'updated_at' => Carbon::parse($createdAt, 'UTC'),
                 ])->save();
+                $payment = $order->payments()->create([
+                    'method' => 'cash',
+                    'amount_received' => $total,
+                    'amount_paid' => $total,
+                    'change_amount' => 0,
+                    'status' => 'paid',
+                ]);
+                $payment->forceFill([
+                    'created_at' => Carbon::parse($createdAt, 'UTC'),
+                    'updated_at' => Carbon::parse($createdAt, 'UTC'),
+                ])->save();
             }
 
             $response = $this->actingAs($manager)->get(route('dashboard'));
@@ -205,5 +282,135 @@ class DashboardTest extends TestCase
         } finally {
             Carbon::setTestNow();
         }
+    }
+
+    public function test_dashboard_sales_follow_the_date_a_payment_is_collected(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        Carbon::setTestNow(Carbon::parse('2026-10-08 10:00:00', 'UTC'));
+
+        try {
+            $order = Order::create([
+                'order_number' => 'ORD-PRIOR-DAY-PAYMENT',
+                'cashier_name' => 'Cashier',
+                'subtotal' => 100,
+                'discount' => 0,
+                'total' => 100,
+                'status' => 'partially_paid',
+            ]);
+            $order->forceFill([
+                'created_at' => Carbon::parse('2026-10-07 15:59:59', 'UTC'),
+                'updated_at' => Carbon::parse('2026-10-07 15:59:59', 'UTC'),
+            ])->save();
+
+            $payment = $order->payments()->create([
+                'method' => 'cash',
+                'amount_received' => 30,
+                'amount_paid' => 30,
+                'change_amount' => 0,
+                'status' => 'paid',
+            ]);
+            $payment->forceFill([
+                'created_at' => Carbon::parse('2026-10-07 16:00:00', 'UTC'),
+                'updated_at' => Carbon::parse('2026-10-07 16:00:00', 'UTC'),
+            ])->save();
+
+            $response = $this->actingAs($manager)->get(route('dashboard'));
+
+            $response->assertOk();
+            $response->assertViewHas('todaySales', 30.0);
+            $response->assertViewHas('todayOrders', 1);
+            $todayTrend = $response->viewData('salesTrend')->firstWhere('date', 'Oct 8');
+            $this->assertSame(30.0, $todayTrend['total']);
+            $this->assertSame(1, $todayTrend['count']);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_dashboard_preserves_collected_tender_after_a_later_refund(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        Carbon::setTestNow(Carbon::parse('2026-10-08 10:00:00', 'UTC'));
+
+        try {
+            $order = Order::create([
+                'order_number' => 'ORD-DASHBOARD-REFUNDED-TENDER',
+                'cashier_name' => $manager->name,
+                'subtotal' => 100,
+                'discount' => 0,
+                'total' => 100,
+                'status' => 'refunded',
+            ]);
+            $payment = $order->payments()->create([
+                'method' => 'cash',
+                'amount_received' => 100,
+                'amount_paid' => 100,
+                'change_amount' => 0,
+                'status' => 'refunded',
+            ]);
+            $payment->forceFill([
+                'created_at' => Carbon::parse('2026-10-07 16:00:00', 'UTC'),
+                'updated_at' => Carbon::parse('2026-10-07 16:00:00', 'UTC'),
+            ])->save();
+            Refund::create([
+                'order_id' => $order->id,
+                'amount' => 100,
+                'method' => 'cash',
+                'status' => 'completed',
+                'reason' => 'Dashboard report regression',
+                'authorized_by' => $manager->name,
+                'authorized_role' => 'manager',
+                'stock_restored' => false,
+                'refunded_at' => now(),
+            ]);
+
+            $response = $this->actingAs($manager)->get(route('dashboard'));
+
+            $response->assertOk();
+            $response->assertViewHas('todaySales', 100.0);
+            $response->assertViewHas('todayOrders', 1);
+            $response->assertViewHas('totalRevenue', 100.0);
+            $todayTrend = $response->viewData('salesTrend')->firstWhere('date', 'Oct 8');
+            $this->assertSame(100.0, $todayTrend['total']);
+            $this->assertSame(1, $todayTrend['count']);
+            $this->assertSame(100.0, (float) $response->viewData('paymentSummary')->first()->total);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_dashboard_daily_consumption_nets_sales_returns(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $ingredient = Ingredient::create([
+            'name' => 'Daily Net Coffee Beans',
+            'unit' => 'g',
+            'minimum_stock' => 1,
+            'status' => 'active',
+        ]);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 96]);
+
+        foreach ([
+            ['sales_consumption', 10],
+            ['sales_return', 4],
+        ] as [$type, $quantity]) {
+            InventoryTransaction::create([
+                'ingredient_id' => $ingredient->id,
+                'type' => $type,
+                'quantity' => $quantity,
+                'previous_stock' => 100,
+                'new_stock' => 96,
+                'performed_by' => $manager->name,
+                'performed_role' => 'manager',
+            ]);
+        }
+
+        $response = $this->actingAs($manager)->get(route('dashboard'));
+
+        $response->assertOk();
+        $consumption = $response->viewData('todayConsumption')->firstWhere('name', 'Daily Net Coffee Beans');
+        $this->assertNotNull($consumption);
+        $this->assertSame(6.0, $consumption->consumed);
     }
 }

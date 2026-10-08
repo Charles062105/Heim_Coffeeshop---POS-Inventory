@@ -17,7 +17,7 @@
         <p class="mt-1 text-2xl sm:text-3xl font-black text-gray-900">{{ $categories->count() }}</p>
     </div>
     <div class="brand-card rounded-2xl p-5">
-        <p class="text-xs font-bold uppercase tracking-wider text-heim-600">Active Groups</p>
+        <p class="text-xs font-bold uppercase tracking-wider text-heim-600">Unarchived Groups</p>
         <p class="mt-1 text-2xl sm:text-3xl font-black text-heim-700">{{ $categories->where('status', 'active')->count() }}</p>
     </div>
     <div class="brand-card rounded-2xl p-5">

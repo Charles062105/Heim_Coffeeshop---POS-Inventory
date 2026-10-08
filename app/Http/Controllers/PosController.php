@@ -17,6 +17,7 @@ use App\Services\InventoryService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -37,7 +38,7 @@ class PosController extends Controller
             ->get();
 
         $addons = ProductAddon::where('status', 'active')
-            ->with('addonIngredients.ingredient.inventory')
+            ->with('addonIngredients.ingredient.inventory', 'addonIngredients.replacesIngredient')
             ->get();
         $taxSetting = TaxSetting::current();
         $activeShift = $request->user() ? CashierShift::activeForUser($request->user()->id) : null;
@@ -49,6 +50,7 @@ class PosController extends Controller
     {
         $categoryId = $request->get('category_id');
         $products = Product::where('status', 'active')
+            ->whereHas('category', fn ($query) => $query->where('status', 'active'))
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->with(['sizes' => fn ($q) => $q->where('status', 'active')->orderBy('price'), 'category'])
             ->get();
@@ -58,6 +60,10 @@ class PosController extends Controller
 
     public function sizes(Product $product)
     {
+        if ($product->status !== 'active' || $product->category?->status !== 'active') {
+            return response()->json([]);
+        }
+
         $sizes = $product->sizes()->where('status', 'active')->orderBy('price')->get();
 
         return response()->json($sizes);
@@ -91,6 +97,7 @@ class PosController extends Controller
             'person_name' => 'nullable|string|max:150',
             'payment_comment' => 'nullable|string|max:255',
             'reference_number' => 'nullable|string|max:100',
+            'checkout_request_id' => 'nullable|uuid',
             'payments' => 'nullable|array|min:1',
             'payments.*.method' => 'required|in:cash,online,grabfood,grab',
             'payments.*.amount_paid' => 'required|numeric|decimal:0,2|min:0.01',
@@ -114,6 +121,13 @@ class PosController extends Controller
         $orderType = strtolower(trim($request->order_type ?? 'dine_in'));
         $isGrab = $orderType === 'grab';
         $isGrabPayment = in_array($request->payment_method, ['grabfood', 'grab']);
+        $hasGrabSettlement = $isGrabPayment || collect($request->input('payments', []))
+            ->contains(fn ($payment) => in_array($payment['method'] ?? null, ['grabfood', 'grab'], true));
+        if (! $isGrab && $hasGrabSettlement) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'GrabFood platform settlements are only valid for Grab orders.',
+            ]);
+        }
         if ($isGrab && (blank(trim((string) $request->grab_order_code)) || blank(trim((string) $request->rider_code)))) {
             throw ValidationException::withMessages([
                 'grab_order_code' => 'Grab orders require both a Grab order code and rider code.',
@@ -137,15 +151,51 @@ class PosController extends Controller
 
         $user = $request->user();
         $createdOrder = null;
+        $checkoutRequestId = $request->input('checkout_request_id') ?: (string) Str::uuid();
+        $existingOrder = Order::query()
+            ->where('checkout_request_id', $checkoutRequestId)
+            ->first();
+        if ($existingOrder) {
+            if (! $existingOrder->shift()->where('user_id', $user->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'checkout_request_id' => 'This checkout request belongs to a different cashier.',
+                ]);
+            }
+            $createdOrder = $existingOrder;
+        }
 
-        DB::transaction(function () use ($request, $orderType, $isGrab, $isGrabPayment, &$createdOrder) {
+        DB::transaction(function () use ($request, $orderType, $isGrab, $isGrabPayment, $checkoutRequestId, &$createdOrder) {
+            if ($createdOrder) {
+                return;
+            }
+
             $shiftId = CashierShift::lockActiveForUser($request->user()->id)->id;
+            $existingOrder = Order::query()
+                ->where('checkout_request_id', $checkoutRequestId)
+                ->first();
+            if ($existingOrder) {
+                if (! $existingOrder->shift()->where('user_id', $request->user()->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'checkout_request_id' => 'This checkout request belongs to a different cashier.',
+                    ]);
+                }
+                $createdOrder = $existingOrder;
+
+                return;
+            }
+
             $grabOrderCode = $isGrab ? strtoupper(trim((string) $request->grab_order_code)) : null;
             $grabRiderCode = $isGrab ? strtoupper(trim((string) $request->rider_code)) : null;
 
             // If checking out an order that was previously held, remove the held order
             if ($request->filled('held_order_id')) {
-                Order::where('id', $request->held_order_id)->where('status', 'held')->delete();
+                $heldOrder = Order::query()->lockForUpdate()->find($request->held_order_id);
+                if (! $heldOrder || $heldOrder->status !== 'held') {
+                    throw ValidationException::withMessages([
+                        'held_order_id' => 'The saved ticket is no longer available.',
+                    ]);
+                }
+                $heldOrder->delete();
             }
 
             // ── Build order ──────────────────────────────────────────────
@@ -223,6 +273,11 @@ class PosController extends Controller
             // Compute tax, discount and totals using configured tax settings
             $taxSetting = TaxSetting::current();
             $computed = $taxSetting->computeOrder($subtotal, $discountType, $rawDiscount);
+            if ($rawDiscount > 0 && $computed['total'] <= 0) {
+                throw ValidationException::withMessages([
+                    'discount' => 'Discount must leave a positive order total.',
+                ]);
+            }
             $discountIdNumber = in_array($computed['discount_type'], ['senior', 'pwd'], true)
                 ? trim((string) $request->input('discount_id_number'))
                 : null;
@@ -335,6 +390,7 @@ class PosController extends Controller
                 try {
                     $createdOrder = Order::create([
                         'order_number' => $orderNumber,
+                        'checkout_request_id' => $checkoutRequestId,
                         'order_type' => $orderType,
                         'grab_order_code' => $grabOrderCode,
                         'rider_code' => $grabRiderCode,
@@ -360,6 +416,15 @@ class PosController extends Controller
                 } catch (QueryException $exception) {
                     if ($exception->getCode() !== '23000') {
                         throw $exception;
+                    }
+
+                    $existingOrder = Order::query()
+                        ->where('checkout_request_id', $checkoutRequestId)
+                        ->first();
+                    if ($existingOrder) {
+                        $createdOrder = $existingOrder;
+
+                        return;
                     }
                 }
             }
@@ -475,14 +540,18 @@ class PosController extends Controller
             // ── Inventory deduction (for all order types) ─────────────────
             $createdOrder->load('orderItems');
             InventoryService::deductFromSale($createdOrder, $performedBy, $performedRole);
-        });
+        }, 3);
 
         if (! $createdOrder) {
             throw new \RuntimeException('Order could not be created.');
         }
 
+        $successMessage = $createdOrder->isPayable() && $createdOrder->remainingBalance() > 0
+            ? 'Payment recorded. Balance due: ₱'.number_format($createdOrder->remainingBalance(), 2).'.'
+            : 'Order completed successfully!';
+
         return redirect()->route('pos.success', ['order' => $createdOrder])
-            ->with('success', 'Order completed successfully!');
+            ->with('success', $successMessage);
     }
 
     public function hold(Request $request)
@@ -491,7 +560,7 @@ class PosController extends Controller
             ? CashierShift::activeForUser($request->user()->id)
             : null;
         if (! $activeShift) {
-            return response()->json(['message' => 'Start a cashier shift before holding an order.'], 422);
+            return response()->json(['message' => 'Start a cashier shift before saving an order.'], 422);
         }
 
         $request->validate([
@@ -513,6 +582,7 @@ class PosController extends Controller
             'discount_label' => 'nullable|string|max:100',
             'discount_id_number' => 'required_if:discount_type,senior,pwd|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
+            'held_order_id' => 'nullable|exists:orders,id',
         ]);
 
         foreach ($request->input('items', []) as $index => $item) {
@@ -537,6 +607,15 @@ class PosController extends Controller
 
         DB::transaction(function () use ($request, $orderType, $isGrab, &$createdOrder) {
             $activeShift = CashierShift::lockActiveForUser($request->user()->id);
+            $heldOrderToReplace = null;
+            if ($request->filled('held_order_id')) {
+                $heldOrderToReplace = Order::query()->lockForUpdate()->find($request->held_order_id);
+                if (! $heldOrderToReplace || $heldOrderToReplace->status !== 'held') {
+                    throw ValidationException::withMessages([
+                        'held_order_id' => 'The saved ticket is no longer available.',
+                    ]);
+                }
+            }
 
             $orderNumber = Order::generateOrderNumber($isGrab ? 'GB-' : 'ORD-');
             $subtotal = 0;
@@ -575,8 +654,24 @@ class PosController extends Controller
 
             $discountType = strtolower(trim($request->discount_type ?? 'none'));
             $rawDiscount = (float) ($request->discount ?? 0);
+            if ($rawDiscount > $subtotal) {
+                throw ValidationException::withMessages([
+                    'discount' => 'Discount cannot exceed the order subtotal.',
+                ]);
+            }
+            $isStatutoryDiscount = in_array($discountType, ['senior', 'pwd'], true);
+            if ($rawDiscount > 0 && ! $isStatutoryDiscount && ! $request->user()->canAuthorize()) {
+                throw ValidationException::withMessages([
+                    'discount' => 'Only managers and owners can apply discounts.',
+                ]);
+            }
             $taxSetting = TaxSetting::current();
             $computed = $taxSetting->computeOrder($subtotal, $discountType, $rawDiscount);
+            if ($rawDiscount > 0 && $computed['total'] <= 0) {
+                throw ValidationException::withMessages([
+                    'discount' => 'Discount must leave a positive order total.',
+                ]);
+            }
             $discountIdNumber = in_array($computed['discount_type'], ['senior', 'pwd'], true)
                 ? trim((string) $request->input('discount_id_number'))
                 : null;
@@ -647,17 +742,19 @@ class PosController extends Controller
                 }
             }
 
+            $heldOrderToReplace?->delete();
+
             AuditService::logFromUser($request->user(), 'held_order', 'POS', [
                 'order_number' => $orderNumber,
                 'cashier_name' => $createdOrder->cashier_name,
                 'total' => $createdOrder->total,
                 'items' => count($itemsData),
             ], $createdOrder);
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,
-            'message' => "Order #{$createdOrder->order_number} held successfully.",
+            'message' => "Order #{$createdOrder->order_number} saved successfully.",
             'order' => $createdOrder->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon']),
         ]);
     }
@@ -676,7 +773,7 @@ class PosController extends Controller
     public function togglePin(Order $order)
     {
         if ($order->status !== 'held') {
-            return response()->json(['error' => 'Only held orders can be pinned.'], 422);
+            return response()->json(['error' => 'Only saved orders can be pinned.'], 422);
         }
 
         $order->update(['is_pinned' => ! $order->is_pinned]);
@@ -698,14 +795,14 @@ class PosController extends Controller
         }
 
         if ($order->status !== 'held') {
-            return response()->json(['error' => 'Only held orders can be resumed.'], 422);
+            return response()->json(['error' => 'Only saved orders can be opened.'], 422);
         }
 
         $payload = DB::transaction(function () use ($order) {
             CashierShift::lockActiveForUser(request()->user()->id);
-            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
-            if ($lockedOrder->status !== 'held') {
-                throw ValidationException::withMessages(['order' => 'Only held orders can be resumed.']);
+            $lockedOrder = Order::query()->lockForUpdate()->find($order->id);
+            if (! $lockedOrder || $lockedOrder->status !== 'held') {
+                throw ValidationException::withMessages(['order' => 'Only saved orders can be opened.']);
             }
 
             $lockedOrder->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon']);
@@ -738,6 +835,7 @@ class PosController extends Controller
             });
 
             $payload = [
+                'held_order_id' => $lockedOrder->id,
                 'order_number' => $lockedOrder->order_number,
                 'order_type' => $lockedOrder->order_type ?? 'dine_in',
                 'grab_order_code' => $lockedOrder->grab_order_code,
@@ -750,10 +848,8 @@ class PosController extends Controller
                 'notes' => $lockedOrder->notes,
                 'cart' => $cartItems,
             ];
-            $lockedOrder->delete();
-
             return $payload;
-        });
+        }, 3);
 
         return response()->json([
             'success' => true,
@@ -761,26 +857,34 @@ class PosController extends Controller
         ]);
     }
 
-    public function discardHeld(Order $order)
+    public function discardHeld(Request $request, Order $order)
     {
-        $reason = trim(request()->input('reason', ''));
+        $validated = $request->validate([
+            'reason' => 'required|string|min:5|max:500',
+        ]);
+        $reason = trim($validated['reason']);
+        if (mb_strlen($reason) < 5) {
+            throw ValidationException::withMessages([
+                'reason' => 'The reason must contain at least 5 non-whitespace characters.',
+            ]);
+        }
 
-        $orderNumber = DB::transaction(function () use ($order) {
-            CashierShift::lockActiveForUser(request()->user()->id);
-            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
-            if ($lockedOrder->status !== 'held') {
-                throw ValidationException::withMessages(['order' => 'Only held orders can be voided.']);
+        $orderNumber = DB::transaction(function () use ($request, $order) {
+            CashierShift::lockActiveForUser($request->user()->id);
+            $lockedOrder = Order::query()->lockForUpdate()->find($order->id);
+            if (! $lockedOrder || $lockedOrder->status !== 'held') {
+                throw ValidationException::withMessages(['order' => 'Only saved orders can be voided.']);
             }
 
             $number = $lockedOrder->order_number;
             $lockedOrder->delete();
 
             return $number;
-        });
+        }, 3);
 
-        AuditService::logFromUser(request()->user(), 'voided_saved_ticket', 'POS', [
+        AuditService::logFromUser($request->user(), 'voided_saved_ticket', 'POS', [
             'order_number' => $orderNumber,
-            'reason'       => $reason ?: 'No reason provided',
+            'reason'       => $reason,
         ]);
 
         return response()->json([
@@ -791,6 +895,7 @@ class PosController extends Controller
 
     public function success(Order $order)
     {
+        Gate::authorize('view', $order);
         $order->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon', 'payments']);
 
         return view('pos.success', compact('order'));

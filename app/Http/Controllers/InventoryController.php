@@ -10,14 +10,18 @@ class InventoryController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'stock_status' => ['nullable', 'in:good,low_stock,out_of_stock'],
+        ]);
         $query = Ingredient::with(['inventory', 'supplier'])->orderBy('name');
 
-        if ($search = $request->get('search')) {
+        if ($search = $filters['search'] ?? null) {
             $query->where('name', 'like', "%{$search}%");
         }
 
         // Stock status filter
-        $stockFilter = $request->get('stock_status');
+        $stockFilter = $filters['stock_status'] ?? null;
         $allIngredients = $query->get();
 
         $good = $allIngredients->filter(fn ($i) => $i->getStockStatus() === 'good')->count();

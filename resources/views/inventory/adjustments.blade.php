@@ -94,10 +94,11 @@
                         <option value="">Select ingredient...</option>
                         @foreach($ingredients as $ing)
                         <option value="{{ $ing->id }}" {{ old('ingredient_id') == $ing->id ? 'selected' : '' }}>
-                            {{ $ing->name }} ({{ $ing->unit }}) — {{ number_format($ing->getCurrentStock(), 3) }} current
+                            {{ $ing->name }} ({{ $ing->unit }}){{ $ing->status === 'inactive' ? ' — Archived' : '' }} — {{ number_format($ing->getCurrentStock(), 3) }} current
                         </option>
                         @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-gray-400">Archived ingredients remain available for corrections and waste records. Unarchive an ingredient before recording a new delivery.</p>
                 </div>
 
                 <div>

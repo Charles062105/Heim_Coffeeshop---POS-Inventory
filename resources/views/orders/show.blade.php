@@ -126,7 +126,7 @@
                     <div class="text-right">
                         <p class="font-bold text-gray-900 {{ $item->isVoided() ? 'line-through text-gray-400' : '' }}">₱{{ number_format($item->subtotal, 2) }}</p>
                         <p class="text-xs text-gray-400">×{{ $item->quantity }} @ ₱{{ number_format($item->unit_price, 2) }}</p>
-                        @if(!$item->isVoided() && !in_array($order->status, ['voided', 'refunded', 'cancelled']))
+                        @if(!$item->isVoided() && !in_array($order->status, ['held', 'voided', 'refunded', 'cancelled']))
                             <details class="relative mt-1">
                                 <summary class="cursor-pointer list-none text-[11px] font-bold text-gray-500 hover:text-gray-700">More ⋮</summary>
                                 <div class="absolute right-0 z-20 mt-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
@@ -251,8 +251,13 @@
                 @endforeach
             </div>
             <div class="mb-4 flex justify-between rounded-xl border border-heim-100 bg-white px-3 py-2 text-sm">
-                <span class="font-semibold text-gray-600">Paid / Remaining</span>
-                <span class="font-bold text-gray-900">₱{{ number_format($order->paidAmount(), 2) }} / ₱{{ number_format($order->remainingBalance(), 2) }}</span>
+                @if($order->isPayable() || $order->isCompleted())
+                    <span class="font-semibold text-gray-600">Paid / Remaining</span>
+                    <span class="font-bold text-gray-900">₱{{ number_format($order->paidAmount(), 2) }} / ₱{{ number_format($order->remainingBalance(), 2) }}</span>
+                @else
+                    <span class="font-semibold text-gray-600">Order Settlement</span>
+                    <span class="font-bold text-gray-900">{{ ucfirst(str_replace('_', ' ', $order->status)) }} · No balance due</span>
+                @endif
             </div>
             @if($order->payment)
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -312,7 +317,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Payment Method</label>
-                    <select name="payment_method" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <select name="payment_method" onchange="toggleCashReceivedRequirement(this)" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
                         <option value="cash">Cash</option><option value="online">Online</option><option value="grabfood">GrabFood</option>
                     </select>
                 </div>
@@ -325,7 +330,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Cash Received (₱, if cash)</label>
-                    <input name="amount_received" type="number" min="0" step="0.01" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <input name="amount_received" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 mb-1">Reference Number (online)</label>
@@ -361,7 +366,7 @@
     </div>
 
     {{-- Refund / Cancel / Void actions (requires manager/owner authorization via modal) --}}
-    @if(!in_array($order->status, ['refunded', 'voided', 'cancelled']))
+    @if(!in_array($order->status, ['held', 'refunded', 'voided', 'cancelled']))
     <div class="brand-card rounded-2xl shadow-sm p-6">
         <h3 class="font-bold text-gray-900 mb-2 text-base">Order Actions</h3>
         <p class="text-xs text-gray-400 mb-4">Cashiers can request these actions. Enter an active Manager or Owner email and password to authorize refunds, cancellations, and voids.</p>
@@ -384,8 +389,10 @@
                     </span>
                 </div>
                 @endif
+            @endif
+            @if($order->status === 'pending')
                 <button onclick="triggerCancel()" class="px-5 py-2.5 border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-bold rounded-xl transition-colors">
-                    Cancel Order
+                    Cancel Unpaid Order
                 </button>
             @endif
 
@@ -436,6 +443,11 @@
 
 @push('scripts')
 <script>
+function toggleCashReceivedRequirement(methodSelect) {
+    const receivedInput = document.querySelector('input[name="amount_received"]');
+    if (receivedInput) receivedInput.required = methodSelect.value === 'cash';
+}
+
 function triggerRefund() {
     openAuthModal(function(data) {
         document.getElementById('rf-email').value = data.authorizer_email;

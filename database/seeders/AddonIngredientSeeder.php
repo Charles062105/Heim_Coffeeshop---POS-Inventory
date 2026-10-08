@@ -16,7 +16,7 @@ use Illuminate\Database\Seeder;
  *
  * Mapping logic:
  *  - "Extra Shot"            → Espresso Shot: 30 ml
- *  - "Oat Milk Substitute"   → Oat Milk: 180 ml  (replaces Fresh Milk in base recipe)
+ *  - "Oat Milk Substitute"   → Oat Milk: 180 ml, replacing Fresh Milk in the base recipe
  *  - "Extra Syrup"           → Simple Syrup: 15 ml
  *  - "Extra Cream"           → Heavy Cream: 30 ml
  *  - "Less Ice"              → (no ingredient deduction — free modifier)
@@ -41,7 +41,7 @@ class AddonIngredientSeeder extends Seeder
                 ['Espresso Shot', 30],     // 30 ml extra espresso
             ],
             'Oat Milk Substitute' => [
-                ['Oat Milk', 180],         // replaces 180 ml fresh milk
+                ['Oat Milk', 180, 'Fresh Milk'],
             ],
             'Extra Syrup' => [
                 ['Simple Syrup', 15],      // 15 ml extra syrup
@@ -92,7 +92,9 @@ class AddonIngredientSeeder extends Seeder
                 continue;
             }
 
-            foreach ($ingredientList as [$ingredientName, $quantity]) {
+            foreach ($ingredientList as $mapping) {
+                [$ingredientName, $quantity] = $mapping;
+                $replacesIngredientName = $mapping[2] ?? null;
                 $ingredient = $ing($ingredientName);
 
                 if (! $ingredient) {
@@ -102,14 +104,27 @@ class AddonIngredientSeeder extends Seeder
                     continue;
                 }
 
+                $values = [
+                    'quantity' => $quantity,
+                    'replaces_ingredient_id' => null,
+                ];
+                if ($replacesIngredientName) {
+                    $replacedIngredient = $ing($replacesIngredientName);
+                    if (! $replacedIngredient) {
+                        $notFound[] = "Ingredient not found: {$replacesIngredientName} (replaced by addon: {$addonName})";
+                        $skipped++;
+
+                        continue;
+                    }
+                    $values['replaces_ingredient_id'] = $replacedIngredient->id;
+                }
+
                 AddonIngredient::firstOrCreate(
                     [
                         'product_addon_id' => $addon->id,
                         'ingredient_id' => $ingredient->id,
                     ],
-                    [
-                        'quantity' => $quantity,
-                    ]
+                    $values
                 );
 
                 $linked++;

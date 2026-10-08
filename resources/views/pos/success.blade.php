@@ -1,7 +1,23 @@
 @extends('layouts.app')
-@section('title', 'Order #' . $order->order_number)
-@section('header', 'Order Complete')
-@section('subheader', 'Receipt #' . $order->order_number . ' successfully processed and logged')
+@section('title', match ($order->status) {
+    'held' => 'Order Saved · '.$order->order_number,
+    'voided' => 'Order Voided · '.$order->order_number,
+    'refunded' => 'Order Refunded · '.$order->order_number,
+    'cancelled' => 'Order Cancelled · '.$order->order_number,
+    default => ($order->isPayable() && $order->remainingBalance() > 0 ? 'Payment Recorded · ' : 'Order Complete · ').$order->order_number,
+})
+@section('header', match ($order->status) {
+    'held' => 'Order Saved',
+    'voided' => 'Order Voided',
+    'refunded' => 'Order Refunded',
+    'cancelled' => 'Order Cancelled',
+    default => $order->isPayable() && $order->remainingBalance() > 0 ? 'Payment Recorded' : 'Order Complete',
+})
+@section('subheader', $order->isPayable() && $order->remainingBalance() > 0
+    ? 'Payment recorded for Order #'.$order->order_number.' · Balance due: ₱'.number_format($order->remainingBalance(), 2)
+    : (in_array($order->status, ['completed', 'partially_paid', 'pending'], true)
+        ? 'Receipt #'.$order->order_number.' successfully processed and logged'
+        : 'Order #'.$order->order_number.' is '.str_replace('_', ' ', $order->status).'.'))
 
 @section('header-actions')
     <div class="flex items-center gap-2 print:hidden">
@@ -84,7 +100,18 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                 </svg>
             </div>
-            <h2 class="text-2xl font-black tracking-tight">Order Complete!</h2>
+            <h2 class="text-2xl font-black tracking-tight">
+                {{ match ($order->status) {
+                    'held' => 'Order Saved',
+                    'voided' => 'Order Voided',
+                    'refunded' => 'Order Refunded',
+                    'cancelled' => 'Order Cancelled',
+                    default => $order->isPayable() && $order->remainingBalance() > 0 ? 'Payment Recorded' : 'Order Complete!',
+                } }}
+            </h2>
+            @if($order->isPayable() && $order->remainingBalance() > 0)
+                <p class="mt-1 text-sm font-semibold text-amber-100">Balance due: ₱{{ number_format($order->remainingBalance(), 2) }}</p>
+            @endif
             <p class="text-heim-200 mt-1 font-mono text-sm">{{ $order->order_number }}</p>
             @if($order->order_type === 'grab')
                 <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold uppercase tracking-wider">
@@ -229,9 +256,15 @@
                 <div class="flex justify-between items-center"><span>Payment Comment</span><span>{{ $payment->comment }}</span></div>
                 @endif
                 @endforeach
-                <div class="flex justify-between items-center border-t border-heim-100 pt-2 font-bold">
-                    <span>Remaining Balance</span><span>₱{{ number_format($order->remainingBalance(), 2) }}</span>
-                </div>
+                @if($order->isPayable() || $order->isCompleted())
+                    <div class="flex justify-between items-center border-t border-heim-100 pt-2 font-bold">
+                        <span>Remaining Balance</span><span>₱{{ number_format($order->remainingBalance(), 2) }}</span>
+                    </div>
+                @else
+                    <div class="flex justify-between items-center border-t border-heim-100 pt-2 font-bold">
+                        <span>Order Status</span><span>{{ ucfirst(str_replace('_', ' ', $order->status)) }} · No balance due</span>
+                    </div>
+                @endif
             </div>
             @endif
 
@@ -260,6 +293,9 @@
 
 @push('scripts')
 <script>
+sessionStorage.removeItem('pos-checkout-request-id-{{ auth()->id() }}');
+sessionStorage.removeItem('pos-cart-recovery-{{ auth()->id() }}');
+
 function printThermalReceipt() {
     let printFrame = document.getElementById('thermal-receipt-iframe');
     if (!printFrame) {

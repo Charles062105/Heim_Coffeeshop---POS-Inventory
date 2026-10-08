@@ -68,26 +68,44 @@ class VoidController extends Controller
 
         $authorizer = $this->verifyAuthorizer($request);
 
-        if (in_array($order->status, ['voided', 'refunded'])) {
+        if (in_array($order->status, ['held', 'cancelled', 'voided', 'refunded'], true)) {
+            $message = $order->status === 'held'
+                ? 'Saved tickets must be voided from Saved Orders.'
+                : "Order cannot be voided because it is already {$order->status}.";
             if ($request->wantsJson()) {
-                return response()->json(['error' => "Order cannot be voided because it is already {$order->status}."], 422);
+                return response()->json(['error' => $message], 422);
             }
 
-            return back()->with('error', "Order cannot be voided because it is already {$order->status}.");
+            return back()->with('error', $message);
         }
 
-        $inventoryDeducted = in_array($order->status, ['completed', 'partially_paid']);
         $requester = $request->user();
 
-        DB::transaction(function () use ($order, $authorizer, $request, $inventoryDeducted, $requester) {
+        DB::transaction(function () use ($order, $authorizer, $request, $requester) {
             $shift = CashierShift::lockActiveForUser($requester->id);
-            $cashPaid = (float) $order->payments()
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            if (in_array($lockedOrder->status, ['held', 'cancelled', 'voided', 'refunded'], true)) {
+                $message = $lockedOrder->status === 'held'
+                    ? 'Saved tickets must be voided from Saved Orders.'
+                    : "Order cannot be voided because it is already {$lockedOrder->status}.";
+                throw ValidationException::withMessages([
+                    'order' => $message,
+                ]);
+            }
+
+            $inventoryDeducted = in_array($lockedOrder->status, ['completed', 'partially_paid']);
+            $cashPaid = (float) $lockedOrder->payments()
                 ->where('method', 'cash')
                 ->whereIn('status', ['paid', 'refunded'])
                 ->sum('amount_paid');
+            $cashRefunded = (float) $lockedOrder->refunds()
+                ->where('method', 'cash')
+                ->where('status', 'completed')
+                ->sum('amount');
+            $cashPaid = max(0, round($cashPaid - $cashRefunded, 2));
             if ($cashPaid > 0) {
                 Refund::create([
-                    'order_id' => $order->id,
+                    'order_id' => $lockedOrder->id,
                     'shift_id' => $shift->id,
                     'amount' => $cashPaid,
                     'method' => 'cash',
@@ -100,24 +118,50 @@ class VoidController extends Controller
                     'refunded_at' => now(),
                 ]);
             }
-            if ($inventoryDeducted) {
-                $order->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon']);
-                InventoryService::restoreFromVoid($order, $authorizer->name, $authorizer->role);
+            foreach ($lockedOrder->payments()
+                ->where('method', '!=', 'cash')
+                ->whereIn('status', ['paid', 'refunded'])
+                ->get() as $payment) {
+                $alreadyRefunded = (float) Refund::where('payment_id', $payment->id)
+                    ->whereIn('status', ['processing', 'completed'])
+                    ->sum('amount');
+                $refundAmount = max(0, round((float) $payment->amount_paid - $alreadyRefunded, 2));
+                if ($refundAmount <= 0) {
+                    continue;
+                }
+
+                Refund::create([
+                    'order_id' => $lockedOrder->id,
+                    'payment_id' => $payment->id,
+                    'shift_id' => $shift->id,
+                    'amount' => $refundAmount,
+                    'method' => 'online',
+                    'status' => 'processing',
+                    'reason' => 'Order void: '.$request->reason,
+                    'authorized_by' => $authorizer->name,
+                    'authorized_role' => $authorizer->role,
+                    'authorized_user_id' => $authorizer->id,
+                    'stock_restored' => $inventoryDeducted,
+                ]);
             }
-            $order->payments()->where('status', 'paid')->update(['status' => 'voided']);
+            if ($inventoryDeducted) {
+                $lockedOrder->load(['orderItems.product', 'orderItems.size', 'orderItems.addons.addon']);
+                InventoryService::restoreFromVoid($lockedOrder, $authorizer->name, $authorizer->role);
+            }
+            $lockedOrder->payments()->where('status', 'paid')->update(['status' => 'voided']);
 
             // Mark order and all active items as voided
-            $order->update(['status' => 'voided']);
-            $order->orderItems()->where('status', 'active')->update(['status' => 'voided']);
+            $lockedOrder->update(['status' => 'voided']);
+            $lockedOrder->orderItems()->where('status', 'active')->update(['status' => 'voided']);
 
             $voidLog = VoidLog::create([
-                'order_id' => $order->id,
+                'order_id' => $lockedOrder->id,
                 'shift_id' => $shift->id,
                 'order_item_id' => null,
-                'amount' => (float) $order->total,
+                'amount' => (float) $lockedOrder->total,
                 'void_type' => 'order',
                 'reason' => $request->reason,
-                'cashier_name' => $order->cashier_name,
+                'cashier_name' => $lockedOrder->cashier_name,
                 'requested_by_user_id' => $requester?->id,
                 'requested_by' => $requester?->name ?? $authorizer->name,
                 'requested_role' => $requester?->role ?? $authorizer->role,
@@ -134,18 +178,18 @@ class VoidController extends Controller
                 actorName: $requester?->name ?? $authorizer->name,
                 actorRole: $requester?->role ?? $authorizer->role,
                 details: [
-                    'order_number' => $order->order_number,
-                    'cashier_name' => $order->cashier_name,
+                    'order_number' => $lockedOrder->order_number,
+                    'cashier_name' => $lockedOrder->cashier_name,
                     'reason' => $request->reason,
                     'requested_by' => $requester?->name ?? $authorizer->name,
                     'approved_by' => $authorizer->name,
                     'stock_restored' => $inventoryDeducted,
-                    'total' => $order->total,
+                    'total' => $lockedOrder->total,
                 ],
                 reference: $voidLog,
                 actorUserId: $requester?->id ?? $authorizer->id,
             );
-        });
+        }, 3);
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -191,6 +235,12 @@ class VoidController extends Controller
                 throw ValidationException::withMessages(['item' => 'This item is already voided.']);
             }
 
+            if ($lockedOrder->status === 'held') {
+                throw ValidationException::withMessages([
+                    'order' => 'Saved tickets must be opened in the POS to edit items, or voided as a whole.',
+                ]);
+            }
+
             if (in_array($lockedOrder->status, ['voided', 'refunded', 'cancelled'], true)) {
                 throw ValidationException::withMessages(['order' => 'Items cannot be voided in the current order status.']);
             }
@@ -213,7 +263,10 @@ class VoidController extends Controller
             $oldTotal = (float) $lockedOrder->total;
             $itemSubtotal = (float) $lockedItem->subtotal;
             $itemTotal = (float) $lockedItem->payable_total;
-            if ($itemTotal <= 0 && $oldSubtotal > 0) {
+            $legacyPayableTotals = $oldTotal > 0
+                && $oldSubtotal > 0
+                && (float) $lockedOrder->orderItems()->where('status', 'active')->sum('payable_total') <= 0;
+            if ($legacyPayableTotals) {
                 $itemTotal = round($oldTotal * $itemSubtotal / $oldSubtotal, 2);
             }
 
@@ -224,6 +277,8 @@ class VoidController extends Controller
             if ($activeItems->isEmpty()) {
                 $newSubtotal = 0;
                 $newTotal = 0;
+            } elseif ($legacyPayableTotals) {
+                $newTotal = max(0, round($oldTotal - $itemTotal, 2));
             }
 
             $subtotalRatio = $oldSubtotal > 0 ? min(1, $itemSubtotal / $oldSubtotal) : 1;
@@ -267,8 +322,11 @@ class VoidController extends Controller
             if ($activeItems->isEmpty()) {
                 $lockedOrder->update(['status' => 'voided']);
             } else {
+                $paidAmount = $lockedOrder->paidAmount();
                 $lockedOrder->update([
-                    'status' => $lockedOrder->paidAmount() >= $newTotal ? 'completed' : 'partially_paid',
+                    'status' => $paidAmount >= $newTotal
+                        ? 'completed'
+                        : ($paidAmount > 0 ? 'partially_paid' : 'pending'),
                 ]);
             }
 
@@ -297,7 +355,7 @@ class VoidController extends Controller
             );
 
             return ['order_number' => $lockedOrder->order_number, 'refunds' => $refunds];
-        });
+        }, 3);
 
         if ($request->wantsJson()) {
             return response()->json([

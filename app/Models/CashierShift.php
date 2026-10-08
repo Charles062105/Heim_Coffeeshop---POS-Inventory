@@ -131,7 +131,7 @@ class CashierShift extends Model
             ->where('reason', 'not like', 'Order void:%')
             ->sum('amount');
         $voids = VoidLog::where('shift_id', $this->id);
-        $orders = $this->orders()->whereNotIn('status', ['voided', 'cancelled', 'refunded']);
+        $orders = $this->orders()->whereIn('status', ['completed', 'partially_paid']);
 
         return [
             'cash_sales' => $cashSales,

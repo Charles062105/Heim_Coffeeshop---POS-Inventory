@@ -60,7 +60,7 @@ class CategoryController extends Controller
     public function destroy(Category $category)
     {
         if ($category->products()->count() > 0) {
-            return back()->with('error', 'Cannot delete a category that has products. Deactivate it instead.');
+            return back()->with('error', 'Cannot delete a category that has products. Archive it instead.');
         }
 
         AuditService::logFromUser(request()->user(), 'deleted_category', 'Products', ['category' => $category->name]);

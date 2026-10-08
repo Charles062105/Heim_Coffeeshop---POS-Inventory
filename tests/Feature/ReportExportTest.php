@@ -387,6 +387,51 @@ class ReportExportTest extends TestCase
         $this->assertDatabaseMissing('inventory_transactions', ['ingredient_id' => $ingredient->id]);
     }
 
+    public function test_archived_ingredients_can_be_reconciled_but_cannot_receive_new_deliveries(): void
+    {
+        $ingredient = Ingredient::create([
+            'name' => 'Archived Syrup',
+            'unit' => 'ml',
+            'minimum_stock' => 10,
+            'status' => 'inactive',
+        ]);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 30]);
+
+        $this->actingAs($this->manager)
+            ->get(route('waste.index'))
+            ->assertOk()
+            ->assertSee('Archived Syrup (ml) — Archived — 30.000 current')
+            ->assertSee('Archived ingredients remain available for corrections and waste records.');
+
+        $this->actingAs($this->manager)->post(route('waste.store'), [
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 5,
+            'reason' => 'Spoilage',
+        ])->assertRedirect(route('waste.index'));
+
+        $this->assertSame(25.0, (float) $ingredient->fresh()->getCurrentStock());
+        $this->assertDatabaseHas('inventory_transactions', [
+            'ingredient_id' => $ingredient->id,
+            'type' => 'waste',
+            'quantity' => 5,
+        ]);
+
+        $this->actingAs($this->manager)->post(route('stock-in.store'), [
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 10,
+            'unit_cost' => 2.50,
+            'transaction_date' => '2026-10-08',
+        ])->assertSessionHasErrors([
+            'ingredient_id' => 'Unarchive this ingredient before recording a new stock-in delivery.',
+        ]);
+
+        $this->assertSame(25.0, (float) $ingredient->fresh()->getCurrentStock());
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'ingredient_id' => $ingredient->id,
+            'type' => 'stock_in',
+        ]);
+    }
+
     public function test_stock_in_date_filter_uses_the_receipt_transaction_date(): void
     {
         $ingredient = Ingredient::create([
@@ -523,7 +568,7 @@ class ReportExportTest extends TestCase
 
     public function test_inventory_report_defaults_blank_dates_and_validates_reversed_ranges(): void
     {
-        $today = now()->toDateString();
+        $today = now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
 
         $this->actingAs($this->manager)->get(route('reports.inventory', [
             'from' => '',
@@ -532,7 +577,7 @@ class ReportExportTest extends TestCase
             ->assertViewHas('from', $today)
             ->assertViewHas('to', $today);
 
-        $singleDate = now()->subDay()->toDateString();
+        $singleDate = now(config('app.business_timezone', 'Asia/Manila'))->subDay()->toDateString();
         $this->get(route('reports.inventory', ['to' => $singleDate]))
             ->assertOk()
             ->assertViewHas('from', $singleDate)
@@ -664,15 +709,50 @@ class ReportExportTest extends TestCase
         $pageResponse->assertSee('Print Report');
     }
 
-    public function test_consumption_route_opens_sales_consumption_filter_in_stock_movements(): void
+    public function test_consumption_route_opens_net_inventory_report_for_selected_day(): void
     {
         $date = '2026-09-28';
         $response = $this->actingAs($this->manager)->get(route('consumption.index', ['date' => $date]));
-        $response->assertRedirect(route('adjustments.index', [
+        $response->assertRedirect(route('reports.inventory', [
             'from' => $date,
             'to' => $date,
-            'type' => 'sales_consumption',
         ]));
+    }
+
+    public function test_daily_consumption_report_nets_sales_returns_against_usage(): void
+    {
+        $date = '2026-09-28';
+        $ingredient = Ingredient::create([
+            'name' => 'Daily Net Beans',
+            'unit' => 'g',
+            'minimum_stock' => 1,
+            'status' => 'active',
+        ]);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 96]);
+
+        foreach ([
+            ['sales_consumption', 10, 106, 96],
+            ['sales_return', 4, 96, 100],
+        ] as [$type, $quantity, $previousStock, $newStock]) {
+            InventoryTransaction::create([
+                'ingredient_id' => $ingredient->id,
+                'type' => $type,
+                'quantity' => $quantity,
+                'previous_stock' => $previousStock,
+                'new_stock' => $newStock,
+                'transaction_date' => $date,
+                'performed_by' => $this->manager->name,
+                'performed_role' => 'manager',
+            ]);
+        }
+
+        $response = $this->actingAs($this->manager)
+            ->followingRedirects()
+            ->get(route('consumption.index', ['date' => $date]));
+
+        $response->assertOk()->assertSee('Net Ingredient Consumption via POS Sales');
+        $consumption = $response->viewData('salesConsumption')->firstWhere('ingredient_id', $ingredient->id);
+        $this->assertSame(6.0, (float) $consumption->total_consumed);
     }
 
     public function test_sales_report_excel_export_and_print(): void
@@ -690,6 +770,43 @@ class ReportExportTest extends TestCase
         $pageResponse->assertSee('Sales Reports &amp; Analytics', false);
         $pageResponse->assertSee('Export Excel');
         $pageResponse->assertSee('Print Report');
+    }
+
+    public function test_sales_export_lists_all_paid_methods_for_split_payments(): void
+    {
+        $order = Order::create([
+            'order_number' => 'ORD-SPLIT-EXPORT',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+        $order->payments()->createMany([
+            [
+                'method' => 'cash',
+                'amount_received' => 30,
+                'amount_paid' => 30,
+                'change_amount' => 0,
+                'status' => 'paid',
+                'reference_number' => null,
+            ],
+            [
+                'method' => 'gcash',
+                'amount_received' => 70,
+                'amount_paid' => 70,
+                'change_amount' => 0,
+                'status' => 'paid',
+                'reference_number' => 'GCASH-SPLIT-001',
+            ],
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('reports.sales', ['export' => 'excel']));
+        $content = $response->streamedContent();
+
+        $this->assertStringContainsString('Payment Methods', $content);
+        $this->assertStringContainsString('Cash (30.00), Gcash (70.00)', $content);
+        $this->assertStringContainsString('GCASH-SPLIT-001', $content);
     }
 
     public function test_sales_report_resolves_weekly_scope_and_validates_custom_date_ranges(): void
@@ -850,6 +967,22 @@ class ReportExportTest extends TestCase
             ])->save();
         }
 
+        $processingRefund = Refund::create([
+            'order_id' => $order->id,
+            'amount' => 100,
+            'method' => 'online',
+            'status' => 'processing',
+            'reason' => 'processing-refund-request',
+            'authorized_by' => $this->manager->name,
+            'authorized_role' => 'manager',
+            'stock_restored' => false,
+            'refunded_at' => null,
+        ]);
+        $processingRefund->forceFill([
+            'created_at' => Carbon::parse('2026-10-07 12:00:00', 'UTC'),
+            'updated_at' => Carbon::parse('2026-10-07 12:00:00', 'UTC'),
+        ])->save();
+
         $response = $this->actingAs($this->manager)->get(route('refunds.index', [
             'from' => '2026-10-07',
             'to' => '2026-10-07',
@@ -857,7 +990,7 @@ class ReportExportTest extends TestCase
 
         $response->assertOk();
         $this->assertSame(
-            ['inside-business-day-end', 'inside-business-day-start'],
+            ['inside-business-day-end', 'processing-refund-request', 'inside-business-day-start'],
             $response->viewData('refunds')->getCollection()->pluck('reason')->all()
         );
     }
@@ -897,6 +1030,106 @@ class ReportExportTest extends TestCase
         $this->assertSame(1, $paymentBreakdown->first()->count);
     }
 
+    public function test_sales_report_keeps_refunded_orders_and_original_tender_visible(): void
+    {
+        $order = Order::create([
+            'order_number' => 'ORD-REPORT-REFUNDED-SALE',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'refunded',
+        ]);
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => 'cash',
+            'amount_received' => 100,
+            'amount_paid' => 100,
+            'change_amount' => 0,
+            'status' => 'refunded',
+        ]);
+        Refund::create([
+            'order_id' => $order->id,
+            'amount' => 100,
+            'method' => 'cash',
+            'status' => 'completed',
+            'reason' => 'Fully refunded report test',
+            'authorized_by' => $this->manager->name,
+            'authorized_role' => 'manager',
+            'stock_restored' => false,
+            'refunded_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('reports.sales', ['type' => 'all']));
+
+        $response->assertOk();
+        $response->assertViewHas('totalSales', 100.0);
+        $response->assertViewHas('totalOrders', 1);
+        $response->assertViewHas('refundsAmount', 100.0);
+        $paymentBreakdown = $response->viewData('paymentBreakdown');
+        $this->assertSame('cash', $paymentBreakdown->first()->method);
+        $this->assertSame(100.0, (float) $paymentBreakdown->first()->total);
+
+        $export = $this->get(route('reports.sales', ['type' => 'all', 'export' => 'excel']));
+        $this->assertStringContainsString('Cash (100.00)', $export->streamedContent());
+    }
+
+    public function test_sales_report_counts_completed_refunds_by_refund_date_not_order_date(): void
+    {
+        $orders = collect([
+            ['number' => 'ORD-REFUND-EVENT-IN', 'created' => '2026-10-08 12:00:00'],
+            ['number' => 'ORD-REFUND-EVENT-OUT', 'created' => '2026-10-07 12:00:00'],
+            ['number' => 'ORD-REFUND-EVENT-FALLBACK', 'created' => '2026-10-07 12:00:00'],
+            ['number' => 'ORD-REFUND-EVENT-PROCESSING', 'created' => '2026-10-07 12:00:00'],
+        ])->map(function (array $data) {
+            $order = Order::create([
+                'order_number' => $data['number'],
+                'cashier_name' => $this->manager->name,
+                'subtotal' => 100,
+                'total' => 100,
+                'status' => 'refunded',
+            ]);
+            $order->forceFill([
+                'created_at' => Carbon::parse($data['created'], 'UTC'),
+                'updated_at' => Carbon::parse($data['created'], 'UTC'),
+            ])->save();
+
+            return $order;
+        });
+
+        foreach ([
+            [$orders[0], 25, 'completed', '2026-10-07 15:59:59', '2026-10-07 15:00:00'],
+            [$orders[1], 100, 'completed', '2026-10-08 16:00:00', '2026-10-07 12:00:00'],
+            [$orders[2], 5, 'completed', null, '2026-10-07 15:00:00'],
+            [$orders[3], 50, 'processing', null, '2026-10-07 15:00:00'],
+        ] as [$order, $amount, $status, $refundedAt, $createdAt]) {
+            $refund = Refund::create([
+                'order_id' => $order->id,
+                'amount' => $amount,
+                'method' => 'online',
+                'status' => $status,
+                'reason' => 'Report date test',
+                'authorized_by' => $this->manager->name,
+                'authorized_role' => 'manager',
+                'stock_restored' => false,
+                'refunded_at' => $refundedAt ? Carbon::parse($refundedAt, 'UTC') : null,
+            ]);
+            $refund->forceFill([
+                'created_at' => Carbon::parse($createdAt, 'UTC'),
+                'updated_at' => Carbon::parse($createdAt, 'UTC'),
+            ])->save();
+        }
+
+        $response = $this->actingAs($this->manager)->get(route('reports.sales', [
+            'type' => 'custom',
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+        ]));
+
+        $response->assertOk()->assertSee('Completed Refunds')->assertSee('₱30.00 total refunded');
+        $this->assertSame(2, $response->viewData('refundsCount'));
+        $this->assertSame(30.0, $response->viewData('refundsAmount'));
+    }
+
     public function test_grab_orders_report_excel_export_and_page(): void
     {
         $response = $this->actingAs($this->manager)->get(route('reports.grab', ['export' => 'excel']));
@@ -911,6 +1144,44 @@ class ReportExportTest extends TestCase
         $pageResponse->assertSee('Grab Orders &amp; Analytics', false);
         $pageResponse->assertSee('Export Excel');
         $pageResponse->assertSee('Print Report');
+    }
+
+    public function test_grab_report_export_includes_refunded_payment_methods_and_amounts(): void
+    {
+        $order = Order::create([
+            'order_number' => 'ORD-GRAB-REFUNDED-001',
+            'order_type' => 'grab',
+            'grab_order_code' => 'GF-REFUNDED-001',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 125,
+            'total' => 125,
+            'status' => 'refunded',
+        ]);
+        Payment::create([
+            'order_id' => $order->id,
+            'method' => 'grabfood',
+            'amount_received' => 125,
+            'amount_paid' => 125,
+            'change_amount' => 0,
+            'status' => 'refunded',
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('reports.grab', ['export' => 'excel']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('GrabFood (125.00)', $response->streamedContent());
+        $this->assertStringContainsString('refunded', strtolower($response->streamedContent()));
+    }
+
+    public function test_grab_and_shift_report_filters_reject_unknown_statuses_and_invalid_dates(): void
+    {
+        $this->actingAs($this->manager)
+            ->get(route('reports.grab', ['status' => 'not-a-status']))
+            ->assertSessionHasErrors('status');
+
+        $this->actingAs($this->manager)
+            ->get(route('reports.shifts', ['from' => 'not-a-date', 'status' => 'not-a-status']))
+            ->assertSessionHasErrors(['from', 'status']);
     }
 
     public function test_cashier_shifts_report_excel_export_and_page(): void

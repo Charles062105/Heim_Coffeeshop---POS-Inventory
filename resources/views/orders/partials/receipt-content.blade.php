@@ -235,10 +235,17 @@
         @endif
         </div>
         @endforeach
-        <div class="flex justify-between font-bold">
-            <span>Remaining Balance:</span>
-            <span class="font-mono">₱{{ number_format($order->remainingBalance(), 2) }}</span>
-        </div>
+        @if($order->isPayable() || $order->isCompleted())
+            <div class="flex justify-between font-bold">
+                <span>Remaining Balance:</span>
+                <span class="font-mono">₱{{ number_format($order->remainingBalance(), 2) }}</span>
+            </div>
+        @else
+            <div class="flex justify-between font-bold">
+                <span>Order Status:</span>
+                <span>{{ ucfirst(str_replace('_', ' ', $order->status)) }} · No balance due</span>
+            </div>
+        @endif
     </div>
     @endif
 
@@ -250,7 +257,7 @@
         <div class="font-bold uppercase tracking-wider">Thank you for visiting Heim Coffee!</div>
         <div class="text-[9px]">Please keep this receipt for your records.</div>
         <div class="text-[9px] font-mono tracking-widest uppercase pt-1">
-            *** PAID • {{ strtoupper($order->status) }} ***
+            *** {{ $order->isPayable() && $order->remainingBalance() > 0 ? 'PARTIALLY PAID • BALANCE DUE' : ($order->status === 'completed' ? 'PAID • COMPLETED' : strtoupper($order->status)) }} ***
         </div>
     </div>
 </div>

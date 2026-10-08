@@ -23,7 +23,7 @@ class RoleMiddleware
         }
 
         if ($request->user()->status !== 'active') {
-            abort(403, 'Your account has been deactivated. Please contact an administrator.');
+            abort(403, 'Your account is archived. Please contact an administrator.');
         }
 
         return $next($request);

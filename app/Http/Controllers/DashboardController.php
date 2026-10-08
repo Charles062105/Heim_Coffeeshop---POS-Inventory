@@ -22,24 +22,53 @@ class DashboardController extends Controller
         $userName = $user?->name ?? 'User';
         $cashierShift = $userRole === 'cashier' ? CashierShift::activeForUser($user?->id ?? 0) : null;
         $businessNow = now(config('app.business_timezone', 'Asia/Manila'));
-        $today = $businessNow->toDateString();
         $todayStartUtc = $businessNow->copy()->startOfDay()->utc();
         $tomorrowStartUtc = $businessNow->copy()->addDay()->startOfDay()->utc();
         $saleStatuses = ['completed', 'partially_paid'];
+        $paymentOrderStatuses = [...$saleStatuses, 'refunded'];
+        $paymentStatuses = ['paid', 'refunded'];
+        $collectedPayments = fn () => Payment::whereIn('status', $paymentStatuses)
+            ->whereHas('order', fn ($query) => $query->whereIn('status', $paymentOrderStatuses));
+        $cashierOrderScope = function ($query) use ($userName, $cashierShift) {
+            $query->where(function ($inner) use ($userName, $cashierShift) {
+                $inner->where('cashier_name', $userName);
+
+                if ($cashierShift) {
+                    $inner->orWhere('shift_id', $cashierShift->id);
+                }
+            });
+        };
+        $dashboardPayments = function () use ($collectedPayments, $userRole, $cashierOrderScope) {
+            $query = $collectedPayments();
+            if ($userRole === 'cashier') {
+                $query->whereHas('order', fn ($orders) => $orders->where($cashierOrderScope));
+            }
+
+            return $query;
+        };
+        $dashboardOrders = function () use ($paymentOrderStatuses, $userRole, $cashierOrderScope) {
+            $query = Order::whereIn('status', $paymentOrderStatuses);
+            if ($userRole === 'cashier') {
+                $query->where($cashierOrderScope);
+            }
+
+            return $query;
+        };
 
         // ── Top KPIs ─────────────────────────────────────────────────────────────
-        $todaySales = (float) Order::whereIn('status', $saleStatuses)
+        $todaySales = (float) $dashboardPayments()
             ->where('created_at', '>=', $todayStartUtc)
             ->where('created_at', '<', $tomorrowStartUtc)
-            ->sum('total');
+            ->sum('amount_paid');
 
-        $todayOrders = Order::whereIn('status', $saleStatuses)
-            ->where('created_at', '>=', $todayStartUtc)
-            ->where('created_at', '<', $tomorrowStartUtc)
+        $todayOrders = $dashboardOrders()
+            ->whereHas('payments', fn ($query) => $query->whereIn('status', $paymentStatuses)
+                ->where('created_at', '>=', $todayStartUtc)
+                ->where('created_at', '<', $tomorrowStartUtc))
             ->count();
 
-        $totalOrders = Order::whereIn('status', [...$saleStatuses, 'refunded'])->count();
-        $totalRevenue = (float) Order::whereIn('status', $saleStatuses)->sum('total');
+        $totalOrders = $dashboardOrders()->count();
+        $totalRevenue = (float) $dashboardPayments()->sum('amount_paid');
 
         // Cashier role-specific metrics
         $cashierTodaySales = 0;
@@ -48,39 +77,26 @@ class DashboardController extends Controller
         $cashierAllTimeOrders = 0;
 
         if ($userRole === 'cashier') {
-            $cashierOrderScope = function ($query) use ($userName, $cashierShift) {
-                $query->where(function ($inner) use ($userName, $cashierShift) {
-                    $inner->where('cashier_name', $userName);
-
-                    if ($cashierShift) {
-                        $inner->orWhere('shift_id', $cashierShift->id);
-                    }
-                });
-            };
-
-            $cashierTodaySales = (float) Order::whereIn('status', $saleStatuses)
-                ->where($cashierOrderScope)
+            $cashierTodaySales = (float) $dashboardPayments()
                 ->where('created_at', '>=', $todayStartUtc)
                 ->where('created_at', '<', $tomorrowStartUtc)
-                ->sum('total');
+                ->sum('amount_paid');
 
-            $cashierTodayOrders = Order::whereIn('status', $saleStatuses)
-                ->where($cashierOrderScope)
-                ->where('created_at', '>=', $todayStartUtc)
-                ->where('created_at', '<', $tomorrowStartUtc)
+            $cashierTodayOrders = $dashboardOrders()
+                ->whereHas('payments', fn ($query) => $query->whereIn('status', $paymentStatuses)
+                    ->where('created_at', '>=', $todayStartUtc)
+                    ->where('created_at', '<', $tomorrowStartUtc))
                 ->count();
 
-            $cashierAllTimeSales = (float) Order::whereIn('status', $saleStatuses)
-                ->where($cashierOrderScope)
-                ->sum('total');
+            $cashierAllTimeSales = (float) $dashboardPayments()->sum('amount_paid');
 
-            $cashierAllTimeOrders = Order::whereIn('status', $saleStatuses)
-                ->where($cashierOrderScope)
+            $cashierAllTimeOrders = $dashboardOrders()
+                ->whereHas('payments', fn ($query) => $query->whereIn('status', $paymentStatuses))
                 ->count();
         }
 
         // ── 7-Day Sales Overview Trend ──────────────────────────────────────────
-        $salesTrend = collect(range(6, 0))->map(function ($dayOffset) use ($saleStatuses, $businessNow) {
+        $salesTrend = collect(range(6, 0))->map(function ($dayOffset) use ($paymentStatuses, $businessNow, $dashboardPayments, $dashboardOrders) {
             $date = $businessNow->copy()->subDays($dayOffset);
             $dateStartUtc = $date->copy()->startOfDay()->utc();
             $nextDateStartUtc = $date->copy()->addDay()->startOfDay()->utc();
@@ -88,13 +104,14 @@ class DashboardController extends Controller
             return [
                 'label' => $date->format('D'),
                 'date' => $date->format('M j'),
-                'total' => (float) Order::whereIn('status', $saleStatuses)
+                'total' => (float) $dashboardPayments()
                     ->where('created_at', '>=', $dateStartUtc)
                     ->where('created_at', '<', $nextDateStartUtc)
-                    ->sum('total'),
-                'count' => Order::whereIn('status', $saleStatuses)
-                    ->where('created_at', '>=', $dateStartUtc)
-                    ->where('created_at', '<', $nextDateStartUtc)
+                    ->sum('amount_paid'),
+                'count' => $dashboardOrders()
+                    ->whereHas('payments', fn ($query) => $query->whereIn('status', $paymentStatuses)
+                        ->where('created_at', '>=', $dateStartUtc)
+                        ->where('created_at', '<', $nextDateStartUtc))
                     ->count(),
             ];
         })->values();
@@ -106,7 +123,12 @@ class DashboardController extends Controller
 
         // ── Top Products ────────────────────────────────────────────────────────
         $topProducts = OrderItem::where('order_items.status', 'active')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses))
+            ->whereHas('order', function ($query) use ($saleStatuses, $userRole, $cashierOrderScope) {
+                $query->whereIn('status', $saleStatuses);
+                if ($userRole === 'cashier') {
+                    $query->where($cashierOrderScope);
+                }
+            })
             ->with('product')
             ->select('product_id', DB::raw('SUM(quantity) as sold'))
             ->groupBy('product_id')
@@ -121,10 +143,9 @@ class DashboardController extends Controller
             });
 
         // ── Payment Breakdown ───────────────────────────────────────────────────
-        $todayPayments = Payment::where('status', 'paid')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses)
-                ->where('created_at', '>=', $todayStartUtc)
-                ->where('created_at', '<', $tomorrowStartUtc))
+        $todayPayments = $dashboardPayments()
+            ->where('created_at', '>=', $todayStartUtc)
+            ->where('created_at', '<', $tomorrowStartUtc)
             ->select(
                 DB::raw("CASE WHEN LOWER(method) = 'cash' THEN 'cash' ELSE 'online' END as method"),
                 DB::raw('SUM(amount_paid) as total'),
@@ -134,8 +155,7 @@ class DashboardController extends Controller
             ->orderByDesc('total')
             ->get();
 
-        $allTimePayments = Payment::where('status', 'paid')
-            ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses))
+        $allTimePayments = $dashboardPayments()
             ->select(
                 DB::raw("CASE WHEN LOWER(method) = 'cash' THEN 'cash' ELSE 'online' END as method"),
                 DB::raw('SUM(amount_paid) as total'),
@@ -190,17 +210,7 @@ class DashboardController extends Controller
         // ── Recent Orders ───────────────────────────────────────────────────────
         $ordersQuery = Order::with('payment');
         if ($userRole === 'cashier') {
-            $recentOrders = (clone $ordersQuery)->where(function ($query) use ($userName, $cashierShift) {
-                $query->where('cashier_name', $userName);
-
-                if ($cashierShift) {
-                    $query->orWhere('shift_id', $cashierShift->id);
-                }
-            })->latest()->limit(6)->get();
-
-            if ($recentOrders->isEmpty()) {
-                $recentOrders = $ordersQuery->latest()->limit(6)->get();
-            }
+            $recentOrders = (clone $ordersQuery)->where($cashierOrderScope)->latest()->limit(6)->get();
         } else {
             $recentOrders = $ordersQuery->latest()->limit(6)->get();
         }
@@ -252,8 +262,9 @@ class DashboardController extends Controller
 
         $unreadNotifications = 0;
         if (in_array($userRole, ['owner', 'manager'])) {
-            $unreadNotifications = Notification::where('is_resolved', false)
-                ->whereNull('read_at')
+            $unreadNotifications = Notification::forRole($userRole)
+                ->where('is_resolved', false)
+                ->unreadForUser($user)
                 ->count();
         }
 

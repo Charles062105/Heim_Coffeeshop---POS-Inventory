@@ -5,13 +5,13 @@ use App\Http\Controllers\AuthorizationController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ConsumptionController;
 use App\Http\Controllers\DashboardController;
-
 use App\Http\Controllers\IngredientController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductAddonController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\RefundController;
@@ -32,7 +32,7 @@ Route::get('/', fn () => redirect()->route('login'));
 require __DIR__.'/auth.php';
 
 // ── All authenticated routes ────────────────────────────────────────────────
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'active-user'])->group(function () {
 
     // ── Profile ──────────────────────────────────────────────────────────
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -84,8 +84,6 @@ Route::middleware(['auth'])->group(function () {
     // ── Authorization modal endpoint (for refunds / cancellations / adjustments) ──
     Route::post('/authorize', [AuthorizationController::class, 'verify'])->name('authorize');
 
-
-
     // ── Refunds History List (Owner, Manager) ───────────────────────────
     Route::middleware('role:owner,manager')->group(function () {
         Route::get('/refunds', [RefundController::class, 'index'])->name('refunds.index');
@@ -116,6 +114,13 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('products', ProductController::class)->except(['show']);
         Route::patch('/products/{product}/toggle', [ProductController::class, 'toggle'])->name('products.toggle');
         Route::delete('/products/{product}/sizes/{size}', [ProductController::class, 'destroySize'])->name('products.sizes.destroy');
+
+        // Add-ons
+        Route::get('/addons', [ProductAddonController::class, 'index'])->name('addons.index');
+        Route::post('/addons', [ProductAddonController::class, 'store'])->name('addons.store');
+        Route::put('/addons/{addon}', [ProductAddonController::class, 'update'])->name('addons.update');
+        Route::put('/addons/{addon}/ingredients', [ProductAddonController::class, 'updateIngredients'])->name('addons.ingredients.update');
+        Route::patch('/addons/{addon}/toggle', [ProductAddonController::class, 'toggle'])->name('addons.toggle');
 
         // Recipes
         Route::prefix('recipes')->name('recipes.')->group(function () {
@@ -183,7 +188,7 @@ Route::middleware(['auth'])->group(function () {
 
     // ── Owner-only routes ────────────────────────────────────────────────
     Route::middleware('role:owner')->group(function () {
-        Route::resource('users', UserController::class)->except(['show']);
+        Route::resource('users', UserController::class)->except(['show', 'destroy']);
         Route::patch('/users/{user}/toggle', [UserController::class, 'toggle'])->name('users.toggle');
     });
 });

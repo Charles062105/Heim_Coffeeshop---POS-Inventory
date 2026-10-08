@@ -11,6 +11,7 @@ use App\Models\RecipeIngredient;
 use App\Services\AuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class RecipeController extends Controller
 {
@@ -22,7 +23,7 @@ class RecipeController extends Controller
         ])->orderBy('name')->get();
 
         // Load all active addons with their ingredient mappings
-        $addons = ProductAddon::with('addonIngredients.ingredient')
+        $addons = ProductAddon::with('addonIngredients.ingredient', 'addonIngredients.replacesIngredient')
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
@@ -33,18 +34,29 @@ class RecipeController extends Controller
     public function edit(ProductSize $productSize)
     {
         $productSize->load(['product.category', 'recipe.recipeIngredients.ingredient']);
-        $ingredients = Ingredient::where('status', 'active')->orderBy('name')->get();
         $recipe = $productSize->recipe ?? null;
+        $existingIngredientIds = $recipe?->recipeIngredients->pluck('ingredient_id') ?? collect();
+        $ingredients = Ingredient::where('status', 'active')
+            ->orWhereIn('id', $existingIngredientIds)
+            ->orderBy('name')
+            ->get();
 
         return view('recipes.edit', compact('productSize', 'recipe', 'ingredients'));
     }
 
     public function update(Request $request, ProductSize $productSize)
     {
+        $existingIngredientIds = $productSize->recipe?->recipeIngredients()->pluck('ingredient_id') ?? collect();
         $request->validate([
             'name' => 'nullable|string|max:150',
             'ingredients' => 'array',
-            'ingredients.*.ingredient_id' => 'required|distinct|exists:ingredients,id',
+            'ingredients.*.ingredient_id' => [
+                'required',
+                'distinct',
+                Rule::exists('ingredients', 'id')->where(fn ($query) => $query
+                    ->where('status', 'active')
+                    ->orWhereIn('id', $existingIngredientIds)),
+            ],
             'ingredients.*.quantity' => 'required|numeric|decimal:0,3|min:0.001',
         ]);
 

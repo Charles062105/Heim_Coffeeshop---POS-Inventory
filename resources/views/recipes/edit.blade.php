@@ -71,7 +71,7 @@
                             <select name="ingredients[{{ $i }}][ingredient_id]" class="w-full border border-gray-200 bg-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 shadow-sm" required>
                                 <option value="">Select ingredient...</option>
                                 @foreach($ingredients as $ing)
-                                <option value="{{ $ing->id }}" {{ $ri->ingredient_id == $ing->id ? 'selected' : '' }}>{{ $ing->name }} ({{ $ing->unit }})</option>
+                                <option value="{{ $ing->id }}" {{ $ri->ingredient_id == $ing->id ? 'selected' : '' }}>{{ $ing->name }} ({{ $ing->unit }}){{ $ing->status === 'inactive' ? ' — Archived' : '' }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -111,11 +111,11 @@
 
 @push('scripts')
 <script>
-const ingredientOptions = [
-    @foreach($ingredients as $ing)
-    { id: {{ $ing->id }}, name: '{{ addslashes($ing->name) }}', unit: '{{ $ing->unit }}' },
-    @endforeach
-];
+const ingredientOptions = @js($ingredients->map(fn ($ing) => [
+    'id' => $ing->id,
+    'name' => $ing->name,
+    'unit' => $ing->unit,
+])->values());
 let rowIdx = {{ max(1, count($recipe?->recipeIngredients ?? [])) }};
 
 function addIngredientRow() {
@@ -145,4 +145,3 @@ function addIngredientRow() {
 </script>
 @endpush
 @endsection
-

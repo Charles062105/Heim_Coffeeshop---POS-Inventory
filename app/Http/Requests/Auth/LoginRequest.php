@@ -72,7 +72,7 @@ class LoginRequest extends FormRequest
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => 'Your account has been deactivated. Please contact store management or the owner.',
+                'email' => 'Your account is archived. Please contact store management or the owner.',
             ]);
         }
 

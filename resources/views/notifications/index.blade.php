@@ -61,7 +61,7 @@
 <div class="space-y-3">
     @forelse($notifications as $notification)
     @php
-        $isUnread = !$notification->read_at;
+        $isUnread = !$notification->read_by_user && !$notification->read_at;
         $isOutOfStock = $notification->type === 'out_of_stock';
         $isLowStock = $notification->type === 'low_stock';
         $borderAccent = $isOutOfStock ? 'border-l-4 border-l-red-500' : ($isLowStock ? 'border-l-4 border-l-amber-500' : 'border-l-4 border-l-blue-500');
@@ -144,4 +144,3 @@
 </div>
 @endif
 @endsection
-

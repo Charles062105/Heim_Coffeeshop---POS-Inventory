@@ -158,7 +158,7 @@ class ShiftController extends Controller
             if (! $override || blank($request->input('override_reason')) || mb_strlen(trim($request->input('override_reason'))) < 10) {
                 return $this->errorResponse(
                     $request,
-                    "There are {$openOrderCount} held or unpaid ticket(s). Settle them first or obtain manager approval with a reason.",
+                    "There are {$openOrderCount} saved or unpaid ticket(s). Settle them first or obtain manager approval with a reason.",
                     422,
                     ['open_orders' => $openOrderCount, 'manager_approval_required' => true]
                 );
@@ -193,7 +193,7 @@ class ShiftController extends Controller
         $openOrderCount = $this->openOrderCount($shift);
         if ($openOrderCount > 0 && blank($validated['override_reason'] ?? null)) {
             return back()->withErrors([
-                'override_reason' => "A reason is required to close this shift with {$openOrderCount} held or unpaid ticket(s).",
+                'override_reason' => "A reason is required to close this shift with {$openOrderCount} saved or unpaid ticket(s).",
             ])->withInput();
         }
 
@@ -419,7 +419,7 @@ class ShiftController extends Controller
             ]);
 
             return $lockedShift->fresh();
-        });
+        }, 3);
     }
 
     private function expectedCash(CashierShift $shift, array $summary): float

@@ -19,7 +19,7 @@
     @endif
     <button type="button" onclick="openHeldOrdersModal()" aria-label="Saved tickets" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 shadow-xs transition-all relative">
         <span>📌</span>
-        <span class="hidden sm:inline">Held Orders</span>
+        <span class="hidden sm:inline">Saved Orders</span>
         <span id="held-count-badge" class="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-600 text-white">0</span>
     </button>
     <a href="{{ route('orders.index') }}" aria-label="View orders" class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition-all hover:bg-gray-50">
@@ -98,11 +98,30 @@
                             default              => ['classes' => 'bg-gray-100 text-gray-700', 'badge' => 'bg-gray-100 text-gray-700 border-gray-200', 'icon' => 'default'],
                         };
 
-                        $sizeData = $product->sizes->map(function ($size) {
+                        $sizeData = $product->sizes->map(function ($size) use ($addons) {
                             $ingredients = $size->recipe?->recipeIngredients ?? collect();
-                            $available = $ingredients->every(fn ($row) => $row->ingredient
-                                && $row->ingredient->inventory
-                                && (float) $row->ingredient->inventory->current_stock >= (float) $row->quantity);
+                            $substitutionRequired = false;
+                            $available = $ingredients->every(function ($row) use ($addons, $ingredients, &$substitutionRequired) {
+                                if ($row->ingredient && $row->ingredient->inventory
+                                    && (float) $row->ingredient->inventory->current_stock >= (float) $row->quantity) {
+                                    return true;
+                                }
+
+                                $hasAvailableSubstitute = $addons->contains(function ($addon) use ($row, $ingredients) {
+                                    $mappings = $addon->addonIngredients;
+
+                                    return $mappings->contains(fn ($mapping) => (int) $mapping->replaces_ingredient_id === (int) $row->ingredient_id)
+                                        && $mappings->every(fn ($mapping) => $mapping->ingredient
+                                            && $mapping->ingredient->inventory
+                                            && (float) $mapping->ingredient->inventory->current_stock >= (float) $mapping->quantity)
+                                        && $mappings->whereNotNull('replaces_ingredient_id')->every(
+                                            fn ($mapping) => $ingredients->contains('ingredient_id', (int) $mapping->replaces_ingredient_id)
+                                        );
+                                });
+                                $substitutionRequired = $substitutionRequired || $hasAvailableSubstitute;
+
+                                return $hasAvailableSubstitute;
+                            });
 
                             return [
                                 'id' => $size->id,
@@ -110,13 +129,15 @@
                                 'price' => (float) $size->price,
                                 'grab_price' => $size->grab_price !== null ? (float) $size->grab_price : (float) $size->price,
                                 'available' => $available,
-                                'low_stock' => $available && $ingredients->contains(fn ($row) => $row->ingredient
+                                'substitution_required' => $substitutionRequired,
+                                'low_stock' => $available && ! $substitutionRequired && $ingredients->contains(fn ($row) => $row->ingredient
                                     && $row->ingredient->inventory
                                     && (float) $row->ingredient->inventory->current_stock <= $row->ingredient->getReorderThreshold()),
                                 'recipe' => [
                                     'recipe_ingredients' => $size->recipe?->recipeIngredients
                                         ->map(function ($ri) {
                                             return [
+                                                'ingredient_id' => $ri->ingredient_id,
                                                 'ingredient' => ['name' => $ri->ingredient->name],
                                             ];
                                         })
@@ -308,7 +329,7 @@
                 <button type="button" onclick="holdCurrentOrder()" id="hold-btn" title="Save this order without completing payment"
                     class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                     disabled>
-                    <span>📌</span> Hold
+                    <span>📌</span> Save
                 </button>
                 <button onclick="clearCart()" class="text-xs text-gray-500 hover:text-rose-600 transition-colors font-bold px-1.5 py-1 whitespace-nowrap">Clear</button>
             </div>
@@ -433,15 +454,15 @@
     <span id="mobile-order-total" class="ml-3 shrink-0 font-mono text-base font-black">₱0.00</span>
 </button>
 
-{{-- ── Held Orders Modal ─────────────────────────────────────────────────────── --}}
+{{-- ── Saved Orders Modal ────────────────────────────────────────────────────── --}}
 <div id="held-orders-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" style="display:none">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[calc(100dvh-3rem)] flex flex-col overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-amber-50/50">
             <div class="flex items-center gap-2.5">
                 <span class="text-xl">📌</span>
                 <div>
-                    <h3 class="font-bold text-gray-900 text-base">Held & Pinned Tickets</h3>
-                    <p class="text-xs text-gray-500">Unfinished orders saved for later reopening and payment</p>
+                    <h3 class="font-bold text-gray-900 text-base">Saved Orders</h3>
+                    <p class="text-xs text-gray-500">Unfinished orders saved to reopen and pay later</p>
                 </div>
             </div>
             <button type="button" onclick="closeHeldOrdersModal()" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
@@ -454,7 +475,7 @@
         </div>
 
         <div class="px-6 py-3.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-            <span id="held-modal-total-count" class="text-xs font-semibold text-gray-500">0 orders on hold</span>
+            <span id="held-modal-total-count" class="text-xs font-semibold text-gray-500">0 saved orders</span>
             <button type="button" onclick="closeHeldOrdersModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-100 transition-colors">
                 Close
             </button>
@@ -486,6 +507,8 @@
                 <textarea id="void-ticket-reason"
                     class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent resize-none"
                     rows="3"
+                    minlength="5"
+                    maxlength="500"
                     placeholder="e.g. Customer cancelled order, duplicate entry…"></textarea>
                 <p id="void-ticket-error" class="hidden mt-1.5 text-xs text-rose-600 font-medium"></p>
             </div>
@@ -582,7 +605,8 @@
                     <!-- GrabFood -->
                     <button type="button" onclick="selectPaymentMethod('grabfood')"
                         id="pm-grabfood"
-                        class="pm-btn flex items-center gap-2 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 transition-all">
+                        disabled aria-disabled="true"
+                        class="pm-btn flex items-center gap-2 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 transition-all disabled:cursor-not-allowed disabled:opacity-40">
                         <span class="text-xl">🛵</span>
                         <div class="text-left">
                             <p class="text-xs font-bold text-gray-800">GrabFood</p>
@@ -634,16 +658,16 @@
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
                         <label class="block text-sm font-medium text-gray-700">Amount Received (₱)</label>
-                        <button type="button" onclick="setCashAmount(orderTotal)" class="text-xs font-semibold text-heim-600 hover:text-heim-800 bg-heim-50 hover:bg-heim-100 px-2 py-0.5 rounded-md transition-colors">
+                        <button type="button" onclick="setCashAmount('exact')" class="text-xs font-semibold text-heim-600 hover:text-heim-800 bg-heim-50 hover:bg-heim-100 px-2 py-0.5 rounded-md transition-colors">
                             Exact Amount
                         </button>
                     </div>
-                    <input id="amount-received" type="number" min="0" step="0.01" placeholder="0.00"
+                    <input id="amount-received" type="number" min="0" step="0.01" placeholder="Enter amount received"
                         oninput="computeChange()"
                         class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 text-right font-mono text-lg font-bold">
                 </div>
                 <div class="flex flex-wrap gap-1.5">
-                    <button type="button" onclick="setCashAmount(orderTotal)" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 transition-colors">Exact</button>
+                    <button type="button" onclick="setCashAmount('exact')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 transition-colors">Exact</button>
                     <button type="button" onclick="setCashAmount(100)"  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 transition-colors">₱100</button>
                     <button type="button" onclick="setCashAmount(200)"  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 transition-colors">₱200</button>
                     <button type="button" onclick="setCashAmount(500)"  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 hover:bg-heim-100 text-gray-700 hover:text-heim-800 transition-colors">₱500</button>
@@ -746,6 +770,7 @@
     <input type="hidden" name="authorizer_password"   id="f-auth-password">
     <input type="hidden" name="reference_number"      id="f-reference">
     <input type="hidden" name="held_order_id"         id="f-held-order-id">
+    <input type="hidden" name="checkout_request_id" id="f-checkout-request-id" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
     <div id="f-payments"></div>
     {{-- Grab order fields --}}
     <input type="hidden" name="order_type"            id="f-order-type" value="dine_in">
@@ -780,7 +805,7 @@
                 <label class="block text-sm font-bold text-gray-700 mb-2">Beginning Cash <span class="text-rose-500">*</span></label>
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-sm font-bold text-gray-400">₱</span>
-                    <input id="si-beginning-cash" type="number" min="0" step="0.01" placeholder="0.00"
+                    <input id="si-beginning-cash" type="number" min="0" step="0.01" placeholder="0.00" required
                         class="w-full pl-8 pr-4 py-3 text-lg font-bold font-mono border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-right">
                 </div>
             </div>
@@ -795,15 +820,15 @@
 
 {{-- ── Shift Out Modal ─────────────────────────────────────────────────────── --}}
 <div id="shift-out-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" style="display:none">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-        <div class="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-rose-50 to-white flex items-center gap-3">
+    <div class="flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-rose-50 to-white px-6 py-5">
             <div class="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700 text-xl">🔒</div>
             <div>
                 <h3 class="font-bold text-gray-900 text-base">End Shift</h3>
                 <p class="text-xs text-gray-500">Count your cash drawer and close out the shift</p>
             </div>
         </div>
-        <div class="p-6 space-y-4">
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
             <div class="space-y-2" id="so-cash-summary">
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">Cashier</span>
@@ -885,7 +910,7 @@
             </div>
             <p id="so-error" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
         </div>
-        <div class="flex gap-3 px-6 pb-6">
+        <div class="flex shrink-0 gap-3 px-6 pb-6 pt-2">
             <button type="button" onclick="closeShiftOutModal()" class="brand-btn-cancel flex-1">Cancel</button>
             <button type="button" onclick="submitShiftOut()" id="so-submit-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm transition-colors flex-1">End Shift</button>
         </div>
@@ -903,6 +928,11 @@
             'available' => $addon->addonIngredients->every(fn ($row) => $row->ingredient
                 && $row->ingredient->inventory
                 && (float) $row->ingredient->inventory->current_stock >= (float) $row->quantity),
+            'replacement_ingredient_ids' => $addon->addonIngredients
+                ->whereNotNull('replaces_ingredient_id')
+                ->pluck('replaces_ingredient_id')
+                ->map(fn ($id) => (int) $id)
+                ->values(),
         ];
     })->values()->toArray();
 @endphp
@@ -915,6 +945,8 @@ const taxConfig = {
 };
 
 const userCanAuthorize = @json(auth()->user()?->canAuthorize() ?? false);
+const posCartRecoveryKey = `pos-cart-recovery-{{ auth()->id() }}`;
+const posCheckoutErrors = @json($errors->all());
 
 let cart = [];
 let currentProduct = null;
@@ -933,6 +965,116 @@ let splitPeople = [];
 let activeSplitPerson = '';
 let stagedCheckoutPayments = [];
 let shiftPreviewTimer = null;
+
+function persistPosCartRecovery() {
+    if (cart.length === 0) {
+        sessionStorage.removeItem(posCartRecoveryKey);
+        return;
+    }
+
+    sessionStorage.setItem(posCartRecoveryKey, JSON.stringify({
+        cart,
+        order_type: currentOrderType,
+        held_order_id: currentHeldOrderId,
+        held_order_number: currentHeldOrderNumber,
+        grab_order_code: document.getElementById('grab-order-code')?.value || '',
+        rider_code: document.getElementById('grab-rider-code')?.value || '',
+        customer_name: document.getElementById('order-customer-name')?.value || '',
+        discount_type: document.getElementById('discount-type')?.value || 'none',
+        discount: document.getElementById('discount')?.value || '0',
+        discount_id_number: document.getElementById('discount-id-number')?.value || '',
+        split_enabled: splitEnabled,
+        split_people: splitPeople,
+        active_split_person: activeSplitPerson,
+    }));
+}
+
+function restorePosCartRecovery() {
+    const feedbackMessage = posCheckoutErrors.join(' ');
+    const savedState = sessionStorage.getItem(posCartRecoveryKey);
+    if (!savedState) {
+        if (feedbackMessage) showPosFeedback(feedbackMessage, 'error');
+        return;
+    }
+
+    try {
+        const state = JSON.parse(savedState);
+        if (!state || !Array.isArray(state.cart) || state.cart.length === 0) {
+            throw new Error('The saved checkout cart is invalid.');
+        }
+
+        currentOrderType = ['dine_in', 'take_out', 'grab'].includes(state.order_type) ? state.order_type : 'dine_in';
+        cart = state.cart.map(item => {
+            if (!item || !Number.isInteger(Number(item.product_size_id)) || !Number.isInteger(Number(item.qty))) {
+                throw new Error('A saved cart item is invalid.');
+            }
+            const size = Array.from(document.querySelectorAll('.product-card'))
+                .flatMap(card => {
+                    try {
+                        return JSON.parse(card.dataset.sizes || '[]');
+                    } catch (error) {
+                        console.error('Unable to read menu prices while restoring the cart.', error);
+                        return [];
+                    }
+                })
+                .find(candidate => Number(candidate.id) === Number(item.product_size_id));
+            const addons = (item.addons || []).map(addon => {
+                const currentAddon = posAddons.find(candidate => Number(candidate.id) === Number(addon.id));
+                return currentAddon
+                    ? { id: Number(currentAddon.id), name: currentAddon.name, price: Number(currentAddon.price) }
+                    : addon;
+            });
+            const regularPrice = size ? Number(size.price) : Number(item.regular_price ?? item.price);
+            const grabPrice = size ? Number(size.grab_price ?? size.price) : Number(item.grab_price ?? item.price);
+            const price = currentOrderType === 'grab' ? grabPrice : regularPrice;
+            const addonTotal = addons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
+
+            return {
+                ...item,
+                key: item.key || buildCartItemKey(item.product_id, item.product_size_id, addons.map(addon => Number(addon.id)), item.comment || '', item.assigned_to || ''),
+                regular_price: regularPrice,
+                grab_price: grabPrice,
+                price,
+                addons,
+                addon_total: addonTotal,
+                unit_price: price + addonTotal,
+            };
+        });
+
+        currentHeldOrderId = state.held_order_id || null;
+        currentHeldOrderNumber = state.held_order_number || null;
+        splitEnabled = Boolean(state.split_enabled);
+        splitPeople = Array.isArray(state.split_people) ? state.split_people : [];
+        activeSplitPerson = state.active_split_person || splitPeople[0] || '';
+
+        const fields = {
+            'grab-order-code': state.grab_order_code,
+            'grab-rider-code': state.rider_code,
+            'order-customer-name': state.customer_name,
+            'discount-type': state.discount_type,
+            'discount': state.discount,
+        };
+        Object.entries(fields).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element && value !== undefined && value !== null) element.value = value;
+        });
+        onDiscountTypeChange();
+        const discountIdInput = document.getElementById('discount-id-number');
+        if (discountIdInput) discountIdInput.value = state.discount_id_number || '';
+        const splitToggle = document.getElementById('split-toggle');
+        if (splitToggle) splitToggle.checked = splitEnabled;
+        document.getElementById('split-people-panel')?.classList.toggle('hidden', !splitEnabled);
+        setOrderType(currentOrderType);
+        renderSplitPeople();
+        updateOrderSummary();
+        renderCart();
+        showPosFeedback(feedbackMessage || 'Your unsaved cart was restored. Reopen checkout to continue.', feedbackMessage ? 'error' : 'success');
+    } catch (error) {
+        sessionStorage.removeItem(posCartRecoveryKey);
+        console.error('Unable to restore the POS checkout cart.', error);
+        showPosFeedback('The unsaved cart could not be restored. Review the checkout error and rebuild the order.', 'error');
+    }
+}
 
 function updateMobileOrderShortcut() {
     const shortcut = document.getElementById('mobile-order-shortcut');
@@ -973,6 +1115,11 @@ function setOrderType(type) {
     currentOrderType = type;
     const isGrab = type === 'grab';
     const grabFields = document.getElementById('grab-fields');
+    const grabPaymentButton = document.getElementById('pm-grabfood');
+    if (grabPaymentButton) {
+        grabPaymentButton.disabled = !isGrab;
+        grabPaymentButton.setAttribute('aria-disabled', isGrab ? 'false' : 'true');
+    }
     const modes = {
         dine_in: document.getElementById('ot-dine-in'),
         take_out: document.getElementById('ot-take-out'),
@@ -1096,7 +1243,7 @@ function getSelectedAddonIds() {
     return Array.from(document.querySelectorAll('input[name="pos_addon_id"]:checked')).map(input => Number(input.value));
 }
 
-function renderAddonPicker(categoryName = '') {
+function renderAddonPicker(categoryName = '', recipe = null) {
     if (!posAddons || posAddons.length === 0) {
         return '<div class="text-xs text-gray-400 mt-3">No add-ons available.</div>';
     }
@@ -1104,6 +1251,8 @@ function renderAddonPicker(categoryName = '') {
     const catLower = (categoryName || '').toLowerCase();
     const isFood = catLower.includes('wing') || catLower.includes('fryer') || catLower.includes('burger') || catLower.includes('quesadilla') || catLower.includes('buldak');
     const isDrink = catLower.includes('espresso') || catLower.includes('cold brew') || catLower.includes('matcha') || catLower.includes('non-coffee') || catLower.includes('refresher') || catLower.includes('drink');
+    const recipeIngredientIds = new Set((recipe && recipe.recipe_ingredients ? recipe.recipe_ingredients : [])
+        .map(item => Number(item.ingredient_id)));
 
     // Grouping
     const wingFlavors = posAddons.filter(a => a.name.startsWith('Flavor:'));
@@ -1117,20 +1266,23 @@ function renderAddonPicker(categoryName = '') {
             <div class="mb-3">
                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-2">${title}</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    ${items.map(addon => `
-                        <label class="flex items-center justify-between gap-3 p-3.5 border-2 border-slate-200 rounded-xl bg-white hover:border-heim-400 hover:bg-heim-50/50 transition-all min-h-[3rem] ${addon.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}">
+                    ${items.map(addon => {
+                        const compatible = addon.replacement_ingredient_ids.every(id => recipeIngredientIds.has(Number(id)));
+                        const canSelect = addon.available && compatible;
+                        return `
+                        <label class="flex items-center justify-between gap-3 p-3.5 border-2 border-slate-200 rounded-xl bg-white hover:border-heim-400 hover:bg-heim-50/50 transition-all min-h-[3rem] ${canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}">
                             <span class="flex items-center gap-2.5 min-w-0">
-                                <input type="${isSingle ? 'radio' : 'checkbox'}" name="pos_addon_id" value="${addon.id}" ${addon.available ? '' : 'disabled'} class="h-5 w-5 rounded border-slate-300 text-heim-600 focus:ring-2 focus:ring-heim-500">
+                                <input type="${isSingle ? 'radio' : 'checkbox'}" name="pos_addon_id" value="${addon.id}" ${canSelect ? '' : 'disabled'} class="h-5 w-5 rounded border-slate-300 text-heim-600 focus:ring-2 focus:ring-heim-500">
                                 <span class="font-semibold text-slate-800 text-sm truncate">${escapeHtml(addon.name.replace('Flavor: ', ''))}</span>
                             </span>
                             <span class="text-right">
                                 <span class="block font-black text-heim-700 bg-heim-50 px-2 py-0.5 rounded-lg border border-heim-200 whitespace-nowrap text-xs">
                                     ${Number(addon.price) === 0 ? 'FREE' : '+₱' + Number(addon.price).toFixed(2)}
                                 </span>
-                                ${addon.available ? '' : '<span class="mt-1 block text-[10px] font-extrabold text-rose-700">Out of stock</span>'}
+                                ${!addon.available ? '<span class="mt-1 block text-[10px] font-extrabold text-rose-700">Out of stock</span>' : (!compatible ? '<span class="mt-1 block text-[10px] font-extrabold text-amber-700">Not used in this recipe</span>' : '')}
                             </span>
                         </label>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             </div>
         `;
@@ -1225,7 +1377,7 @@ function renderModalForm() {
                             <span class="text-sm font-bold truncate">${escapeHtml(s.size_name)}</span>
                             <span class="text-right">
                                 <span class="block text-sm font-black ${isGrab ? 'text-emerald-700' : 'text-heim-700'} whitespace-nowrap font-mono">₱${parseFloat(displayPrice).toFixed(2)}</span>
-                                <span class="block text-[10px] font-bold ${s.available === false ? 'text-rose-700' : (s.low_stock ? 'text-amber-700' : 'text-emerald-700')}">${s.available === false ? 'Unavailable' : (s.low_stock ? 'Low stock' : 'Available')}</span>
+                                <span class="block text-[10px] font-bold ${s.available === false ? 'text-rose-700' : (s.substitution_required ? 'text-amber-700' : (s.low_stock ? 'text-amber-700' : 'text-emerald-700'))}">${s.available === false ? 'Unavailable' : (s.substitution_required ? 'Choose substitute' : (s.low_stock ? 'Low stock' : 'Available'))}</span>
                             </span>
                         </button>
                     `;}).join('')}
@@ -1237,7 +1389,7 @@ function renderModalForm() {
     container.innerHTML = `
         <div class="space-y-3">
             ${sizesHtml}
-            ${renderAddonPicker(currentProduct.categoryName)}
+            ${renderAddonPicker(currentProduct.categoryName, sizes[activeSizeIndex]?.recipe)}
             <div class="mt-3 pt-3 border-t border-gray-100">
                 <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500 mb-1.5">Special Instructions (Optional)</p>
                 <input id="modal-item-comment" type="text" placeholder="e.g. Less ice, no sugar, extra hot..."
@@ -1279,6 +1431,11 @@ function confirmAddToCart() {
     }
     const selectedAddonIds = getSelectedAddonIds();
     const addons = posAddons.filter(addon => selectedAddonIds.includes(addon.id));
+    const replacementIds = addons.flatMap(addon => addon.replacement_ingredient_ids);
+    if (replacementIds.length !== new Set(replacementIds).size) {
+        showPosFeedback('Choose only one substitute for each base-recipe ingredient.', 'error');
+        return;
+    }
     const commentInput = document.getElementById('modal-item-comment');
     const comment = commentInput ? commentInput.value.trim() : '';
     addToCart(currentProduct.id, currentProduct.name, s.id, s.size_name, s.price, s.recipe || null, addons, comment, s.grab_price);
@@ -1550,11 +1707,13 @@ function addSplitPerson() {
     activeSplitPerson = splitPeople.find(person => person.toLowerCase() === name.toLowerCase()) || name;
     if (input) input.value = '';
     renderSplitPeople();
+    persistPosCartRecovery();
 }
 
 function selectSplitPerson(index) {
     activeSplitPerson = splitPeople[index] || '';
     renderSplitPeople();
+    persistPosCartRecovery();
 }
 
 function renderSplitPeople() {
@@ -1617,6 +1776,7 @@ function revealCartItem(key) {
 
 function clearCart() {
     cart = [];
+    sessionStorage.removeItem(posCartRecoveryKey);
     currentHeldOrderId = null;
     currentHeldOrderNumber = null;
     setOrderType('dine_in');
@@ -1652,6 +1812,7 @@ function renderCart() {
     const totalCount = cart.reduce((sum, i) => sum + (parseInt(i.qty, 10) || 0), 0);
     if (badge) badge.textContent = totalCount;
     if (holdBtn) holdBtn.disabled = cart.length === 0;
+    persistPosCartRecovery();
     updateMobileOrderShortcut();
 
     if (cart.length === 0) {
@@ -1856,6 +2017,7 @@ function updateTotals() {
     if (exemptRow) exemptRow.classList.toggle('flex', isStatutory && vatExemptSales > 0);
     if (taxEl) taxEl.textContent = formatCurrency(taxAmount);
     if (taxNameEl) taxNameEl.textContent = `${taxConfig.name} (${taxRate.toFixed(2)}%)`;
+    persistPosCartRecovery();
 }
 
 function onDiscountTypeChange() {
@@ -2004,7 +2166,6 @@ function updateCheckoutPayers() {
 function selectCheckoutPayer() {
     const payerSelect = document.getElementById('payment-person-name');
     const amountInput = document.getElementById('amount-to-pay');
-    const receivedInput = document.getElementById('amount-received');
     const hint = document.getElementById('payer-assignment-hint');
     const totals = checkoutPayerTotals();
     const person = payerSelect?.value || '';
@@ -2017,9 +2178,6 @@ function selectCheckoutPayer() {
     if (amountInput) {
         amountInput.value = due.toFixed(2);
         amountInput.max = due.toFixed(2);
-    }
-    if (currentMethod === 'cash' && receivedInput) {
-        receivedInput.value = due.toFixed(2);
     }
     if (hint) {
         hint.textContent = person
@@ -2043,6 +2201,10 @@ function openCheckout() {
     }
     if (cart.length === 0) {
         showPosFeedback('Cart is empty. Select a product before checking out.', 'error');
+        return;
+    }
+    if (currentDiscountAmount > 0 && orderTotal <= 0) {
+        showPosFeedback('The discount must leave a positive order total.', 'error');
         return;
     }
     if (splitEnabled && (!splitPeople.length || cart.some(item => !item.assigned_to))) {
@@ -2147,10 +2309,10 @@ function selectPaymentMethod(method) {
         if (m === method) {
             const c = colors[m] || 'heim';
             btn.setAttribute('aria-pressed', 'true');
-            btn.className = `pm-btn active flex items-center gap-2 p-3 rounded-xl border-2 border-${c}-500 bg-${c}-50 transition-all`;
+            btn.className = `pm-btn active flex items-center gap-2 p-3 rounded-xl border-2 border-${c}-500 bg-${c}-50 transition-all disabled:cursor-not-allowed disabled:opacity-40`;
         } else {
             btn.setAttribute('aria-pressed', 'false');
-            btn.className = `pm-btn flex items-center gap-2 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-gray-300 transition-all`;
+            btn.className = `pm-btn flex items-center gap-2 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-gray-300 transition-all disabled:cursor-not-allowed disabled:opacity-40`;
         }
     });
 
@@ -2161,11 +2323,6 @@ function selectPaymentMethod(method) {
 
     if (cashSec)    cashSec.style.display = showCash ? '' : 'none';
     if (isCash) {
-        const amountToPay = parseFloat(document.getElementById('amount-to-pay')?.value) || orderTotal;
-        const receivedInput = document.getElementById('amount-received');
-        if (receivedInput && (!receivedInput.value || parseFloat(receivedInput.value) < amountToPay)) {
-            receivedInput.value = amountToPay.toFixed(2);
-        }
         computeChange();
     }
     if (onlineSec) {
@@ -2185,7 +2342,8 @@ function setCashAmount(val) {
     const input = document.getElementById('amount-received');
     if (!input) return;
     const due = parseFloat(document.getElementById('amount-to-pay')?.value) || orderTotal;
-    input.value = (Math.round((val === orderTotal ? due : val) * 100) / 100).toFixed(2);
+    const amount = val === 'exact' ? due : Number(val);
+    input.value = (Math.round(amount * 100) / 100).toFixed(2);
     computeChange();
 }
 
@@ -2354,6 +2512,14 @@ function completeOrder() {
     btn.disabled = true;
     errorEl.classList.add('hidden');
 
+    const checkoutRequestStorageKey = `pos-checkout-request-id-{{ auth()->id() }}`;
+    let checkoutRequestId = sessionStorage.getItem(checkoutRequestStorageKey);
+    if (!checkoutRequestId) {
+        checkoutRequestId = document.getElementById('f-checkout-request-id').value;
+        sessionStorage.setItem(checkoutRequestStorageKey, checkoutRequestId);
+    }
+    document.getElementById('f-checkout-request-id').value = checkoutRequestId;
+
     // Populate hidden form
     document.getElementById('f-cashier').value   = cashier;
     const primaryPayment = hasStagedPayments ? stagedCheckoutPayments[0] : null;
@@ -2460,13 +2626,16 @@ function closeShiftInModal() {
 }
 
 async function submitShiftIn() {
-    const beginningCash = parseFloat(document.getElementById('si-beginning-cash').value) || 0;
+    const beginningCashInput = document.getElementById('si-beginning-cash');
+    const beginningCashValue = beginningCashInput.value.trim();
+    const beginningCash = Number(beginningCashValue);
     const errEl = document.getElementById('si-error');
     const btn = document.getElementById('si-submit-btn');
 
-    if (beginningCash < 0) {
-        errEl.textContent = 'Beginning cash cannot be negative.';
+    if (!beginningCashValue || !Number.isFinite(beginningCash) || beginningCash < 0) {
+        errEl.textContent = 'Enter a valid beginning cash amount of zero or more.';
         errEl.classList.remove('hidden');
+        beginningCashInput.focus();
         return;
     }
 
@@ -2475,7 +2644,7 @@ async function submitShiftIn() {
     errEl.classList.add('hidden');
 
     try {
-        const response = await fetch('/shifts/start', {
+        const response = await fetch(@json(route('shifts.start')), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2498,6 +2667,13 @@ async function submitShiftIn() {
 }
 
 async function openShiftOutModal() {
+    if (cart.length > 0) {
+        showPosFeedback('Save or complete the current cart, then clear it before ending the shift. Unsaved items are lost when the POS reloads.', 'error');
+        document.getElementById('pos-feedback')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        document.getElementById('hold-btn')?.focus();
+        return;
+    }
+
     const errEl = document.getElementById('so-error');
     if (errEl) errEl.classList.add('hidden');
     document.getElementById('so-actual-cash').value = '';
@@ -2528,7 +2704,7 @@ async function openShiftOutModal() {
             document.getElementById('so-beginning').textContent = '₱' + parseFloat(s.beginning_cash || 0).toFixed(2);
             if (s.unresolved_orders > 0) {
                 document.getElementById('so-open-orders-warning').classList.remove('hidden');
-                document.getElementById('so-open-orders-text').textContent = `${s.unresolved_orders} held or unpaid ticket(s) remain attached to this shift.`;
+                document.getElementById('so-open-orders-text').textContent = `${s.unresolved_orders} saved or unpaid ticket(s) remain attached to this shift.`;
             }
             const nonCash = s.non_cash_summary || {};
             document.getElementById('so-online-sales').textContent = `₱${Number(nonCash.online_sales || 0).toFixed(2)}`;
@@ -2550,6 +2726,17 @@ async function openShiftOutModal() {
 function updateShiftOutDifference() {
     const useDenominations = document.getElementById('so-use-denominations').checked;
     const denominationCount = getShiftDenominationCount();
+    const errEl = document.getElementById('so-error');
+    if (useDenominations && !Object.values(denominationCount).every(count => Number.isSafeInteger(count) && count >= 0)) {
+        clearTimeout(shiftPreviewTimer);
+        errEl.textContent = 'Cash denomination counts must be whole numbers of zero or more.';
+        errEl.classList.remove('hidden');
+        document.getElementById('so-cash-summary').classList.add('hidden');
+        return;
+    }
+    if (errEl?.textContent === 'Cash denomination counts must be whole numbers of zero or more.') {
+        errEl.classList.add('hidden');
+    }
     const actualCash = useDenominations
         ? Object.entries(denominationCount).reduce((sum, [denomination, count]) => sum + Number(denomination) * count, 0)
         : (parseFloat(document.getElementById('so-actual-cash').value) || 0);
@@ -2612,7 +2799,8 @@ function toggleShiftDenominations() {
 function getShiftDenominationCount() {
     const counts = {};
     document.querySelectorAll('[data-denomination]').forEach(input => {
-        counts[input.dataset.denomination] = Math.max(0, parseInt(input.value, 10) || 0);
+        const value = input.value.trim();
+        counts[input.dataset.denomination] = value === '' ? 0 : Number(value);
     });
     return counts;
 }
@@ -2633,13 +2821,18 @@ async function submitShiftOut() {
         errEl.classList.remove('hidden');
         return;
     }
+    if (useDenominations && !Object.values(getShiftDenominationCount()).every(count => Number.isSafeInteger(count) && count >= 0)) {
+        errEl.textContent = 'Cash denomination counts must be whole numbers of zero or more.';
+        errEl.classList.remove('hidden');
+        return;
+    }
 
     btn.textContent = 'Ending shift...';
     btn.disabled = true;
     errEl.classList.add('hidden');
 
     try {
-        const response = await fetch('/shifts/end', {
+        const response = await fetch(@json(route('shifts.end')), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2657,7 +2850,7 @@ async function submitShiftOut() {
         const data = await response.json();
         if (!response.ok && data.open_orders > 0) {
             document.getElementById('so-open-orders-warning').classList.remove('hidden');
-            document.getElementById('so-open-orders-text').textContent = `${data.open_orders} held or unpaid ticket(s) remain attached to this shift.`;
+            document.getElementById('so-open-orders-text').textContent = `${data.open_orders} saved or unpaid ticket(s) remain attached to this shift.`;
         }
         if (!response.ok) throw new Error(data.message || 'Failed to end shift.');
         closeShiftOutModal();
@@ -2676,19 +2869,23 @@ async function holdCurrentOrder() {
     const cashierInput = document.getElementById('cashier-name');
     const cashier = cashierInput ? cashierInput.value.trim() : '';
     if (!cashier) {
-        showPosFeedback('Please enter the cashier name before holding this order.', 'error');
+        showPosFeedback('Please enter the cashier name before saving this order.', 'error');
         if (cashierInput) cashierInput.focus();
         return;
     }
     if (cart.length === 0) {
-        showPosFeedback('Cannot hold an empty cart.', 'error');
+        showPosFeedback('Cannot save an empty order.', 'error');
+        return;
+    }
+    if (currentDiscountAmount > 0 && orderTotal <= 0) {
+        showPosFeedback('The discount must leave a positive order total.', 'error');
         return;
     }
 
     const holdBtn = document.getElementById('hold-btn');
     if (holdBtn) {
         holdBtn.disabled = true;
-        holdBtn.innerHTML = '<span>⏳</span> Holding...';
+        holdBtn.innerHTML = '<span>⏳</span> Saving...';
     }
 
     try {
@@ -2709,6 +2906,7 @@ async function holdCurrentOrder() {
             discount_type: document.getElementById('discount-type')?.value || 'none',
             discount_label: document.getElementById('discount-type')?.selectedOptions[0]?.text || null,
             discount_id_number: document.getElementById('discount-id-number')?.value || null,
+            held_order_id: currentHeldOrderId,
         };
 
         const response = await fetch('{{ route('pos.hold') }}', {
@@ -2723,13 +2921,13 @@ async function holdCurrentOrder() {
 
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.message || 'Failed to hold order.');
+            throw new Error(data.message || 'Failed to save order.');
         }
 
         clearCart();
         currentHeldOrderId = null;
         closeCheckout();
-        showPosFeedback(data.message || 'Order held successfully.', 'success');
+        showPosFeedback(data.message || 'Order saved successfully.', 'success');
         loadHeldOrdersCount();
     } catch (err) {
         const checkoutError = document.getElementById('checkout-error');
@@ -2737,12 +2935,12 @@ async function holdCurrentOrder() {
             checkoutError.textContent = err.message || 'An error occurred while holding the order.';
             checkoutError.classList.remove('hidden');
         } else {
-            showPosFeedback(err.message || 'An error occurred while holding the order.', 'error');
+            showPosFeedback(err.message || 'An error occurred while saving the order.', 'error');
         }
     } finally {
         if (holdBtn) {
             holdBtn.disabled = cart.length === 0;
-            holdBtn.innerHTML = '<span>📌</span> Save / Hold Order';
+            holdBtn.innerHTML = '<span>📌</span> Save';
         }
     }
 }
@@ -2752,8 +2950,13 @@ async function loadHeldOrdersCount() {
         const response = await fetch('{{ route('pos.held-orders') }}', {
             headers: { 'Accept': 'application/json' }
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+            throw new Error('Failed to load saved orders count.');
+        }
         const orders = await response.json();
+        if (!Array.isArray(orders)) {
+            throw new Error('The saved orders response was invalid.');
+        }
         const count = orders.length;
         const badge = document.getElementById('held-count-badge');
         if (badge) {
@@ -2762,10 +2965,10 @@ async function loadHeldOrdersCount() {
         }
         const totalCountEl = document.getElementById('held-modal-total-count');
         if (totalCountEl) {
-            totalCountEl.textContent = `${count} order${count === 1 ? '' : 's'} on hold`;
+            totalCountEl.textContent = `${count} saved order${count === 1 ? '' : 's'}`;
         }
     } catch (e) {
-        console.error('Failed to load held orders count:', e);
+        console.error('Failed to load saved orders count:', e);
     }
 }
 
@@ -2777,7 +2980,7 @@ async function openHeldOrdersModal() {
     list.innerHTML = `
         <div class="flex flex-col items-center justify-center py-12 text-gray-400">
             <svg class="animate-spin h-8 w-8 text-heim-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <p class="text-xs">Loading held tickets...</p>
+            <p class="text-xs">Loading saved orders...</p>
         </div>
     `;
     modal.style.display = 'flex';
@@ -2786,12 +2989,18 @@ async function openHeldOrdersModal() {
         const response = await fetch('{{ route('pos.held-orders') }}', {
             headers: { 'Accept': 'application/json' }
         });
+        if (!response.ok) {
+            throw new Error('Failed to load saved orders.');
+        }
         const orders = await response.json();
+        if (!Array.isArray(orders)) {
+            throw new Error('The saved orders response was invalid.');
+        }
         renderHeldOrders(orders);
     } catch (err) {
         list.innerHTML = `
             <div class="text-center py-10 text-red-500 text-xs">
-                Failed to load held orders. Please try again.
+                ${escapeHtml(err.message || 'Failed to load saved orders. Please try again.')}
             </div>
         `;
     }
@@ -2808,15 +3017,15 @@ function renderHeldOrders(orders) {
     if (!list) return;
 
     if (totalCountEl) {
-        totalCountEl.textContent = `${orders.length} order${orders.length === 1 ? '' : 's'} on hold`;
+        totalCountEl.textContent = `${orders.length} saved order${orders.length === 1 ? '' : 's'}`;
     }
 
     if (!orders || orders.length === 0) {
         list.innerHTML = `
             <div class="flex flex-col items-center justify-center py-12 text-center text-gray-400">
                 <span class="text-3xl mb-2">📋</span>
-                <p class="text-sm font-semibold text-gray-600">No held tickets</p>
-                <p class="text-xs text-gray-400 mt-1">Orders saved with "Save / Hold Order" will appear here.</p>
+                <p class="text-sm font-semibold text-gray-600">No saved orders</p>
+                <p class="text-xs text-gray-400 mt-1">Orders saved for later will appear here.</p>
             </div>
         `;
         return;
@@ -2898,17 +3107,19 @@ async function togglePinOrder(orderId) {
             }
         });
         const data = await response.json();
-        if (data.success) {
-            openHeldOrdersModal();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || data.message || 'Failed to update saved order pin.');
         }
+        await openHeldOrdersModal();
+        showPosFeedback(data.message || 'Saved order pin updated.', 'success');
     } catch (e) {
-        console.error('Failed to toggle pin:', e);
+        showPosFeedback(e.message || 'Failed to update saved order pin.', 'error');
     }
 }
 
 async function resumeHeldOrder(orderId) {
     if (cart.length > 0) {
-        if (!confirm('Loading this held order will replace the current items in your cart. Proceed?')) {
+        if (!confirm('Loading this saved order will replace the current items in your cart. Proceed?')) {
             return;
         }
     }
@@ -2924,7 +3135,7 @@ async function resumeHeldOrder(orderId) {
 
         const result = await response.json();
         if (!response.ok || !result.success) {
-            throw new Error(result.error || 'Failed to resume held order.');
+            throw new Error(result.error || 'Failed to open saved order.');
         }
 
         const data = result.data;
@@ -2947,7 +3158,7 @@ async function resumeHeldOrder(orderId) {
             recipe: []
         }));
 
-        currentHeldOrderId = null;
+        currentHeldOrderId = data.held_order_id;
         currentHeldOrderNumber = data.order_number || null;
         setOrderType(data.order_type || 'dine_in');
         const grabOrderCodeInput = document.getElementById('grab-order-code');
@@ -2985,9 +3196,9 @@ async function resumeHeldOrder(orderId) {
         renderCart();
         closeHeldOrdersModal();
         loadHeldOrdersCount();
-        showPosFeedback(`Resumed held order #${data.order_number}.`, 'success');
+        showPosFeedback(`Opened saved order #${data.order_number}.`, 'success');
     } catch (err) {
-        alert(err.message || 'Failed to resume held order.');
+        alert(err.message || 'Failed to open saved order.');
     }
 }
 
@@ -3018,8 +3229,8 @@ async function confirmVoidHeldOrder() {
     const orderNumber = modal._pendingOrderNumber;
 
     const reason = reasonInput.value.trim();
-    if (!reason) {
-        errorEl.textContent = 'Please enter a reason before voiding.';
+    if (reason.length < 5) {
+        errorEl.textContent = 'Enter a reason with at least 5 characters before voiding.';
         errorEl.classList.remove('hidden');
         reasonInput.focus();
         return;
@@ -3060,6 +3271,10 @@ async function confirmVoidHeldOrder() {
 document.addEventListener('DOMContentLoaded', function () {
     loadHeldOrdersCount();
 
+    ['grab-order-code', 'grab-rider-code', 'order-customer-name', 'discount-id-number'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', persistPosCartRecovery);
+    });
+    restorePosCartRecovery();
     document.getElementById('main-content')?.addEventListener('scroll', updateMobileOrderShortcut, { passive: true });
     window.addEventListener('resize', updateMobileOrderShortcut, { passive: true });
     updateMobileOrderShortcut();

@@ -76,11 +76,9 @@
                     <label for="password" class="block text-xs font-bold uppercase tracking-[0.14em] text-gray-700">
                         Password <span class="text-rose-500">*</span>
                     </label>
-                    @if (Route::has('password.request'))
-                        <a href="{{ route('password.request') }}" class="text-xs font-semibold text-heim-700 transition-colors hover:text-heim-800 focus:outline-none focus:underline">
-                            Forgot password?
-                        </a>
-                    @endif
+                    <span class="text-right text-xs font-medium text-gray-500">
+                        Forgot password? Contact the Store Owner.
+                    </span>
                 </div>
 
                 <div class="relative">

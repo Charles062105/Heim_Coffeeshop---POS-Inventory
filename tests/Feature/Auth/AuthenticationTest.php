@@ -101,7 +101,7 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
-    public function test_deactivated_user_cannot_authenticate_with_valid_password(): void
+    public function test_archived_user_cannot_authenticate_with_valid_password(): void
     {
         $user = User::factory()->create([
             'email' => 'inactive.user@coffee.com',
@@ -115,7 +115,9 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertGuest();
-        $response->assertSessionHasErrors('email');
+        $response->assertSessionHasErrors([
+            'email' => 'Your account is archived. Please contact store management or the owner.',
+        ]);
     }
 
     public function test_cashier_is_redirected_to_pos_terminal_after_login(): void
