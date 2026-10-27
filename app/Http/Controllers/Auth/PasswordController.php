@@ -16,4 +16,3 @@ class PasswordController extends Controller
         return back()->with('error', 'Self-service password changes are disabled. Please contact your system administrator.');
     }
 }
-

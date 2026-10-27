@@ -285,7 +285,31 @@ class PhaseOneFeaturesTest extends TestCase
         $response->assertOk();
         $response->assertJson(['success' => true]);
 
-        $this->assertNull(Order::find($order->id));
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'voided']);
+        $voidLog = VoidLog::where('order_id', $order->id)->firstOrFail();
+        $this->assertSame('order', $voidLog->void_type);
+        $this->assertSame('Customer cancelled', $voidLog->reason);
+        $this->assertSame($this->cashier->name, $voidLog->requested_by);
+        $this->assertNull($voidLog->authorized_by);
+        $this->assertSame(
+            CashierShift::activeForUser($this->cashier->id)->id,
+            $voidLog->shift_id
+        );
+
+        $this->actingAs($this->manager)->get(route('voids.index'))
+            ->assertOk()
+            ->assertSee($order->order_number)
+            ->assertSee('Customer cancelled')
+            ->assertSee('Not required for saved tickets');
+
+        $shift = CashierShift::activeForUser($this->cashier->id);
+        $reportResponse = $this->actingAs($this->manager)->get(route('reports.shifts.show', $shift));
+        $reportResponse
+            ->assertOk()
+            ->assertSee($order->order_number)
+            ->assertSee('Customer cancelled');
+        $this->assertSame(1, $reportResponse->viewData('summary')['void_count']);
+        $this->assertSame(150.0, $reportResponse->viewData('summary')['void_amount']);
     }
 
     public function test_manager_can_void_full_order_and_restore_stock()
@@ -331,6 +355,42 @@ class PhaseOneFeaturesTest extends TestCase
         $this->assertEquals('manager', $voidLog->authorized_role);
         $this->assertEquals($this->manager->name, $voidLog->requested_by);
         $this->assertTrue($voidLog->stock_restored);
+
+        $this->get(route('voids.index'))
+            ->assertOk()
+            ->assertSee($order->order_number);
+    }
+
+    public function test_voiding_an_unpaid_pending_order_restores_its_deducted_inventory(): void
+    {
+        $this->actingAs($this->manager)->post(route('pos.store'), [
+            'split_payment' => 1,
+            'save_split_order' => 1,
+            'checkout_request_id' => 'ad978073-dfa0-41f1-b47f-69f5468a6a29',
+            'cashier_name' => $this->manager->name,
+            'customer_name' => 'Table pending void',
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'amount_paid' => 0,
+            'split_portions' => [
+                ['payer_name' => 'Guest', 'amount' => 150],
+            ],
+            'items' => [[
+                'product_size_id' => $this->size->id,
+                'quantity' => 1,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $order = Order::query()->firstOrFail();
+        $this->assertSame('pending', $order->status);
+        $this->assertSame(980.0, (float) $this->coffeeBeans->fresh()->getCurrentStock());
+
+        $this->postJson(route('orders.void', $order), [
+            'reason' => 'Customer cancelled before payment',
+        ])->assertOk()->assertJsonPath('success', true);
+
+        $this->assertSame('voided', $order->fresh()->status);
+        $this->assertSame(1000.0, (float) $this->coffeeBeans->fresh()->getCurrentStock());
     }
 
     public function test_full_order_void_rejects_saved_and_cancelled_tickets(): void
@@ -992,7 +1052,21 @@ class PhaseOneFeaturesTest extends TestCase
         $editResponse->assertOk()
             ->assertSee('method="POST"', false)
             ->assertSee('action="'.route('products.sizes.destroy', [$product, $this->size]).'"', false)
-            ->assertSee('name="_method" value="DELETE"', false);
+            ->assertSee('name="_method" value="DELETE"', false)
+            ->assertSee('form="delete-size-'.$this->size->id.'"', false);
+
+        $html = $editResponse->getContent();
+        $productFormStart = strpos($html, '<form method="POST" action="'.route('products.update', $product).'"');
+        $this->assertNotFalse($productFormStart);
+        $productFormEnd = strpos($html, '</form>', $productFormStart);
+        $this->assertNotFalse($productFormEnd);
+        $this->assertStringNotContainsString(
+            '<form',
+            substr($html, $productFormStart + strlen('<form'), $productFormEnd - $productFormStart - strlen('<form'))
+        );
+        $saveButtonPosition = strpos($html, 'Save Changes', $productFormStart);
+        $this->assertNotFalse($saveButtonPosition);
+        $this->assertLessThan($productFormEnd, $saveButtonPosition);
 
         $this->delete(route('products.sizes.destroy', [$product, $this->size]))
             ->assertRedirect();

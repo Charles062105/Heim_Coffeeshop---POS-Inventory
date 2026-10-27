@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
 use App\Models\Supplier;
@@ -22,9 +23,16 @@ class StockAdjustmentController extends Controller
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
             'ingredient_id' => ['nullable', 'integer', 'exists:ingredients,id'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]);
 
-        $query = InventoryTransaction::with(['ingredient', 'supplier'])
+        $user = $request->user();
+        $branches = $user->isOwner() ? Branch::where('is_active', true)->orderBy('name')->get() : collect();
+        $branchId = $user->isOwner()
+            ? ($filters['branch_id'] ?? $user->branch_id ?? $branches->first()?->id)
+            : $user->branch_id;
+        $query = InventoryTransaction::with(['ingredient', 'supplier', 'branch'])
+            ->where('branch_id', $branchId)
             ->orderByRaw('COALESCE(transaction_date, created_at) DESC')
             ->orderByDesc('created_at');
 
@@ -115,7 +123,9 @@ class StockAdjustmentController extends Controller
             ? (abort_if(! $request->user()?->canExportOrPrint(), 403, 'Only managers and owners can print reports.') ?: $query->get())
             : $query->paginate(20)->withQueryString();
 
-        $ingredients = Ingredient::with('inventory')->orderBy('name')->get();
+        $ingredients = Ingredient::with([
+            'inventory' => fn ($inventory) => $inventory->where('branch_id', $branchId),
+        ])->orderBy('name')->get();
         $suppliers = Supplier::where('status', 'active')->orderBy('name')->get();
 
         // $reportType is passed to the view so the template can detect it even
@@ -123,7 +133,7 @@ class StockAdjustmentController extends Controller
         // 'type' param is merged into the request object, not the query string).
         $reportType = $request->get('type');
 
-        return view('inventory.adjustments', compact('transactions', 'ingredients', 'suppliers', 'reportType', 'summary', 'types'));
+        return view('inventory.adjustments', compact('transactions', 'ingredients', 'suppliers', 'reportType', 'summary', 'types', 'branches', 'branchId'));
     }
 
     public function store(Request $request)
@@ -142,6 +152,7 @@ class StockAdjustmentController extends Controller
             'unit_cost' => 'required_if:type,stock_in|nullable|numeric|decimal:0,2|min:0',
             'transaction_date' => 'required_if:type,stock_in|nullable|date',
             'expiration_date' => 'nullable|date|after_or_equal:transaction_date',
+            'branch_id' => 'nullable|integer|exists:branches,id',
         ]);
 
         if ($request->type === 'stock_in' && Ingredient::whereKey($request->ingredient_id)->where('status', 'inactive')->exists()) {
@@ -160,8 +171,13 @@ class StockAdjustmentController extends Controller
         }
 
         return DB::transaction(function () use ($request, $reason) {
-            $ingredient = Ingredient::with('inventory')->findOrFail($request->ingredient_id);
             $user = $request->user();
+            $branchId = $user->isOwner()
+                ? ($request->integer('branch_id') ?: $user->branch_id ?: Branch::where('is_active', true)->orderBy('id')->value('id'))
+                : $user->branch_id;
+            $ingredient = Ingredient::with([
+                'inventory' => fn ($inventory) => $inventory->where('branch_id', $branchId),
+            ])->findOrFail($request->ingredient_id);
             $quantity = (float) $request->quantity;
 
             if ($request->type === 'stock_in') {
@@ -181,7 +197,8 @@ class StockAdjustmentController extends Controller
                     referenceNumber: $request->reference_number,
                     unitCost: (float) $request->unit_cost,
                     transactionDate: $request->transaction_date,
-                    expirationDate: $request->expiration_date
+                    expirationDate: $request->expiration_date,
+                    branchId: $branchId
                 );
 
                 AuditService::logFromUser($user, 'stock_in', 'Inventory', [
@@ -202,7 +219,8 @@ class StockAdjustmentController extends Controller
                     quantity: $quantity,
                     reason: $reason,
                     performedBy: $user->name,
-                    performedRole: $user->role
+                    performedRole: $user->role,
+                    branchId: $branchId
                 );
 
                 AuditService::logFromUser($user, 'waste_recorded', 'Inventory', [
@@ -224,7 +242,8 @@ class StockAdjustmentController extends Controller
                 quantity: $quantity,
                 reason: $reason,
                 performedBy: $user->name,
-                performedRole: $user->role
+                performedRole: $user->role,
+                branchId: $branchId
             );
 
             AuditService::logFromUser($user, 'stock_adjustment', 'Inventory', [
@@ -252,6 +271,11 @@ class StockAdjustmentController extends Controller
             default => 'adjustments.index',
         };
 
-        return redirect()->route($route, $type && $route === 'adjustments.index' ? ['type' => $type] : []);
+        $parameters = $type && $route === 'adjustments.index' ? ['type' => $type] : [];
+        if ($request->user()?->isOwner() && $request->filled('branch_id')) {
+            $parameters['branch_id'] = $request->input('branch_id');
+        }
+
+        return redirect()->route($route, $parameters);
     }
 }

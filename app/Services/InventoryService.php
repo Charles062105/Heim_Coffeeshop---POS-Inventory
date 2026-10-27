@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
@@ -144,7 +145,7 @@ class InventoryService
         string $performedBy,
         string $performedRole
     ): void {
-        $inventory = static::lockedInventory($ingredient);
+        $inventory = static::lockedInventory($ingredient, $order->branch_id);
         $previousStock = (float) $inventory->current_stock;
         $stockInMilliunits = (int) round($previousStock * 1000);
         $quantityInMilliunits = (int) round($qty * 1000);
@@ -161,6 +162,7 @@ class InventoryService
 
         InventoryTransaction::create([
             'ingredient_id' => $ingredient->id,
+            'branch_id' => $inventory->branch_id,
             'type' => 'sales_consumption',
             'quantity' => $qty,
             'previous_stock' => $previousStock,
@@ -172,7 +174,7 @@ class InventoryService
             'performed_role' => $performedRole,
         ]);
 
-        static::checkAndNotify($ingredient->fresh(['inventory']));
+        static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
     }
 
     /**
@@ -353,7 +355,7 @@ class InventoryService
                 throw new \RuntimeException("Cannot restore missing ingredient for consumption movement #{$movement->id}.");
             }
 
-            $inventory = static::lockedInventory($ingredient);
+            $inventory = static::lockedInventory($ingredient, $order->branch_id);
             $previousStock = (float) $inventory->current_stock;
             $quantity = (float) $movement->quantity;
             $newStock = $previousStock + $quantity;
@@ -363,6 +365,7 @@ class InventoryService
 
             InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $inventory->branch_id,
                 'type' => 'sales_return',
                 'quantity' => $quantity,
                 'previous_stock' => $previousStock,
@@ -374,7 +377,7 @@ class InventoryService
                 'performed_role' => $performedRole,
             ]);
 
-            static::checkAndNotify($ingredient->fresh(['inventory']));
+            static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
         }
 
         return true;
@@ -413,7 +416,7 @@ class InventoryService
                 throw new \RuntimeException("Cannot restore missing ingredient for consumption movement #{$movement->id}.");
             }
 
-            $inventory = static::lockedInventory($ingredient);
+            $inventory = static::lockedInventory($ingredient, $order->branch_id);
             $previousStock = (float) $inventory->current_stock;
             $quantity = (float) $movement->quantity;
             $newStock = $previousStock + $quantity;
@@ -423,6 +426,7 @@ class InventoryService
 
             InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $inventory->branch_id,
                 'type' => 'sales_return',
                 'quantity' => $quantity,
                 'previous_stock' => $previousStock,
@@ -434,7 +438,7 @@ class InventoryService
                 'performed_role' => $performedRole,
             ]);
 
-            static::checkAndNotify($ingredient->fresh(['inventory']));
+            static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
         }
 
         return true;
@@ -452,7 +456,7 @@ class InventoryService
         string $performedBy,
         string $performedRole
     ): void {
-        $inventory = static::lockedInventory($ingredient);
+        $inventory = static::lockedInventory($ingredient, $order->branch_id);
         $previousStock = (float) $inventory->current_stock;
         $newStock = $previousStock + $qty;
 
@@ -461,6 +465,7 @@ class InventoryService
 
         InventoryTransaction::create([
             'ingredient_id' => $ingredient->id,
+            'branch_id' => $inventory->branch_id,
             'type' => 'sales_return',
             'quantity' => $qty,
             'previous_stock' => $previousStock,
@@ -486,10 +491,11 @@ class InventoryService
         ?string $referenceNumber = null,
         ?float $unitCost = null,
         ?string $transactionDate = null,
-        ?string $expirationDate = null
+        ?string $expirationDate = null,
+        ?int $branchId = null
     ): InventoryTransaction {
-        return DB::transaction(function () use ($ingredient, $quantity, $performedBy, $performedRole, $reason, $supplierId, $referenceNumber, $unitCost, $transactionDate, $expirationDate) {
-            $inventory = static::lockedInventory($ingredient);
+        return DB::transaction(function () use ($ingredient, $quantity, $performedBy, $performedRole, $reason, $supplierId, $referenceNumber, $unitCost, $transactionDate, $expirationDate, $branchId) {
+            $inventory = static::lockedInventory($ingredient, $branchId);
             $previousStock = (float) $inventory->current_stock;
             $newStock = $previousStock + $quantity;
 
@@ -498,6 +504,7 @@ class InventoryService
 
             $tx = InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $inventory->branch_id,
                 'type' => 'stock_in',
                 'quantity' => $quantity,
                 'previous_stock' => $previousStock,
@@ -512,7 +519,7 @@ class InventoryService
                 'expiration_date' => $expirationDate,
             ]);
 
-            static::checkAndNotify($ingredient->fresh(['inventory']));
+            static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
 
             return $tx;
         }, 3);
@@ -526,10 +533,11 @@ class InventoryService
         float $quantity,
         string $reason,
         string $performedBy,
-        string $performedRole
+        string $performedRole,
+        ?int $branchId = null
     ): InventoryTransaction {
-        return DB::transaction(function () use ($ingredient, $quantity, $reason, $performedBy, $performedRole) {
-            $inventory = static::lockedInventory($ingredient);
+        return DB::transaction(function () use ($ingredient, $quantity, $reason, $performedBy, $performedRole, $branchId) {
+            $inventory = static::lockedInventory($ingredient, $branchId);
             $previousStock = (float) $inventory->current_stock;
             static::ensureStockAvailable($previousStock, $quantity);
             $newStock = $previousStock - $quantity;
@@ -539,6 +547,7 @@ class InventoryService
 
             $tx = InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $inventory->branch_id,
                 'type' => 'waste',
                 'quantity' => $quantity,
                 'previous_stock' => $previousStock,
@@ -548,7 +557,7 @@ class InventoryService
                 'performed_role' => $performedRole,
             ]);
 
-            static::checkAndNotify($ingredient->fresh(['inventory']));
+            static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
 
             return $tx;
         }, 3);
@@ -563,14 +572,15 @@ class InventoryService
         float $quantity,
         string $reason,
         string $performedBy,
-        string $performedRole
+        string $performedRole,
+        ?int $branchId = null
     ): InventoryTransaction {
         if (! in_array($type, ['adjustment_add', 'adjustment_deduct'], true)) {
             throw new \InvalidArgumentException('Unsupported inventory adjustment type.');
         }
 
-        return DB::transaction(function () use ($ingredient, $type, $quantity, $reason, $performedBy, $performedRole) {
-            $inventory = static::lockedInventory($ingredient);
+        return DB::transaction(function () use ($ingredient, $type, $quantity, $reason, $performedBy, $performedRole, $branchId) {
+            $inventory = static::lockedInventory($ingredient, $branchId);
             $previousStock = (float) $inventory->current_stock;
             if ($type === 'adjustment_deduct') {
                 static::ensureStockAvailable($previousStock, $quantity);
@@ -584,6 +594,7 @@ class InventoryService
 
             $tx = InventoryTransaction::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $inventory->branch_id,
                 'type' => $type,
                 'quantity' => $quantity,
                 'previous_stock' => $previousStock,
@@ -593,24 +604,32 @@ class InventoryService
                 'performed_role' => $performedRole,
             ]);
 
-            static::checkAndNotify($ingredient->fresh(['inventory']));
+            static::checkAndNotify($ingredient->fresh(), $inventory->branch_id);
 
             return $tx;
         }, 3);
     }
 
-    private static function lockedInventory(Ingredient $ingredient): Inventory
+    private static function lockedInventory(Ingredient $ingredient, ?int $branchId = null): Inventory
     {
         Ingredient::query()->whereKey($ingredient->id)->lockForUpdate()->firstOrFail();
 
-        $inventory = Inventory::query()
+        $branchId ??= auth()->user()?->branch_id
+            ?? Branch::where('is_active', true)->orderBy('id')->value('id');
+        if (! $branchId) {
+            throw new \RuntimeException('A branch must be configured before changing inventory.');
+        }
+
+        $inventory = Inventory::withoutGlobalScope('branch')
             ->where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
             ->lockForUpdate()
             ->first();
 
         if (! $inventory) {
             $inventory = Inventory::create([
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $branchId,
                 'current_stock' => 0,
             ]);
         }
@@ -630,8 +649,17 @@ class InventoryService
     /**
      * Check ingredient stock and create notification if low or out of stock.
      */
-    public static function checkAndNotify(Ingredient $ingredient): void
+    public static function checkAndNotify(Ingredient $ingredient, ?int $branchId = null): void
     {
+        $branchId ??= auth()->user()?->branch_id;
+        $inventory = Inventory::withoutGlobalScope('branch')
+            ->where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
+            ->first();
+        if ($inventory) {
+            $ingredient->setRelation('inventory', $inventory);
+        }
+
         $status = $ingredient->getStockStatus();
         $notificationType = match ($status) {
             'out_of_stock' => 'out_of_stock',
@@ -640,6 +668,7 @@ class InventoryService
         };
 
         $staleNotifications = Notification::where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
             ->where('is_resolved', false)
             ->whereIn('type', ['low_stock', 'out_of_stock']);
 
@@ -653,6 +682,7 @@ class InventoryService
             ->update(['is_resolved' => true, 'resolved_at' => now()]);
 
         $existing = Notification::where('ingredient_id', $ingredient->id)
+            ->where('branch_id', $branchId)
             ->where('type', $notificationType)
             ->where('is_resolved', false)
             ->first();
@@ -670,6 +700,7 @@ class InventoryService
                 'message' => "{$ingredient->name} is out of stock (current: {$stock} {$ingredient->unit}).",
                 'target_role' => 'manager',
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $branchId,
             ]);
         } else {
             Notification::create([
@@ -678,6 +709,7 @@ class InventoryService
                 'message' => "{$ingredient->name} is running low ({$stock} {$ingredient->unit} remaining, reorder threshold: {$ingredient->getReorderThreshold()} {$ingredient->unit}).",
                 'target_role' => 'manager',
                 'ingredient_id' => $ingredient->id,
+                'branch_id' => $branchId,
             ]);
         }
     }

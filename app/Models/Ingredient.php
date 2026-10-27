@@ -51,7 +51,14 @@ class Ingredient extends Model
     // Convenience: current stock level
     public function getCurrentStock(): float
     {
-        return (float) ($this->inventory?->current_stock ?? 0);
+        if ($this->relationLoaded('inventory')) {
+            return (float) ($this->inventory?->current_stock ?? 0);
+        }
+
+        $branchId = auth()->user()?->branch_id
+            ?? Branch::where('is_active', true)->orderBy('id')->value('id');
+
+        return (float) ($this->inventory()->where('branch_id', $branchId)->value('current_stock') ?? 0);
     }
 
     public function getStockStatus(): string

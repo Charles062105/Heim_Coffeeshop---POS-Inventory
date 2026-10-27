@@ -10,6 +10,10 @@
             <span class="whitespace-nowrap">Shift Active<span class="hidden xl:inline"> · {{ $activeShift->localStartTime()->format('h:i A') }}</span></span>
             <span class="ml-1 whitespace-nowrap rounded-md bg-emerald-200/80 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-900"><span class="hidden sm:inline">End Shift</span><span class="sm:hidden">End</span></span>
         </button>
+        <button type="button" onclick="openCashMovementModal()" aria-label="Cash In and Cash Out drawer movements" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 hover:bg-amber-100 shadow-xs transition-all">
+            <span class="text-xs">💵</span>
+            <span class="whitespace-nowrap font-bold">Cash In / Out</span>
+        </button>
     @else
         <button type="button" onclick="openShiftInModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-800 bg-rose-50 border border-rose-200 hover:bg-rose-100 shadow-xs transition-all">
             <span class="w-2 h-2 rounded-full bg-rose-500"></span>
@@ -17,11 +21,6 @@
             <span class="ml-1 text-[10px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded-md font-bold uppercase">Shift In</span>
         </button>
     @endif
-    <button type="button" onclick="openHeldOrdersModal()" aria-label="Saved tickets" class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 shadow-xs transition-all relative">
-        <span>📌</span>
-        <span class="hidden sm:inline">Saved Orders</span>
-        <span id="held-count-badge" class="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-600 text-white">0</span>
-    </button>
     <a href="{{ route('orders.index') }}" aria-label="View orders" class="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-xs transition-all hover:bg-gray-50">
         <svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
         <span class="hidden sm:inline">Orders</span>
@@ -44,7 +43,7 @@
     </div>
 @endunless
 <div class="pos-terminal flex h-full min-h-0 flex-col gap-3 bg-gradient-to-b from-emerald-50/70 via-white to-emerald-50/40">
-<div class="grid min-h-0 flex-1 grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,30rem)] lg:[grid-template-columns:minmax(0,1.6fr)_minmax(26rem,0.9fr)] lg:grid-rows-[minmax(0,1fr)]">
+<div class="pos-terminal-grid grid min-h-0 flex-1 grid-cols-1 gap-4 sm:gap-5 lg:grid-rows-[minmax(0,1fr)]">
 
     {{-- ── Left: Product Grid ───────────────────────────────────────────────── --}}
     <div class="order-1 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-emerald-100 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.06)] ring-1 ring-white/70 lg:h-full">
@@ -78,7 +77,7 @@
 
         {{-- Product grid --}}
         <div id="product-grid" class="flex-1 overflow-y-auto p-3 sm:p-5 w-full bg-gray-50/35">
-            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 sm:gap-4 w-full content-start">
+            <div class="pos-product-grid grid grid-cols-2 gap-3.5 sm:gap-4 w-full content-start">
                 @foreach($categories as $cat)
                     @foreach($cat->products as $product)
                     @php
@@ -229,9 +228,9 @@
                 <p class="text-xs font-black uppercase tracking-[0.16em] text-heim-800">Current Order</p>
                 <p id="current-ticket-number" class="mt-0.5 truncate font-mono text-sm font-bold text-slate-700">New ticket</p>
             </div>
-            <div class="text-right text-xs leading-5 text-slate-600">
-                <p><span class="font-semibold">Customer:</span> <span id="current-order-customer">—</span></p>
-                <p><span class="font-semibold">Order type:</span> <span id="current-order-type">Dine-in</span></p>
+            <div class="min-w-0 flex-1 text-right text-xs leading-5 text-slate-600">
+                <p class="flex min-w-0 justify-end gap-1 whitespace-nowrap"><span class="shrink-0 font-semibold">Customer / Table:</span> <span id="current-order-customer" class="min-w-0 truncate">—</span></p>
+                <p class="truncate"><span class="font-semibold">Order type:</span> <span id="current-order-type">Dine-in</span></p>
             </div>
         </div>
 
@@ -277,43 +276,9 @@
             </p>
         </div>
 
-        {{-- Cashier and customer details --}}
-        <div class="shrink-0 space-y-2 border-b border-heim-100 bg-gradient-to-r from-heim-50 to-white px-3 py-2.5 sm:px-4">
-            <div class="grid grid-cols-2 gap-2.5">
-                <div class="min-w-0">
-                    <span class="mb-1 block text-[11px] font-extrabold uppercase tracking-wider text-heim-800">Cashier</span>
-                    <p class="truncate text-sm font-bold leading-5 text-slate-900">{{ auth()->user()?->name }}</p>
-                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ auth()->user()?->role }}</span>
-                    <input id="cashier-name" type="hidden" value="{{ auth()->user()?->name }}">
-                </div>
-                <div class="min-w-0">
-                    <label id="order-customer-label" for="order-customer-name" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wider text-gray-600">Customer / Table</label>
-                    <input id="order-customer-name" type="text" maxlength="150" placeholder="Customer name or table"
-                        oninput="updateOrderSummary()"
-                        class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-heim-500">
-                </div>
-            </div>
-            <div class="flex items-center justify-end">
-                <label class="inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border border-heim-200 bg-heim-50 px-2.5 text-xs font-extrabold text-heim-900">
-                    <input id="split-toggle" type="checkbox" onchange="toggleSplitAssignments(this.checked)" class="h-4 w-4 rounded border-gray-300 text-heim-600 focus:ring-heim-500">
-                    Split Payment
-                </label>
-            </div>
-            <div id="split-people-panel" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
-                <p class="text-xs font-black uppercase tracking-wider text-indigo-900">Split Order</p>
-                <div id="split-people" class="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="Split order people"></div>
-                <div class="mt-3 flex gap-2">
-                    <input id="new-split-person" type="text" maxlength="150" placeholder="Add a person"
-                        onkeydown="if(event.key==='Enter'){event.preventDefault();addSplitPerson();}"
-                        class="min-w-0 flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
-                    <button type="button" onclick="addSplitPerson()" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-900 hover:bg-indigo-100">Add person</button>
-                </div>
-                <label for="split-assignee-select" class="mt-3 block text-xs font-bold text-indigo-900">Assign products to</label>
-                <select id="split-assignee-select" onchange="selectSplitPersonByValue(this.value)" class="mt-1 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-heim-500">
-                    <option value="">Choose a person</option>
-                </select>
-            </div>
-        </div>
+        <input id="cashier-name" type="hidden" value="{{ auth()->user()?->name }}">
+        <input id="order-customer-name" type="hidden" value="">
+
         <p id="pos-feedback" class="hidden mx-4 mt-3 shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-semibold" role="status" aria-live="polite"></p>
 
         {{-- Cart header --}}
@@ -326,11 +291,6 @@
                 <span id="cart-badge" class="px-3 py-1 rounded-full text-sm font-black bg-heim-100 text-heim-800">0</span>
             </div>
             <div class="flex shrink-0 items-center gap-1.5">
-                <button type="button" onclick="holdCurrentOrder()" id="hold-btn" title="Save this order without completing payment"
-                    class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                    disabled>
-                    <span>📌</span> Save
-                </button>
                 <button onclick="clearCart()" class="text-xs text-gray-500 hover:text-rose-600 transition-colors font-bold px-1.5 py-1 whitespace-nowrap">Clear</button>
             </div>
         </div>
@@ -426,14 +386,21 @@
             </div>
         </div>
 
-        {{-- Checkout button --}}
+        {{-- Save order and checkout actions --}}
         <div class="sticky bottom-0 z-20 shrink-0 bg-white p-3 sm:p-4 border-t border-gray-100 shadow-[0_-8px_16px_rgba(15,23,42,0.08)]">
+            <div class="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)] gap-2">
+            <button type="button" onclick="handleOrderPanelAction()" id="hold-btn" title="Choose how to save this order"
+                class="min-w-0 h-12 px-2 rounded-xl border border-heim-300 bg-white text-heim-800 hover:bg-heim-50 font-bold text-xs sm:text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                <span id="hold-button-label">Save Order</span>
+                <span id="held-count-badge" class="ml-1 hidden rounded-full bg-amber-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white">0</span>
+            </button>
             <button onclick="openCheckout()" id="checkout-btn"
-                class="w-full bg-heim-700 hover:bg-heim-800 text-white font-black py-4 sm:py-[1.125rem] rounded-2xl shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed text-lg tracking-wide flex items-center justify-center gap-2"
+                class="min-w-0 h-12 px-2 bg-heim-700 hover:bg-heim-800 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm sm:text-base tracking-wide flex items-center justify-center gap-2"
                 disabled>
                 <span id="checkout-button-label">PAY ₱0.00</span>
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             </button>
+            </div>
         </div>
     </div>
 </div>
@@ -462,7 +429,7 @@
                 <span class="text-xl">📌</span>
                 <div>
                     <h3 class="font-bold text-gray-900 text-base">Saved Orders</h3>
-                    <p class="text-xs text-gray-500">Unfinished orders saved to reopen and pay later</p>
+                    <p class="text-xs text-gray-500">Saved tickets and unpaid orders you can continue</p>
                 </div>
             </div>
             <button type="button" onclick="closeHeldOrdersModal()" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
@@ -476,9 +443,11 @@
 
         <div class="px-6 py-3.5 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
             <span id="held-modal-total-count" class="text-xs font-semibold text-gray-500">0 saved orders</span>
-            <button type="button" onclick="closeHeldOrdersModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-100 transition-colors">
-                Close
-            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="closeHeldOrdersModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-100 transition-colors">
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -577,6 +546,14 @@
                 <div id="checkout-review-rows" class="max-h-52 divide-y divide-slate-100 overflow-y-auto"></div>
             </details>
 
+            <div>
+                <label for="checkout-customer-name" class="mb-1.5 block text-xs font-bold text-gray-700">Customer / Table <span class="text-rose-600">*</span></label>
+                <input id="checkout-customer-name" type="text" maxlength="150" required
+                    placeholder="Enter customer name or table number"
+                    oninput="document.getElementById('order-customer-name').value=this.value; updateOrderSummary(); persistPosCartRecovery();"
+                    class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-heim-500">
+            </div>
+
             {{-- Payment method selector --}}
             <div>
                 <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Payment Method</p>
@@ -614,45 +591,59 @@
                         </div>
                     </button>
                 </div>
+                <div class="mt-2.5">
+                    <button type="button" onclick="switchToSplitPayment()" class="w-full flex items-center justify-between p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/80 transition-colors text-left group">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">👥</span>
+                            <div>
+                                <p class="text-xs font-bold text-indigo-950">Split Payment</p>
+                                <p class="text-[10px] text-indigo-700">Divide order among multiple payers or payment methods</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold text-indigo-700 group-hover:translate-x-0.5 transition-transform">Split →</span>
+                    </button>
+                </div>
                 <p id="grab-payment-hint" class="hidden mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
                     Grab orders can be paid in cash at the counter or recorded as a GrabFood platform settlement.
                 </p>
             </div>
 
-            <div class="space-y-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3">
-                <div>
-                    <label for="payment-person-name" class="block text-xs font-bold text-gray-700 mb-1.5">Paying Person</label>
-                    <select id="payment-person-name" onchange="selectCheckoutPayer()"
-                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-heim-500">
-                        <option value="">Full order / select a person</option>
-                    </select>
-                    <p id="payer-assignment-hint" class="text-[11px] text-gray-500 mt-1">For a split order, choose the person whose assigned products this payment covers.</p>
-                </div>
-                <div>
-                    <label for="amount-to-pay" class="block text-xs font-bold text-gray-700 mb-1.5">Payment Amount (₱)</label>
-                    <input id="amount-to-pay" type="number" min="0.01" step="0.01"
-                        oninput="computeChange(); updateOnlineAmount()"
-                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-right font-mono text-lg font-bold bg-white focus:outline-none focus:ring-2 focus:ring-heim-500">
-                    <p class="text-[11px] text-gray-500 mt-1">A smaller amount records a partial payment.</p>
-                </div>
-                <div>
-                    <label for="payment-comment" class="block text-xs font-bold text-gray-700 mb-1.5">Platform / Payment Note <span class="font-normal text-gray-400">(optional)</span></label>
-                    <input id="payment-comment" type="text" maxlength="255" placeholder="e.g. GCash personal account"
-                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-heim-500">
-                </div>
-            </div>
-            <div id="checkout-split-summary" class="hidden overflow-hidden rounded-xl border border-gray-200 bg-white">
-                <div class="border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-700">Split payment summary</div>
-                <div id="checkout-split-rows"></div>
-            </div>
-            <div id="checkout-staged-summary" class="hidden overflow-hidden rounded-xl border border-heim-200 bg-heim-50/60">
-                <div class="flex items-center justify-between border-b border-heim-100 px-3 py-2 text-xs font-bold text-heim-900">
-                    <span>Recorded in this checkout</span>
-                    <span id="checkout-staged-remaining">₱0.00 remaining</span>
-                </div>
-                <div id="checkout-staged-rows" class="divide-y divide-heim-100"></div>
+            {{-- Item-based split summary --}}
+            <div id="checkout-split-summary" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/50 p-2.5">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-900 mb-1.5">Item-based Payer Portions</p>
+                <div id="checkout-split-rows" class="divide-y divide-indigo-100 bg-white rounded-lg border border-indigo-100"></div>
             </div>
 
+            {{-- Staged multi-payer payments container --}}
+            <div id="checkout-staged-summary" class="hidden rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-emerald-900">Recorded Portions</span>
+                    <span id="checkout-staged-remaining" class="text-xs font-black text-emerald-700"></span>
+                </div>
+                <div id="checkout-staged-rows" class="divide-y divide-emerald-100 bg-white rounded-lg border border-emerald-100 mb-2"></div>
+            </div>
+
+            <div class="space-y-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+                <div>
+                    <input id="payment-person-name" type="hidden" value="">
+                    <label for="amount-to-pay" class="mb-1.5 block text-xs font-bold text-gray-700">Payment Amount (₱)</label>
+                    <input id="amount-to-pay" type="number" min="0.01" step="0.01" value="0"
+                        aria-describedby="payment-amount-hint"
+                        oninput="computeChange(); updateOnlineAmount()"
+                        class="mb-3 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-right font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-heim-500">
+                    <p id="payment-amount-hint" class="mb-3 text-[11px] text-gray-500">Enter the amount being paid now. Any remaining balance stays due on this order.</p>
+                    <div class="mb-3">
+                        <label for="payment-comment" class="block text-xs font-bold text-gray-700 mb-1.5">Platform / Payment Note <span class="font-normal text-gray-400">(optional)</span></label>
+                        <input id="payment-comment" type="text" maxlength="255" placeholder="e.g. GCash personal account"
+                            class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-heim-500">
+                    </div>
+                    <button type="button" onclick="stageCheckoutPayment()" class="w-full py-2 px-3 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+                        <span>+</span>
+                        <span>Stage as Split Portion</span>
+                    </button>
+                    <div id="checkout-partial-alert" class="hidden mt-2.5 rounded-xl border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-900"></div>
+                </div>
+            </div>
             {{-- Cash section --}}
             <div id="cash-section" class="space-y-3">
                 <div>
@@ -742,13 +733,208 @@
 
         <div class="grid shrink-0 grid-cols-2 gap-2 border-t border-gray-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-3 sm:px-6 sm:pt-3 sm:pb-6">
             <button type="button" onclick="closeCheckout()" class="brand-btn-cancel">Back</button>
-            <button type="button" id="record-payment-btn" onclick="stageCheckoutPayment()"
-                class="rounded-xl border border-heim-200 bg-white px-3 py-2.5 text-xs font-bold text-heim-800 hover:bg-heim-50 transition-colors">
-                Record Payment
-            </button>
-            <button type="button" id="complete-btn" onclick="completeOrder()" class="brand-button active:scale-95 col-span-2">
+            <button type="button" id="complete-btn" onclick="completeOrder()" class="brand-button active:scale-95">
                 Complete Order
             </button>
+        </div>
+    </div>
+</div>
+</div>
+
+{{-- ── Save Order Modal ──────────────────────────────────────────────────────── --}}
+<div id="save-order-modal" class="fixed inset-0 z-[60] hidden items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="save-order-title" style="display:none">
+    <div class="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl sm:rounded-2xl">
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6">
+            <div>
+                <h2 id="save-order-title" class="text-lg font-black text-gray-900">Save Order</h2>
+                <p id="save-order-subtitle" class="mt-0.5 text-xs text-gray-500">Choose how you want to save this order.</p>
+            </div>
+            <button type="button" onclick="closeSaveOrderModal()" aria-label="Close save order modal" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700">✕</button>
+        </div>
+
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6">
+            <div id="save-order-options" class="space-y-3">
+                <button type="button" onclick="saveAsRegularOrder()" class="flex w-full items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors hover:border-heim-300 hover:bg-heim-50">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800">📌</span>
+                    <span><span class="block text-sm font-black text-gray-900">Save as Regular Order</span><span class="mt-1 block text-xs leading-5 text-gray-500">Save the complete ticket to Saved Orders for later payment. No payment is recorded yet.</span></span>
+                </button>
+                <button type="button" onclick="chooseSplitOrder()" class="flex w-full items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-left transition-colors hover:bg-indigo-50">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-800">↗</span>
+                    <span><span class="block text-sm font-black text-gray-900">Split Payment / Split Order</span><span class="mt-1 block text-xs leading-5 text-gray-500">Assign items to different payers, save an unpaid split order, or record partial payments and view payment history.</span></span>
+                </button>
+                <div>
+                    <h3 class="mb-2 text-xs font-black uppercase tracking-wide text-gray-500">Continue an unpaid or partially paid order</h3>
+                    <div id="open-split-orders-list" class="max-h-48 space-y-2 overflow-y-auto">
+                        <p class="text-xs text-gray-500">Loading orders…</p>
+                    </div>
+                </div>
+                <button type="button" onclick="viewRegularSavedOrdersFromSaveModal()" class="w-full rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-left text-sm font-bold text-amber-900 transition-colors hover:bg-amber-50">
+                    View regular saved tickets
+                </button>
+                <p id="save-order-feedback" class="hidden rounded-xl border px-3 py-2 text-sm font-semibold" role="status" aria-live="polite"></p>
+            </div>
+            <div id="split-order-workflow" class="hidden space-y-4">
+            <div class="grid grid-cols-1 gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm sm:grid-cols-2">
+                <div><span class="text-xs font-semibold text-gray-500">Order</span><p id="split-order-number" class="font-bold text-gray-900">New split order — not saved</p></div>
+                <div><span class="text-xs font-semibold text-gray-500">Customer / Table</span><p id="split-order-customer" class="font-semibold text-gray-800">Not entered</p></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <div class="rounded-xl border border-gray-100 bg-white p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Total Order</p><p id="split-total-order" class="mt-1 font-mono text-sm font-black text-gray-900">₱0.00</p></div>
+                <div class="rounded-xl border border-gray-100 bg-white p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Total Paid</p><p id="split-total-paid" class="mt-1 font-mono text-sm font-black text-heim-700">₱0.00</p></div>
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-amber-800">Remaining</p><p id="split-remaining" class="mt-1 font-mono text-sm font-black text-amber-900">₱0.00</p></div>
+            </div>
+
+            <div id="split-order-customer-entry">
+                <label for="split-customer-name" class="mb-1 block text-xs font-bold text-gray-700">Customer / Table <span class="text-rose-600">*</span></label>
+                <input id="split-customer-name" type="text" maxlength="150" placeholder="Enter customer name or table number"
+                    oninput="document.getElementById('order-customer-name').value=this.value; document.getElementById('split-order-customer').textContent=this.value.trim() || 'Not entered'; persistPosCartRecovery();"
+                    class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
+            </div>
+
+            <div id="split-assignment-section" class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <label for="split-allocation-mode" class="mb-1 block text-xs font-bold text-indigo-900">How should this order be split?</label>
+                <select id="split-allocation-mode" onchange="syncSplitAllocationMode()" class="mb-3 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold">
+                    <option value="amounts">By payment amounts</option>
+                    <option value="items">By assigned items and quantities</option>
+                </select>
+                <div id="split-item-allocation">
+                    <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-extrabold text-indigo-900">
+                        <input id="split-toggle" type="checkbox" onchange="toggleSplitAssignments(this.checked)" class="h-4 w-4 rounded border-gray-300 text-heim-600 focus:ring-heim-500">
+                        Assign order items to split payers
+                    </label>
+                    <div id="split-people-panel" class="hidden pt-2">
+                        <div id="split-people" class="flex flex-wrap items-center gap-2" role="group" aria-label="Split order people"></div>
+                        <div class="mt-3 flex gap-2">
+                            <input id="new-split-person" type="text" maxlength="150" placeholder="Add a person"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();addSplitPerson();}"
+                                class="min-w-0 flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
+                            <button type="button" onclick="addSplitPerson()" class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-900 hover:bg-indigo-100">Add person</button>
+                        </div>
+                        <label for="split-assignee-select" class="mt-3 block text-xs font-bold text-indigo-900">Assign products to</label>
+                        <select id="split-assignee-select" onchange="selectSplitPersonByValue(this.value)" class="mt-1 w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-heim-500">
+                            <option value="">Choose a person</option>
+                        </select>
+                        <div id="split-item-assignment-list" class="mt-3 space-y-2"></div>
+                    </div>
+                </div>
+                <div id="split-amount-allocation">
+                    <label for="split-portion-count" class="mb-1 block text-xs font-bold text-indigo-900">Number of payment portions</label>
+                    <input id="split-portion-count" type="number" min="2" max="12" value="2" oninput="renderAmountSplitPortions()"
+                        class="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm">
+                    <div id="split-amount-portions" class="mt-2 space-y-2"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                    <label for="split-payment-person" class="mb-1 block text-xs font-bold text-gray-700">Payer name</label>
+                    <input id="split-payment-person" type="text" maxlength="150" placeholder="Name of person paying"
+                        class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500">
+                    <datalist id="split-payment-payers"></datalist>
+                </div>
+                <div>
+                    <label for="split-payment-amount" class="mb-1 block text-xs font-bold text-gray-700">Payment amount (₱)</label>
+                    <input id="split-payment-amount" type="number" min="0.01" step="0.01" oninput="syncSplitCashReceived()"
+                        class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-right font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-heim-500">
+                </div>
+                <div>
+                    <label for="split-payment-method" class="mb-1 block text-xs font-bold text-gray-700">Payment method</label>
+                    <select id="split-payment-method" onchange="toggleSplitPaymentMethodFields()" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+                        <option value="cash">Cash</option><option value="online">Online Payment</option><option value="grabfood">GrabFood settlement</option>
+                    </select>
+                </div>
+                <div id="split-cash-received-wrap">
+                    <label for="split-cash-received" class="mb-1 block text-xs font-bold text-gray-700">Cash received (₱)</label>
+                    <input id="split-cash-received" type="number" min="0" step="0.01" oninput="this.dataset.manual='true'" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-right font-mono text-sm">
+                </div>
+                <div id="split-reference-wrap" class="hidden sm:col-span-2">
+                    <label for="split-reference" class="mb-1 block text-xs font-bold text-gray-700">Reference number <span class="text-rose-600">*</span></label>
+                    <input id="split-reference" type="text" maxlength="100" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 font-mono text-sm uppercase">
+                </div>
+                <div class="sm:col-span-2">
+                    <label for="split-payment-comment" class="mb-1 block text-xs font-bold text-gray-700">Comment (optional)</label>
+                    <input id="split-payment-comment" type="text" maxlength="255" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
+                </div>
+            </div>
+
+            <p id="split-payment-feedback" class="hidden rounded-xl border px-3 py-2 text-sm font-semibold" role="status" aria-live="polite"></p>
+
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <button type="button" onclick="toggleSplitPaymentHistory()" class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">Payment History</button>
+                <span id="split-order-status" class="text-xs font-bold text-gray-500">Unpaid</span>
+            </div>
+            <div id="split-payment-history" class="hidden overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div id="split-payment-history-rows" class="divide-y divide-gray-100"></div>
+                <p id="split-payment-history-empty" class="hidden p-3 text-xs text-gray-500">No payments recorded yet.</p>
+            </div>
+            <div id="existing-split-setup" class="hidden space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <div>
+                    <p class="text-sm font-black text-indigo-950">Split remaining balance</p>
+                    <p id="existing-split-setup-hint" class="mt-1 text-xs text-indigo-800"></p>
+                </div>
+                <div>
+                    <label for="existing-split-count" class="mb-1 block text-xs font-bold text-indigo-900">Number of payers</label>
+                    <input id="existing-split-count" type="number" min="2" max="12" value="2" oninput="renderExistingSplitPortionInputs()"
+                        class="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm">
+                </div>
+                <div id="existing-split-portions" class="space-y-2"></div>
+            </div>
+            <div id="split-portions-summary" class="hidden space-y-2" aria-live="polite"></div>
+            </div>
+            <div id="partial-order-workflow" class="hidden space-y-4">
+                <div class="grid grid-cols-1 gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm sm:grid-cols-2">
+                    <div><span class="text-xs font-semibold text-gray-500">Order</span><p id="partial-order-number" class="font-bold text-gray-900">Loading order…</p></div>
+                    <div><span class="text-xs font-semibold text-gray-500">Customer / Table</span><p id="partial-order-customer" class="font-semibold text-gray-800">Not entered</p></div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="rounded-xl border border-gray-100 bg-white p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Total</p><p id="partial-order-total" class="mt-1 font-mono text-sm font-black text-gray-900">₱0.00</p></div>
+                    <div class="rounded-xl border border-gray-100 bg-white p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-gray-500">Paid</p><p id="partial-order-paid" class="mt-1 font-mono text-sm font-black text-heim-700">₱0.00</p></div>
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3"><p class="text-[10px] font-bold uppercase tracking-wide text-amber-800">Remaining</p><p id="partial-order-remaining" class="mt-1 font-mono text-sm font-black text-amber-900">₱0.00</p></div>
+                </div>
+                <div id="partial-order-actions" class="flex flex-wrap gap-2">
+                    <button type="button" onclick="openExistingOrderSplit()" class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-900 hover:bg-indigo-100">Split payment</button>
+                    <button type="button" onclick="voidExistingPartialOrder()" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50">Void order</button>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label for="partial-payment-amount" class="mb-1 block text-xs font-bold text-gray-700">Payment amount (₱)</label>
+                        <input id="partial-payment-amount" type="number" min="0.01" step="0.01" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-right font-mono text-sm font-bold">
+                    </div>
+                    <div>
+                        <label for="partial-payment-method" class="mb-1 block text-xs font-bold text-gray-700">Payment method</label>
+                        <select id="partial-payment-method" onchange="togglePartialPaymentFields()" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+                            <option value="cash">Cash</option><option value="online">Online Payment</option><option value="grabfood">GrabFood settlement</option>
+                        </select>
+                    </div>
+                    <div id="partial-cash-received-wrap">
+                        <label for="partial-cash-received" class="mb-1 block text-xs font-bold text-gray-700">Cash received (₱)</label>
+                        <input id="partial-cash-received" type="number" min="0" step="0.01" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-right font-mono text-sm">
+                    </div>
+                    <div id="partial-reference-wrap" class="hidden">
+                        <label for="partial-reference" class="mb-1 block text-xs font-bold text-gray-700">Reference number <span class="text-rose-600">*</span></label>
+                        <input id="partial-reference" type="text" maxlength="100" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 font-mono text-sm uppercase">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="partial-payment-comment" class="mb-1 block text-xs font-bold text-gray-700">Comment (optional)</label>
+                        <input id="partial-payment-comment" type="text" maxlength="255" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
+                    </div>
+                </div>
+                <p id="partial-payment-feedback" class="hidden rounded-xl border px-3 py-2 text-sm font-semibold" role="status" aria-live="polite"></p>
+                <div id="partial-payment-history" class="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    <div id="partial-payment-history-rows" class="divide-y divide-gray-100"></div>
+                    <p id="partial-payment-history-empty" class="hidden p-3 text-xs text-gray-500">No payments recorded yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid shrink-0 grid-cols-2 gap-2 border-t border-gray-100 bg-white p-3 sm:px-6">
+            <button type="button" onclick="closeSaveOrderModal()" class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">Close</button>
+            <button id="save-split-order-btn" type="button" onclick="saveUnpaidSplitOrder()" class="hidden rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-black text-indigo-800 hover:bg-indigo-50">Save Split Order</button>
+            <button id="create-existing-split-btn" type="button" onclick="saveExistingSplitPortions()" class="hidden rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-black text-white hover:bg-indigo-800">Save Split Portions</button>
+            <button id="split-add-payment-btn" type="button" onclick="submitSplitPayment()" class="hidden rounded-xl bg-heim-700 px-4 py-2.5 text-sm font-black text-white hover:bg-heim-800">Add Payment</button>
+            <button id="partial-add-payment-btn" type="button" onclick="submitPartialPayment()" class="hidden rounded-xl bg-heim-700 px-4 py-2.5 text-sm font-black text-white hover:bg-heim-800">Record Partial Payment</button>
+            <button id="split-complete-payment-btn" type="button" onclick="completeSplitPayment()" class="hidden col-span-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-700">Complete Payment</button>
         </div>
     </div>
 </div>
@@ -793,8 +979,9 @@
         <div class="p-6 space-y-4">
             <div class="grid grid-cols-2 gap-3 text-xs text-gray-600">
                 <div class="bg-gray-50 rounded-xl p-3">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-0.5">Cashier</p>
+                    <p class="text-[10px] tracking-wider font-bold text-gray-400 mb-0.5">Cashier</p>
                     <p class="font-bold text-gray-900 text-sm" id="si-cashier-name">{{ auth()->user()->name }}</p>
+                    <p class="text-xs font-medium text-gray-500" id="si-cashier-role">{{ ucfirst(auth()->user()->role) }}</p>
                 </div>
                 <div class="bg-gray-50 rounded-xl p-3">
                     <p class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-0.5">Date &amp; Time</p>
@@ -841,6 +1028,14 @@
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">Cash Sales</span>
                     <span class="font-mono font-bold text-gray-900" id="so-cash-sales">Hidden until counted</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">Cash In (Additions)</span>
+                    <span class="font-mono font-bold text-emerald-700" id="so-cash-in">Hidden until counted</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-500">Cash Out (Removals)</span>
+                    <span class="font-mono font-bold text-amber-700" id="so-cash-out">Hidden until counted</span>
                 </div>
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-500">Cash Refunds</span>
@@ -910,9 +1105,173 @@
             </div>
             <p id="so-error" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
         </div>
-        <div class="flex shrink-0 gap-3 px-6 pb-6 pt-2">
-            <button type="button" onclick="closeShiftOutModal()" class="brand-btn-cancel flex-1">Cancel</button>
-            <button type="button" onclick="submitShiftOut()" id="so-submit-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm transition-colors flex-1">End Shift</button>
+    </div>
+</div>
+
+{{-- ── Cash In / Cash Out Modal ────────────────────────────────────────────── --}}
+<div id="cash-movement-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" style="display:none">
+    <div class="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="flex shrink-0 items-center justify-between border-b border-gray-100 bg-gradient-to-r from-amber-50 to-white px-6 py-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 text-xl font-bold">💵</div>
+                <div>
+                    <h3 class="font-bold text-gray-900 text-base">Cash In / Cash Out</h3>
+                    <p class="text-xs text-gray-500">Record cash drawer physical addition or withdrawal</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeCashMovementModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        {{-- Nav Tabs inside Modal: New Movement vs Movement History --}}
+        <div class="flex border-b border-gray-100 bg-gray-50/70 px-6 pt-2">
+            <button type="button" id="cm-tab-new" onclick="switchCashMovementTab('new')"
+                class="border-b-2 border-heim-600 pb-2 px-3 text-xs font-bold text-heim-800 transition-colors">
+                New Movement
+            </button>
+            <button type="button" id="cm-tab-history" onclick="switchCashMovementTab('history')"
+                class="border-b-2 border-transparent pb-2 px-3 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors">
+                Shift Movements (<span id="cm-history-count">0</span>)
+            </button>
+        </div>
+
+        {{-- Scrollable Body --}}
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
+            {{-- Drawer State Banner --}}
+            <div class="rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50/50 via-gray-50 to-amber-50/30 p-3.5 text-xs">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600 font-medium">Estimated Drawer Cash:</span>
+                    <strong class="text-sm font-bold text-gray-900" id="cm-drawer-available">Loading...</strong>
+                </div>
+                <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Shift Cash In: <strong class="text-emerald-700" id="cm-summary-in">₱0.00</strong></span>
+                    <span>Shift Cash Out: <strong class="text-amber-700" id="cm-summary-out">₱0.00</strong></span>
+                </div>
+            </div>
+
+            {{-- ── TAB 1: New Movement Form ── --}}
+            <div id="cm-panel-new" class="space-y-4">
+                {{-- Movement Type Selection --}}
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1.5">Movement Type <span class="text-rose-500">*</span></label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" id="cm-btn-type-in" onclick="setCashMovementType('cash_in')"
+                            class="flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-emerald-50/80 p-3 text-emerald-900 font-bold text-xs shadow-xs transition-all">
+                            <span class="text-base">⬆️</span>
+                            <span>Cash In (Add)</span>
+                        </button>
+                        <button type="button" id="cm-btn-type-out" onclick="setCashMovementType('cash_out')"
+                            class="flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-3 text-gray-600 font-bold text-xs shadow-xs hover:border-amber-300 transition-all">
+                            <span class="text-base">⬇️</span>
+                            <span>Cash Out (Remove)</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="cm-type" value="cash_in">
+                </div>
+
+                {{-- Amount Input --}}
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-gray-700">Amount <span class="text-rose-500">*</span></label>
+                        <span id="cm-max-cashout-hint" class="hidden text-[11px] text-amber-700 font-medium">Max available: <strong id="cm-max-cashout-val">₱0.00</strong></span>
+                    </div>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-sm font-bold text-gray-400">₱</span>
+                        <input id="cm-amount" type="number" min="0.01" step="0.01" placeholder="0.00" required
+                            class="w-full pl-8 pr-4 py-2.5 text-base font-bold font-mono border-2 border-gray-200 rounded-xl focus:border-heim-600 focus:outline-none text-right">
+                    </div>
+                </div>
+
+                {{-- Reason Presets & Custom Input --}}
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Reason / Description <span class="text-rose-500">*</span></label>
+                    <div class="flex flex-wrap gap-1.5 mb-2" id="cm-reason-presets"></div>
+                    <input id="cm-reason" type="text" maxlength="500" placeholder="e.g. Change float addition" required
+                        class="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-heim-600 focus:outline-none">
+                </div>
+
+                {{-- Authorization Section --}}
+                <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-900">Authorization</span>
+                        @if(auth()->user()?->canAuthorize())
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Logged in as {{ ucfirst(auth()->user()->role) }}
+                            </span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                Manager Approval Required
+                            </span>
+                        @endif
+                    </div>
+                    @if(auth()->user()?->canAuthorize())
+                        <p class="text-[11px] text-amber-800">Authorized by your current manager/owner session (<strong>{{ auth()->user()->name }}</strong>).</p>
+                    @else
+                        <p class="text-[11px] text-amber-800">A manager or owner must enter their credentials to authorize this cash movement.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            <input id="cm-authorizer-email" type="email" placeholder="Manager Email"
+                                class="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none">
+                            <input id="cm-authorizer-password" type="password" placeholder="Manager Password"
+                                class="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none">
+                        </div>
+                    @endif
+                </div>
+
+                <p id="cm-error" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
+                <p id="cm-success" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2"></p>
+            </div>
+
+            {{-- ── TAB 2: Movement History & Reversals ── --}}
+            <div id="cm-panel-history" class="hidden space-y-3">
+                <div id="cm-history-empty" class="py-8 text-center text-gray-400 text-xs">
+                    No cash movements recorded on this shift yet.
+                </div>
+                <div id="cm-history-list" class="divide-y divide-gray-100"></div>
+            </div>
+        </div>
+
+        {{-- Footer actions --}}
+        <div class="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4 bg-gray-50/50">
+            <button type="button" onclick="closeCashMovementModal()" class="brand-btn-cancel flex-1">Close</button>
+            <button type="button" onclick="submitCashMovement()" id="cm-submit-btn"
+                class="brand-button flex-1">Confirm Cash In</button>
+        </div>
+    </div>
+</div>
+
+{{-- ── Cash Movement Reversal Modal ────────────────────────────────────────── --}}
+<div id="cm-reverse-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" style="display:none">
+    <div class="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-rose-50 to-white flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <span class="text-rose-600 font-bold text-lg">↩️</span>
+                <div>
+                    <h3 class="font-bold text-gray-900 text-sm">Reverse Cash Movement</h3>
+                    <p class="text-[11px] text-gray-500" id="cm-rev-summary">Movement #—</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeCashMovementReverseModal()" class="text-gray-400 hover:text-gray-600 text-xs font-bold">✕</button>
+        </div>
+        <div class="p-5 space-y-3">
+            <input type="hidden" id="cm-rev-id">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">Reason for Reversal <span class="text-rose-500">*</span></label>
+                <textarea id="cm-rev-reason" rows="2" minlength="5" maxlength="500" placeholder="e.g. Entered incorrect amount by mistake" required
+                    class="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs focus:border-rose-500 focus:outline-none"></textarea>
+            </div>
+            @unless(auth()->user()?->canAuthorize())
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-2.5 space-y-2">
+                <p class="text-[11px] font-bold text-amber-900">Manager Credentials Required</p>
+                <input id="cm-rev-email" type="email" placeholder="Manager Email" class="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none">
+                <input id="cm-rev-password" type="password" placeholder="Manager Password" class="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none">
+            </div>
+            @endunless
+            <p id="cm-rev-error" class="hidden text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></p>
+        </div>
+        <div class="flex gap-2 px-5 pb-5">
+            <button type="button" onclick="closeCashMovementReverseModal()" class="brand-btn-cancel flex-1 text-xs">Cancel</button>
+            <button type="button" onclick="submitCashMovementReverse()" id="cm-rev-submit-btn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors flex-1">Confirm Reversal</button>
         </div>
     </div>
 </div>
@@ -947,6 +1306,18 @@ const taxConfig = {
 const userCanAuthorize = @json(auth()->user()?->canAuthorize() ?? false);
 const posCartRecoveryKey = `pos-cart-recovery-{{ auth()->id() }}`;
 const posCheckoutErrors = @json($errors->all());
+const splitPaymentHistoryUrlTemplate = @json(route('orders.payments.history', ['order' => '__ORDER__']));
+const splitPaymentStoreUrlTemplate = @json(route('orders.payments.store', ['order' => '__ORDER__']));
+const splitPaymentPortionsUrlTemplate = @json(route('orders.payments.portions.store', ['order' => '__ORDER__']));
+const voidOrderUrlTemplate = @json(route('orders.void', ['order' => '__ORDER__']));
+const savedOrderResumeUrlTemplate = @json(route('pos.resume-held', ['order' => '__ORDER__']));
+const savedOrderPinUrlTemplate = @json(route('pos.toggle-pin', ['order' => '__ORDER__']));
+const savedOrderVoidUrlTemplate = @json(route('pos.discard-held', ['order' => '__ORDER__']));
+const openSplitOrdersUrl = @json(route('pos.split-orders'));
+const posSplitPaymentStoreUrl = @json(route('pos.store'));
+const splitOrderDetailsUrlTemplate = @json(route('orders.show', ['order' => '__ORDER__']));
+const posOrderPaymentRequestPrefix = `pos-order-payment-request-{{ auth()->id() }}-`;
+const posSplitOrderRequestKey = `pos-split-order-request-{{ auth()->id() }}`;
 
 let cart = [];
 let currentProduct = null;
@@ -963,8 +1334,19 @@ let currentOrderType = 'dine_in';
 let splitEnabled = false;
 let splitPeople = [];
 let activeSplitPerson = '';
+let splitItemAllocations = {};
 let stagedCheckoutPayments = [];
 let shiftPreviewTimer = null;
+let splitOrderId = null;
+let splitCheckoutRequestId = null;
+let splitPaymentRequestId = null;
+let partialOrderId = null;
+let partialPaymentRequestId = null;
+let partialRemainingBalance = 0;
+let splitOrderTotal = 0;
+let splitRemainingBalance = 0;
+let splitModalBusy = false;
+let splitExistingOrder = false;
 
 function persistPosCartRecovery() {
     if (cart.length === 0) {
@@ -1103,11 +1485,9 @@ function updateOrderSummary() {
     const customerEl = document.getElementById('current-order-customer');
     const typeEl = document.getElementById('current-order-type');
     const ticketEl = document.getElementById('current-ticket-number');
-    const customerLabel = document.getElementById('order-customer-label');
     if (customerEl) customerEl.textContent = customer || '—';
     if (typeEl) typeEl.textContent = ({ dine_in: 'Dine-in', take_out: 'Take-out', grab: 'GrabFood' })[currentOrderType] || 'Dine-in';
     if (ticketEl) ticketEl.textContent = currentHeldOrderNumber ? `#${currentHeldOrderNumber}` : 'New ticket';
-    if (customerLabel) customerLabel.textContent = currentOrderType === 'grab' ? 'Customer' : 'Customer / Table';
 }
 
 // ── Order Type ───────────────────────────────────────────────────────────────
@@ -1518,14 +1898,21 @@ function refreshCartItemKey(item) {
     return true;
 }
 
+function isSplitOrderEditorActive() {
+    return splitEnabled
+        && document.getElementById('save-order-modal')?.style.display === 'flex'
+        && !document.getElementById('split-order-workflow')?.classList.contains('hidden');
+}
+
 function addToCart(productId, productName, sizeId, sizeName, price, recipe = null, addons = [], comment = '', grabPrice = null) {
-    if (splitEnabled && !activeSplitPerson) {
+    const splitEditorActive = isSplitOrderEditorActive();
+    if (splitEditorActive && !activeSplitPerson) {
         showPosFeedback('Add or select a person before adding split-order items.', 'error');
         return;
     }
 
     const safeComment = (comment || '').trim();
-    const assignedTo = splitEnabled ? activeSplitPerson : '';
+    const assignedTo = splitEditorActive ? activeSplitPerson : '';
     const key = buildCartItemKey(productId, sizeId, addons.map(addon => Number(addon.id)), safeComment, assignedTo);
     const existing = cart.find(i => i.key === key);
     if (existing && existing.qty >= 999) {
@@ -1733,11 +2120,955 @@ function renderSplitPeople() {
         splitPeople.forEach(person => assigneeSelect.add(new Option(person, person)));
         assigneeSelect.value = splitPeople.includes(selectedPerson) ? selectedPerson : '';
     }
+    renderSplitOrderItems();
+}
+
+function renderSplitOrderItems() {
+    const container = document.getElementById('split-item-assignment-list');
+    if (!container) return;
+    if (!isSplitOrderEditorActive() || !splitEnabled || cart.length === 0) {
+        container.replaceChildren();
+        return;
+    }
+
+    container.innerHTML = `
+        <p class="text-xs font-bold text-indigo-900">Allocate every item quantity to a payer</p>
+        ${cart.map(item => {
+            let allocationState = splitItemAllocations[item.key];
+            if (!allocationState || allocationState.cartQuantity !== Number(item.qty)) {
+                allocationState = {
+                    cartQuantity: Number(item.qty),
+                    rows: [{
+                        payer: item.assigned_to || activeSplitPerson || '',
+                        quantity: Number(item.qty),
+                    }],
+                };
+                splitItemAllocations[item.key] = allocationState;
+            }
+            const allocations = allocationState.rows;
+            return `
+                <div class="space-y-2 rounded-lg border border-indigo-100 bg-white p-3">
+                    <p class="text-xs font-semibold text-gray-800">${escapeHtml(item.name)} · ${escapeHtml(item.size)} × ${item.qty}</p>
+                    ${allocations.map((allocation, index) => `
+                        <div class="grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+                            <select aria-label="Payer for ${escapeHtml(item.name)} allocation ${index + 1}" onchange="assignSplitOrderItem('${item.key}', this.value, ${index})" class="min-w-0 rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-xs font-semibold">
+                                <option value="">Choose payer</option>
+                                ${splitPeople.map(person => `<option value="${escapeHtml(person)}" ${person === allocation.payer ? 'selected' : ''}>${escapeHtml(person)}</option>`).join('')}
+                            </select>
+                            <input type="number" min="1" max="${Number(item.qty)}" step="1" value="${allocation.quantity}" aria-label="Quantity for ${escapeHtml(item.name)} allocation ${index + 1}" onchange="updateSplitItemAllocation('${item.key}', ${index}, this.value)" class="w-full rounded-lg border border-indigo-200 px-2 py-1.5 text-right text-xs">
+                        </div>
+                    `).join('')}
+                    <button type="button" onclick="addSplitItemAllocation('${item.key}')" class="text-xs font-bold text-indigo-800 hover:text-indigo-950">Split quantity across another payer</button>
+                </div>
+            `;
+        }).join('')}
+    `;
+}
+
+function syncSplitAllocationMode() {
+    const amountMode = document.getElementById('split-allocation-mode')?.value !== 'items';
+    document.getElementById('split-amount-allocation')?.classList.toggle('hidden', !amountMode);
+    document.getElementById('split-item-allocation')?.classList.toggle('hidden', amountMode);
+    if (amountMode) {
+        splitEnabled = false;
+        const toggle = document.getElementById('split-toggle');
+        if (toggle) toggle.checked = false;
+        document.getElementById('split-people-panel')?.classList.add('hidden');
+        renderSplitPeople();
+    }
+    if (amountMode && !document.getElementById('split-amount-portions')?.childElementCount) {
+        renderAmountSplitPortions();
+    }
+}
+
+function renderAmountSplitPortions() {
+    const countInput = document.getElementById('split-portion-count');
+    const container = document.getElementById('split-amount-portions');
+    if (!countInput || !container) return;
+    const count = Math.min(12, Math.max(2, parseInt(countInput.value, 10) || 2));
+    countInput.value = count;
+    const totalCents = Math.round(splitOrderTotal * 100);
+    const baseCents = Math.floor(totalCents / count);
+    const extraCents = totalCents % count;
+    container.innerHTML = Array.from({ length: count }, (_, index) => {
+        const amount = (baseCents + (index < extraCents ? 1 : 0)) / 100;
+        return `
+            <div class="grid grid-cols-2 gap-2">
+                <input type="text" maxlength="150" data-split-payer value="Person ${index + 1}" aria-label="Split payer ${index + 1}"
+                    class="min-w-0 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm">
+                <input type="number" min="0.01" step="0.01" data-split-amount value="${amount.toFixed(2)}" aria-label="Split amount ${index + 1}"
+                    class="min-w-0 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-right font-mono text-sm">
+            </div>
+        `;
+    }).join('');
+}
+
+function splitPortionsForSubmission() {
+    if (document.getElementById('split-allocation-mode')?.value === 'items') {
+        const rows = splitItemRowsForSubmission();
+        const totals = splitItemPayerTotals(rows);
+        return [...totals.entries()].map(([payer_name, amount]) => ({ payer_name, amount }));
+    }
+
+    const portions = [...document.querySelectorAll('#split-amount-portions [data-split-payer]')]
+        .map((payer, index) => ({
+            payer_name: payer.value.trim(),
+            amount: Math.round((Number(document.querySelectorAll('#split-amount-portions [data-split-amount]')[index]?.value) || 0) * 100) / 100,
+        }));
+    const names = portions.map(portion => portion.payer_name.toLocaleLowerCase());
+    const total = Math.round(portions.reduce((sum, portion) => sum + portion.amount, 0) * 100) / 100;
+    if (portions.some(portion => !portion.payer_name || portion.amount <= 0)
+        || new Set(names).size !== names.length
+        || total !== Math.round(splitOrderTotal * 100) / 100) {
+        throw new Error(`Enter unique payer names and portions that add up to ₱${splitOrderTotal.toFixed(2)}.`);
+    }
+    return portions;
+}
+
+function splitItemsForSubmission() {
+    if (document.getElementById('split-allocation-mode')?.value !== 'items') {
+        return cart.map(item => ({
+            product_size_id: item.product_size_id,
+            quantity: item.qty,
+            comment: item.comment || '',
+            assigned_to: '',
+            addon_ids: (item.addons || []).map(addon => addon.id),
+        }));
+    }
+
+    return splitItemRowsForSubmission().map(({ item, payer_name, quantity }) => ({
+        product_size_id: item.product_size_id,
+        quantity,
+        comment: item.comment || '',
+        assigned_to: payer_name,
+        addon_ids: (item.addons || []).map(addon => addon.id),
+    }));
+}
+
+function assignSplitOrderItem(key, person, allocationIndex = 0) {
+    const item = cart.find(candidate => candidate.key === key);
+    if (!item) return;
+    const allocations = splitItemAllocations[key]?.rows || [{ payer: '', quantity: Number(item.qty) }];
+    allocations[allocationIndex].payer = person.trim();
+    splitItemAllocations[key] = { cartQuantity: Number(item.qty), rows: allocations };
+    renderSplitPeople();
+    persistPosCartRecovery();
+}
+
+function addSplitItemAllocation(key) {
+    const item = cart.find(candidate => candidate.key === key);
+    if (!item) return;
+    const allocations = splitItemAllocations[key]?.rows || [{ payer: item.assigned_to || '', quantity: Number(item.qty) }];
+    allocations.push({ payer: activeSplitPerson || '', quantity: 1 });
+    splitItemAllocations[key] = { cartQuantity: Number(item.qty), rows: allocations };
+    renderSplitOrderItems();
+}
+
+function updateSplitItemAllocation(key, allocationIndex, quantity) {
+    const allocations = splitItemAllocations[key]?.rows;
+    if (!allocations?.[allocationIndex]) return;
+    allocations[allocationIndex].quantity = Math.max(1, parseInt(quantity, 10) || 1);
+    renderSplitOrderItems();
+}
+
+function splitItemRowsForSubmission() {
+    const rows = [];
+    for (const item of cart) {
+        const allocations = splitItemAllocations[item.key]?.rows || [];
+        const allocatedQuantity = allocations.reduce((sum, allocation) => sum + Number(allocation.quantity), 0);
+        if (allocations.some(allocation => !allocation.payer.trim())
+            || allocatedQuantity !== Number(item.qty)) {
+            throw new Error(`Allocate all ${item.qty} ${item.name} item(s) to named payers.`);
+        }
+        for (const allocation of allocations) {
+            rows.push({ item, payer_name: allocation.payer.trim(), quantity: Number(allocation.quantity) });
+        }
+    }
+    return rows;
+}
+
+function splitItemPayerTotals(rows) {
+    const subtotal = rows.reduce((sum, row) => sum + Number(row.item.unit_price || row.item.price) * row.quantity, 0);
+    let allocated = 0;
+    const totals = new Map();
+    rows.forEach((row, index) => {
+        const lineSubtotal = Number(row.item.unit_price || row.item.price) * row.quantity;
+        const due = index === rows.length - 1
+            ? Math.round((orderTotal - allocated) * 100) / 100
+            : Math.round((orderTotal * lineSubtotal / Math.max(subtotal, 0.01)) * 100) / 100;
+        allocated = Math.round((allocated + due) * 100) / 100;
+        totals.set(row.payer_name, Math.round(((totals.get(row.payer_name) || 0) + due) * 100) / 100);
+    });
+    return totals;
 }
 
 function selectSplitPersonByValue(person) {
     activeSplitPerson = splitPeople.includes(person) ? person : '';
     renderSplitPeople();
+}
+
+function openSaveOrderModal() {
+    splitOrderId = null;
+    splitExistingOrder = false;
+    partialOrderId = null;
+    const feedback = document.getElementById('save-order-feedback');
+    if (feedback) {
+        feedback.textContent = '';
+        feedback.classList.add('hidden');
+    }
+    document.getElementById('save-order-options')?.classList.remove('hidden');
+    document.getElementById('split-order-workflow')?.classList.add('hidden');
+    document.getElementById('save-order-subtitle').textContent = 'Choose how you want to save this order.';
+    document.getElementById('save-split-order-btn')?.classList.add('hidden');
+    document.getElementById('create-existing-split-btn')?.classList.add('hidden');
+    document.getElementById('create-existing-split-btn')?.classList.add('hidden');
+    document.getElementById('split-add-payment-btn')?.classList.add('hidden');
+    document.getElementById('split-complete-payment-btn')?.classList.add('hidden');
+    document.getElementById('partial-add-payment-btn')?.classList.add('hidden');
+    document.getElementById('partial-order-workflow')?.classList.add('hidden');
+    document.getElementById('existing-split-setup')?.classList.add('hidden');
+    document.getElementById('save-order-modal').style.display = 'flex';
+    loadOpenSplitOrders();
+}
+
+function handleOrderPanelAction() {
+    if (cart.length === 0) {
+        openHeldOrdersModal();
+        return;
+    }
+
+    openSaveOrderModal();
+}
+
+async function openHeldOrderSplitPayments(orderId) {
+    if (!await resumeHeldOrder(orderId)) return;
+    openSaveOrderModal();
+    chooseSplitOrder();
+}
+
+function viewRegularSavedOrdersFromSaveModal() {
+    closeSaveOrderModal();
+    openHeldOrdersModal();
+}
+
+function closeSaveOrderModal() {
+    document.getElementById('save-order-modal').style.display = 'none';
+    renderCart();
+}
+
+async function saveAsRegularOrder() {
+    await holdCurrentOrder();
+}
+
+function chooseSplitOrder(existingOrderId = null) {
+    if (existingOrderId && cart.length > 0) {
+        showSplitPaymentFeedback('Save or clear the current ticket before continuing another order.');
+        return;
+    }
+
+    splitOrderId = existingOrderId;
+    splitExistingOrder = Boolean(existingOrderId);
+    splitCheckoutRequestId = existingOrderId ? null : sessionStorage.getItem(posSplitOrderRequestKey);
+    splitPaymentRequestId = existingOrderId
+        ? sessionStorage.getItem(`${posOrderPaymentRequestPrefix}${existingOrderId}`)
+        : null;
+    splitOrderTotal = orderTotal;
+    splitRemainingBalance = orderTotal;
+    document.getElementById('save-order-options')?.classList.add('hidden');
+    document.getElementById('split-order-workflow')?.classList.remove('hidden');
+    document.getElementById('save-order-subtitle').textContent = 'Assign order items and record payments separately.';
+    document.getElementById('split-order-customer-entry')?.classList.toggle('hidden', splitExistingOrder);
+    document.getElementById('split-assignment-section')?.classList.toggle('hidden', splitExistingOrder);
+    document.getElementById('partial-order-workflow')?.classList.add('hidden');
+    document.getElementById('existing-split-setup')?.classList.add('hidden');
+    document.getElementById('create-existing-split-btn')?.classList.add('hidden');
+    document.getElementById('split-order-number').textContent = splitExistingOrder
+        ? 'Loading order…'
+        : 'New split order — not saved';
+    const customer = document.getElementById('order-customer-name')?.value.trim() || '';
+    document.getElementById('split-customer-name').value = customer;
+    document.getElementById('split-order-customer').textContent = customer || 'Not entered';
+    if (!splitExistingOrder) {
+        document.getElementById('split-allocation-mode').value = splitEnabled && cart.every(item => item.assigned_to) ? 'items' : 'amounts';
+        document.getElementById('split-portion-count').value = 2;
+        document.getElementById('split-amount-portions').replaceChildren();
+        syncSplitAllocationMode();
+        if (document.getElementById('split-allocation-mode').value === 'items') {
+            toggleSplitAssignments(true);
+        }
+        document.getElementById('split-total-order').textContent = `₱${splitOrderTotal.toFixed(2)}`;
+        document.getElementById('split-total-paid').textContent = '₱0.00';
+        document.getElementById('split-remaining').textContent = `₱${splitRemainingBalance.toFixed(2)}`;
+        document.getElementById('split-order-status').textContent = 'Unpaid';
+        document.getElementById('save-split-order-btn')?.classList.remove('hidden');
+        document.getElementById('split-add-payment-btn')?.classList.remove('hidden');
+        document.getElementById('split-payment-amount').value = splitRemainingBalance.toFixed(2);
+        document.getElementById('split-cash-received').value = splitRemainingBalance.toFixed(2);
+        document.getElementById('split-payment-history')?.classList.add('hidden');
+    } else {
+        document.getElementById('split-portions-summary')?.classList.add('hidden');
+        document.getElementById('save-split-order-btn')?.classList.add('hidden');
+        document.getElementById('split-add-payment-btn')?.classList.add('hidden');
+        document.getElementById('split-payment-history')?.classList.remove('hidden');
+        document.getElementById('split-payment-person').value = '';
+        document.getElementById('split-payment-amount').value = '';
+        document.getElementById('split-cash-received').value = '';
+    }
+    document.getElementById('split-payment-feedback')?.classList.add('hidden');
+    toggleSplitPaymentMethodFields();
+    if (splitExistingOrder) loadSplitPaymentHistory();
+    else {
+        renderCart();
+        if (cart.length === 0) {
+            showSplitPaymentFeedback('Add order items before saving a new split order or recording its first payment.');
+        }
+    }
+}
+
+async function loadOpenSplitOrders() {
+    const list = document.getElementById('open-split-orders-list');
+    if (!list) return;
+    try {
+        const response = await fetch(openSplitOrdersUrl, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Could not load unpaid orders.');
+        if (!data.orders?.length) {
+            list.innerHTML = '<p class="text-xs text-gray-500">No unpaid or partially paid orders to continue.</p>';
+            return;
+        }
+        list.innerHTML = data.orders.map(order => `
+            <button type="button" onclick="openExistingUnpaidOrder(${Number(order.id)}, ${order.payment_portions?.length > 0 ? 'true' : 'false'})" class="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left hover:border-indigo-300 hover:bg-indigo-50/50">
+                <span class="min-w-0"><span class="block truncate text-xs font-black text-gray-900">${escapeHtml(order.order_number)} · ${escapeHtml(order.customer_name || 'No customer name')}</span><span class="mt-1 block text-[11px] text-gray-500">Paid ₱${Number(order.total_paid).toFixed(2)} · Due ₱${Number(order.remaining_balance).toFixed(2)}</span></span>
+                <span class="shrink-0 text-xs font-bold text-indigo-800">Continue</span>
+            </button>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = `<p class="text-xs font-semibold text-rose-700">${escapeHtml(error.message || 'Could not load unpaid orders.')}</p>`;
+    }
+}
+
+function openExistingUnpaidOrder(orderId, hasSplitPortions) {
+    if (document.getElementById('held-orders-modal')?.style.display === 'flex') {
+        closeHeldOrdersModal();
+        openSaveOrderModal();
+    }
+
+    if (hasSplitPortions) {
+        chooseSplitOrder(orderId);
+    } else {
+        choosePartialOrder(orderId);
+    }
+}
+
+function choosePartialOrder(orderId) {
+    if (cart.length > 0) {
+        showSaveOrderError('Save or clear the current ticket before continuing another order.');
+        return;
+    }
+    partialOrderId = orderId;
+    partialPaymentRequestId = sessionStorage.getItem(`${posOrderPaymentRequestPrefix}${orderId}`);
+    document.getElementById('save-order-options')?.classList.add('hidden');
+    document.getElementById('split-order-workflow')?.classList.add('hidden');
+    document.getElementById('partial-order-workflow')?.classList.remove('hidden');
+    document.getElementById('save-order-subtitle').textContent = 'Record a regular payment against this order balance.';
+    document.getElementById('partial-add-payment-btn')?.classList.remove('hidden');
+    document.getElementById('split-add-payment-btn')?.classList.add('hidden');
+    document.getElementById('split-complete-payment-btn')?.classList.add('hidden');
+    document.getElementById('save-split-order-btn')?.classList.add('hidden');
+    document.getElementById('create-existing-split-btn')?.classList.add('hidden');
+    document.getElementById('partial-payment-feedback')?.classList.add('hidden');
+    togglePartialPaymentFields();
+    loadPartialPaymentHistory();
+}
+
+function openExistingOrderSplit() {
+    if (!partialOrderId) return;
+    chooseSplitOrder(partialOrderId);
+}
+
+function renderExistingSplitPortionInputs() {
+    const container = document.getElementById('existing-split-portions');
+    const countInput = document.getElementById('existing-split-count');
+    if (!container || !countInput) return;
+
+    const count = Math.min(12, Math.max(2, Number.parseInt(countInput.value, 10) || 2));
+    countInput.value = count;
+    const totalCents = Math.round(splitRemainingBalance * 100);
+    const baseCents = Math.floor(totalCents / count);
+    const remainderCents = totalCents % count;
+    container.innerHTML = Array.from({ length: count }, (_, index) => {
+        const amountCents = baseCents + (index < remainderCents ? 1 : 0);
+        return `
+            <div class="grid grid-cols-1 gap-2 rounded-lg border border-indigo-100 bg-white p-2 sm:grid-cols-2">
+                <input data-existing-payer type="text" maxlength="150" value="Payer ${index + 1}" aria-label="Payer ${index + 1} name"
+                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                <input data-existing-portion type="number" min="0.01" step="0.01" value="${(amountCents / 100).toFixed(2)}" aria-label="Payer ${index + 1} portion"
+                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-right font-mono text-sm">
+            </div>`;
+    }).join('');
+}
+
+async function saveExistingSplitPortions() {
+    if (!splitOrderId || splitModalBusy) return;
+    const payers = [...document.querySelectorAll('#existing-split-portions [data-existing-payer]')];
+    const amounts = [...document.querySelectorAll('#existing-split-portions [data-existing-portion]')];
+    const portions = payers.map((input, index) => ({
+        payer_name: input.value.trim(),
+        amount: Math.round((Number(amounts[index]?.value) || 0) * 100) / 100,
+    }));
+    const total = Math.round(portions.reduce((sum, portion) => sum + portion.amount, 0) * 100) / 100;
+    if (portions.some(portion => !portion.payer_name || portion.amount <= 0)) {
+        return showSplitPaymentFeedback('Enter a payer name and positive amount for every portion.');
+    }
+    if (new Set(portions.map(portion => portion.payer_name.toLocaleLowerCase())).size !== portions.length) {
+        return showSplitPaymentFeedback('Each split portion must have a unique payer name.');
+    }
+    if (total !== Math.round(splitRemainingBalance * 100) / 100) {
+        return showSplitPaymentFeedback(`Split portions must equal the remaining balance of ₱${splitRemainingBalance.toFixed(2)}.`);
+    }
+
+    splitModalBusy = true;
+    const button = document.getElementById('create-existing-split-btn');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const url = splitPaymentPortionsUrlTemplate.replace('__ORDER__', encodeURIComponent(splitOrderId));
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('#order-form input[name="_token"]')?.value || '',
+            },
+            body: JSON.stringify({ portions }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const validationMessage = data.errors ? Object.values(data.errors).flat()[0] : null;
+            throw new Error(validationMessage || data.message || 'Split portions could not be saved.');
+        }
+        showSplitPaymentFeedback('Split portions saved. Record payments for each payer below.', true);
+        await loadSplitPaymentHistory();
+    } catch (error) {
+        showSplitPaymentFeedback(error.message || 'Split portions could not be saved.');
+    } finally {
+        splitModalBusy = false;
+        button.disabled = false;
+        button.textContent = 'Save Split Portions';
+    }
+}
+
+function voidExistingPartialOrder() {
+    if (!partialOrderId) return;
+    const paidEl = document.getElementById('partial-order-paid');
+    const paidAmount = parseFloat(paidEl?.textContent.replace(/[^0-9.]/g, '') || '0');
+    if (paidAmount > 0) {
+        showPartialPaymentFeedback('Orders with recorded payments cannot be voided. Please issue a refund or cancellation instead.');
+        return;
+    }
+    openAuthModal(async data => {
+        const button = document.getElementById('partial-add-payment-btn');
+        button.disabled = true;
+        try {
+            const url = voidOrderUrlTemplate.replace('__ORDER__', encodeURIComponent(partialOrderId));
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: JSON.stringify(data),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                const validationMessage = result.errors ? Object.values(result.errors).flat()[0] : null;
+                throw new Error(validationMessage || result.error || result.message || 'Order could not be voided.');
+            }
+            showPartialPaymentFeedback(result.message || 'Order voided successfully.', true);
+            document.getElementById('partial-add-payment-btn')?.classList.add('hidden');
+            document.getElementById('partial-order-actions')?.classList.add('hidden');
+            await loadOpenSplitOrders();
+        } catch (error) {
+            showPartialPaymentFeedback(error.message || 'Order could not be voided.');
+        } finally {
+            button.disabled = false;
+        }
+    });
+}
+
+function togglePartialPaymentFields(orderType = null) {
+    const method = document.getElementById('partial-payment-method')?.value || 'cash';
+    document.getElementById('partial-cash-received-wrap')?.classList.toggle('hidden', method !== 'cash');
+    document.getElementById('partial-reference-wrap')?.classList.toggle('hidden', method !== 'online');
+    const grabOption = document.querySelector('#partial-payment-method option[value="grabfood"]');
+    if (grabOption && orderType) grabOption.disabled = orderType !== 'grab';
+}
+
+function showPartialPaymentFeedback(message, success = false) {
+    const feedback = document.getElementById('partial-payment-feedback');
+    feedback.textContent = message;
+    feedback.className = `rounded-xl border px-3 py-2 text-sm font-semibold ${success
+        ? 'border-heim-200 bg-heim-50 text-heim-800'
+        : 'border-rose-200 bg-rose-50 text-rose-700'}`;
+}
+
+function renderPartialPaymentHistory(payments) {
+    const rows = document.getElementById('partial-payment-history-rows');
+    const empty = document.getElementById('partial-payment-history-empty');
+    empty.classList.toggle('hidden', payments.length > 0);
+    rows.innerHTML = payments.map(payment => `
+        <div class="flex flex-wrap items-start justify-between gap-2 p-3 text-xs">
+            <div class="min-w-0">
+                <p class="font-bold text-gray-800">${escapeHtml(payment.person_name || 'Order payment')} · ${escapeHtml(payment.method)} · ${escapeHtml(payment.status)}</p>
+                <p class="mt-1 text-gray-500">${escapeHtml(payment.created_at || '')} · Cashier: ${escapeHtml(payment.cashier_name || 'Unknown')}</p>
+                ${payment.reference_number ? `<p class="mt-1 text-gray-500">Ref: ${escapeHtml(payment.reference_number)}</p>` : ''}
+                ${payment.comment ? `<p class="mt-1 text-gray-500">${escapeHtml(payment.comment)}</p>` : ''}
+            </div>
+            <span class="shrink-0 font-mono font-bold text-heim-800">₱${Number(payment.amount_paid).toFixed(2)}</span>
+        </div>
+    `).join('');
+}
+
+async function loadPartialPaymentHistory() {
+    if (!partialOrderId) return;
+    try {
+        const url = splitPaymentHistoryUrlTemplate.replace('__ORDER__', encodeURIComponent(partialOrderId));
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Could not load payment history.');
+        const order = data.order;
+        partialRemainingBalance = Number(order.remaining_balance || 0);
+        document.getElementById('partial-order-number').textContent = order.order_number;
+        document.getElementById('partial-order-customer').textContent = order.customer_name || 'Not entered';
+        document.getElementById('partial-order-total').textContent = `₱${Number(order.total).toFixed(2)}`;
+        document.getElementById('partial-order-paid').textContent = `₱${Number(order.total_paid).toFixed(2)}`;
+        document.getElementById('partial-order-remaining').textContent = `₱${partialRemainingBalance.toFixed(2)}`;
+        document.getElementById('partial-payment-amount').max = partialRemainingBalance.toFixed(2);
+        document.getElementById('partial-payment-amount').value = partialRemainingBalance > 0 ? partialRemainingBalance.toFixed(2) : '';
+        document.getElementById('partial-cash-received').value = partialRemainingBalance > 0 ? partialRemainingBalance.toFixed(2) : '';
+        document.getElementById('partial-add-payment-btn').classList.toggle('hidden', partialRemainingBalance <= 0);
+        const voidBtn = document.querySelector('#partial-order-actions button[onclick="voidExistingPartialOrder()"]');
+        if (voidBtn) voidBtn.classList.toggle('hidden', Number(order.total_paid || 0) > 0);
+        togglePartialPaymentFields(order.order_type);
+        renderPartialPaymentHistory(data.payments || []);
+    } catch (error) {
+        showPartialPaymentFeedback(error.message || 'Could not load payment history.');
+    }
+}
+
+async function submitPartialPayment() {
+    if (!partialOrderId) return;
+    const method = document.getElementById('partial-payment-method').value;
+    const amount = Math.round((Number(document.getElementById('partial-payment-amount').value) || 0) * 100) / 100;
+    const received = Math.round((Number(document.getElementById('partial-cash-received').value) || 0) * 100) / 100;
+    const reference = document.getElementById('partial-reference').value.trim();
+    const button = document.getElementById('partial-add-payment-btn');
+        if (amount <= 0 || amount > partialRemainingBalance) {
+            showPartialPaymentFeedback(`Enter an amount greater than zero and no more than ₱${partialRemainingBalance.toFixed(2)}.`);
+            return;
+        }
+        if (method === 'cash' && received < amount) {
+            showPartialPaymentFeedback('Cash received must cover this payment amount.');
+            return;
+        }
+        if (method === 'online' && !reference) {
+            showPartialPaymentFeedback('Enter the online payment reference number.');
+            return;
+        }
+        partialPaymentRequestId ||= crypto.randomUUID();
+        sessionStorage.setItem(`${posOrderPaymentRequestPrefix}${partialOrderId}`, partialPaymentRequestId);
+        button.disabled = true;
+        button.textContent = 'Saving…';
+        try {
+            const url = splitPaymentStoreUrlTemplate.replace('__ORDER__', encodeURIComponent(partialOrderId));
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('#order-form input[name="_token"]')?.value || '',
+                },
+                body: JSON.stringify({
+                    request_id: partialPaymentRequestId,
+                    amount_paid: amount,
+                    amount_received: method === 'cash' ? received : amount,
+                    payment_method: method,
+                    payment_status: 'paid',
+                    reference_number: reference,
+                    payment_comment: document.getElementById('partial-payment-comment').value.trim(),
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                const validationMessage = data.errors ? Object.values(data.errors).flat()[0] : null;
+                throw new Error(validationMessage || data.message || 'Payment could not be saved.');
+            }
+            partialPaymentRequestId = null;
+            sessionStorage.removeItem(`${posOrderPaymentRequestPrefix}${partialOrderId}`);
+            showPartialPaymentFeedback('Payment saved successfully.', true);
+            await loadPartialPaymentHistory();
+        } catch (error) {
+            showPartialPaymentFeedback(error.message || 'Payment could not be saved.');
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Record Partial Payment';
+    }
+}
+
+function toggleSplitPaymentMethodFields() {
+    const method = document.getElementById('split-payment-method')?.value || 'cash';
+    document.getElementById('split-cash-received-wrap')?.classList.toggle('hidden', method !== 'cash');
+    document.getElementById('split-reference-wrap')?.classList.toggle('hidden', method !== 'online');
+}
+
+function syncSplitCashReceived() {
+    const amount = document.getElementById('split-payment-amount');
+    const received = document.getElementById('split-cash-received');
+    if (amount && received && received.dataset.manual !== 'true') received.value = amount.value;
+}
+
+function toggleSplitPaymentHistory() {
+    const history = document.getElementById('split-payment-history');
+    if (!history) return;
+    history.classList.toggle('hidden');
+    if (!history.classList.contains('hidden') && splitOrderId) loadSplitPaymentHistory();
+}
+
+function showSplitPaymentFeedback(message, success = false) {
+    const feedback = document.getElementById('split-payment-feedback');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.className = `rounded-xl border px-3 py-2 text-sm font-semibold ${success
+        ? 'border-heim-200 bg-heim-50 text-heim-800'
+        : 'border-rose-200 bg-rose-50 text-rose-700'}`;
+}
+
+function applySplitOrderSummary(order) {
+    splitOrderId = order.id;
+    splitExistingOrder = true;
+    splitOrderTotal = Number(order.total || 0);
+    splitRemainingBalance = Number(order.remaining_balance || 0);
+    document.getElementById('split-order-number').textContent = order.order_number;
+    document.getElementById('split-order-customer').textContent = order.customer_name || 'Not entered';
+    document.getElementById('split-customer-name').value = order.customer_name || '';
+    document.getElementById('split-total-order').textContent = `₱${splitOrderTotal.toFixed(2)}`;
+    document.getElementById('split-total-paid').textContent = `₱${Number(order.total_paid || 0).toFixed(2)}`;
+    document.getElementById('split-remaining').textContent = `₱${splitRemainingBalance.toFixed(2)}`;
+    const state = splitRemainingBalance <= 0 ? 'Fully Paid' : (Number(order.total_paid || 0) > 0 ? 'Partially Paid' : 'Unpaid');
+    document.getElementById('split-order-status').textContent = state;
+    document.getElementById('split-add-payment-btn').classList.toggle('hidden', splitRemainingBalance <= 0);
+    document.getElementById('save-split-order-btn').classList.add('hidden');
+    document.getElementById('split-complete-payment-btn').classList.toggle('hidden', splitRemainingBalance > 0);
+    document.getElementById('split-payment-amount').max = splitRemainingBalance.toFixed(2);
+    document.getElementById('split-payment-amount').value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+    document.getElementById('split-cash-received').value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+    document.getElementById('split-payment-method').querySelector('option[value="grabfood"]').disabled = order.order_type !== 'grab';
+    const portionsContainer = document.getElementById('split-portions-summary');
+    const portions = order.payment_portions || [];
+    const needsPortionSetup = splitExistingOrder && portions.length === 0 && splitRemainingBalance > 0;
+    document.getElementById('existing-split-setup')?.classList.toggle('hidden', !needsPortionSetup);
+    document.getElementById('create-existing-split-btn')?.classList.toggle('hidden', !needsPortionSetup);
+    document.getElementById('existing-split-setup-hint').textContent =
+        `Allocate the remaining ₱${splitRemainingBalance.toFixed(2)} between the payers. Earlier payments remain recorded and unchanged.`;
+    if (needsPortionSetup && !document.querySelector('#existing-split-portions [data-existing-payer]')) {
+        renderExistingSplitPortionInputs();
+    }
+    document.getElementById('split-add-payment-btn').classList.toggle(
+        'hidden',
+        splitRemainingBalance <= 0 || needsPortionSetup
+    );
+    document.getElementById('create-existing-split-btn')?.classList.toggle('hidden', !needsPortionSetup);
+    const payerInput = document.getElementById('split-payment-person');
+    const payerOptions = document.getElementById('split-payment-payers');
+    if (payerOptions) {
+        payerOptions.replaceChildren(...portions.map(portion => new Option(
+            `${portion.payer_name} · ₱${Number(portion.remaining_balance).toFixed(2)} due`,
+            portion.payer_name
+        )));
+    }
+    if (payerInput) payerInput.setAttribute('list', 'split-payment-payers');
+    portionsContainer.classList.toggle('hidden', portions.length === 0);
+    portionsContainer.innerHTML = portions.map(portion => `
+        <div class="flex items-center justify-between gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs">
+            <span class="font-bold text-gray-800">${escapeHtml(portion.payer_name)}</span>
+            <span class="text-right text-gray-600">₱${Number(portion.amount_paid).toFixed(2)} paid · ₱${Number(portion.remaining_balance).toFixed(2)} due</span>
+        </div>
+    `).join('');
+}
+
+function renderSplitPaymentHistory(payments) {
+    const rows = document.getElementById('split-payment-history-rows');
+    const empty = document.getElementById('split-payment-history-empty');
+    if (!rows || !empty) return;
+    empty.classList.toggle('hidden', payments.length > 0);
+    rows.innerHTML = payments.map(payment => `
+        <div class="flex flex-wrap items-start justify-between gap-2 p-3 text-xs">
+            <div class="min-w-0">
+                <p class="font-bold text-gray-800">${escapeHtml(payment.person_name || 'Order payment')} · ${escapeHtml(payment.method)}</p>
+                <p class="mt-1 text-gray-500">${escapeHtml(payment.created_at || '')} · Cashier: ${escapeHtml(payment.cashier_name || 'Unknown')}</p>
+                ${payment.reference_number ? `<p class="mt-1 text-gray-500">Ref: ${escapeHtml(payment.reference_number)}</p>` : ''}
+                ${payment.comment ? `<p class="mt-1 text-gray-500">${escapeHtml(payment.comment)}</p>` : ''}
+            </div>
+            <span class="shrink-0 font-mono font-bold text-heim-800">₱${Number(payment.amount_paid).toFixed(2)}</span>
+        </div>
+    `).join('');
+}
+
+async function loadSplitPaymentHistory() {
+    if (!splitOrderId) return;
+    try {
+        const url = splitPaymentHistoryUrlTemplate.replace('__ORDER__', encodeURIComponent(splitOrderId));
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || 'Could not load payment history.');
+        applySplitOrderSummary(data.order);
+        renderSplitPaymentHistory(data.payments || []);
+    } catch (error) {
+        showSplitPaymentFeedback(error.message || 'Could not load payment history.');
+    }
+}
+
+async function saveUnpaidSplitOrder() {
+    if (splitModalBusy || splitOrderId) return;
+    const customerName = document.getElementById('split-customer-name').value.trim();
+    const cashier = document.getElementById('cashier-name').value.trim();
+    if (!customerName) return showSplitPaymentFeedback('Enter a customer name or table before saving the split order.');
+    if (!cashier) return showSplitPaymentFeedback('Cashier information is unavailable.');
+    if (cart.length === 0) return showSplitPaymentFeedback('Add order items before saving the split order.');
+    if (currentDiscountAmount > 0 && orderTotal <= 0) return showSplitPaymentFeedback('The discount must leave a positive order total.');
+    let portions;
+    try {
+        portions = splitPortionsForSubmission();
+    } catch (error) {
+        return showSplitPaymentFeedback(error.message);
+    }
+
+    splitModalBusy = true;
+    const button = document.getElementById('save-split-order-btn');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    splitCheckoutRequestId ||= crypto.randomUUID();
+    sessionStorage.setItem(posSplitOrderRequestKey, splitCheckoutRequestId);
+    const body = {
+        split_payment: 1,
+        save_split_order: 1,
+        checkout_request_id: splitCheckoutRequestId,
+        payment_request_id: splitCheckoutRequestId,
+        cashier_name: cashier,
+        order_type: currentOrderType,
+        grab_order_code: document.getElementById('grab-order-code')?.value.trim() || null,
+        rider_code: document.getElementById('grab-rider-code')?.value.trim() || null,
+        customer_name: customerName,
+        payment_method: 'cash',
+        amount_received: 0,
+        amount_paid: 0,
+        discount: document.getElementById('discount-type').value === 'custom' ? currentDiscountAmount : 0,
+        discount_type: document.getElementById('discount-type').value || 'none',
+        discount_label: document.getElementById('discount-type').selectedOptions[0]?.text || '',
+        discount_id_number: document.getElementById('discount-id-number')?.value.trim() || '',
+        held_order_id: currentHeldOrderId,
+        split_portions: portions,
+        items: splitItemsForSubmission(),
+    };
+
+    try {
+        const response = await fetch(posSplitPaymentStoreUrl, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('#order-form input[name="_token"]')?.value || '',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const validationMessage = data.errors ? Object.values(data.errors).flat()[0] : null;
+            throw new Error(validationMessage || data.message || 'Split order could not be saved.');
+        }
+
+        applySplitOrderSummary(data.order);
+        clearSplitCartAfterFirstPayment();
+        await loadSplitPaymentHistory();
+        splitCheckoutRequestId = null;
+        sessionStorage.removeItem(posSplitOrderRequestKey);
+        showSplitPaymentFeedback('Split order saved. Record payments here or reopen it from Save Order.', true);
+    } catch (error) {
+        showSplitPaymentFeedback(error.message || 'Split order could not be saved.');
+    } finally {
+        splitModalBusy = false;
+        button.disabled = false;
+        button.textContent = 'Save Split Order';
+    }
+}
+
+async function submitSplitPayment() {
+    if (splitModalBusy) return;
+
+    const method = document.getElementById('split-payment-method').value;
+    const amount = Math.round((Number(document.getElementById('split-payment-amount').value) || 0) * 100) / 100;
+    const amountReceived = Math.round((Number(document.getElementById('split-cash-received').value) || 0) * 100) / 100;
+    const personName = document.getElementById('split-payment-person').value.trim();
+    const referenceNumber = document.getElementById('split-reference').value.trim();
+    const comment = document.getElementById('split-payment-comment').value.trim();
+    const customerName = document.getElementById('split-customer-name').value.trim();
+
+    if (!personName) return showSplitPaymentFeedback('Enter the name of the person making this payment.');
+    if (amount <= 0 || amount > splitRemainingBalance) {
+        return showSplitPaymentFeedback(`Enter an amount greater than zero and no more than the ₱${splitRemainingBalance.toFixed(2)} remaining balance.`);
+    }
+    if (!splitOrderId && (!customerName || cart.length === 0)) {
+        return showSplitPaymentFeedback('Enter a customer name or table and add order items before recording the first payment.');
+    }
+    if (method === 'cash' && amountReceived < amount) {
+        return showSplitPaymentFeedback('Cash received must be at least the payment amount.');
+    }
+    if (method === 'online' && !referenceNumber) {
+        return showSplitPaymentFeedback('Enter the online payment reference number.');
+    }
+    if (method === 'grabfood' && currentOrderType !== 'grab' && !splitOrderId) {
+        return showSplitPaymentFeedback('GrabFood settlement is only available for Grab orders.');
+    }
+    let newOrderPortions = null;
+    if (!splitOrderId) {
+        try {
+            newOrderPortions = splitPortionsForSubmission();
+        } catch (error) {
+            return showSplitPaymentFeedback(error.message);
+        }
+        const payerPortion = newOrderPortions.find(portion => portion.payer_name === personName);
+        if (!payerPortion || amount > payerPortion.amount) {
+            return showSplitPaymentFeedback('Payment cannot exceed the selected payer’s allocated portion.');
+        }
+    }
+
+    splitModalBusy = true;
+    const button = document.getElementById('split-add-payment-btn');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    document.getElementById('split-payment-feedback')?.classList.add('hidden');
+
+    const csrfToken = document.querySelector('#order-form input[name="_token"]')?.value || '';
+    const headers = { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken };
+    const requestId = splitPaymentRequestId || sessionStorage.getItem(`${posOrderPaymentRequestPrefix}${splitOrderId || 'new'}`) || crypto.randomUUID();
+    let url;
+    let body;
+
+    if (!splitOrderId) {
+        splitCheckoutRequestId ||= crypto.randomUUID();
+        sessionStorage.setItem(posSplitOrderRequestKey, splitCheckoutRequestId);
+        splitPaymentRequestId = requestId;
+        url = posSplitPaymentStoreUrl;
+        body = {
+            split_payment: 1,
+            checkout_request_id: splitCheckoutRequestId,
+            payment_request_id: splitCheckoutRequestId,
+            cashier_name: document.getElementById('cashier-name').value.trim(),
+            order_type: currentOrderType,
+            grab_order_code: document.getElementById('grab-order-code')?.value.trim() || null,
+            rider_code: document.getElementById('grab-rider-code')?.value.trim() || null,
+            customer_name: customerName,
+            payment_method: method,
+            amount_received: method === 'cash' ? amountReceived : amount,
+            amount_paid: amount,
+            person_name: personName,
+            payment_comment: comment,
+            reference_number: referenceNumber,
+            discount: document.getElementById('discount-type').value === 'custom' ? currentDiscountAmount : 0,
+            discount_type: document.getElementById('discount-type').value || 'none',
+            discount_label: document.getElementById('discount-type').selectedOptions[0]?.text || '',
+            discount_id_number: document.getElementById('discount-id-number')?.value.trim() || '',
+            held_order_id: currentHeldOrderId,
+            split_portions: newOrderPortions,
+            items: splitItemsForSubmission(),
+        };
+    } else {
+        splitPaymentRequestId = requestId;
+        sessionStorage.setItem(`${posOrderPaymentRequestPrefix}${splitOrderId}`, requestId);
+        url = splitPaymentStoreUrlTemplate.replace('__ORDER__', encodeURIComponent(splitOrderId));
+        body = {
+            split_payment: 1,
+            request_id: requestId,
+            person_name: personName,
+            amount_paid: amount,
+            amount_received: method === 'cash' ? amountReceived : amount,
+            payment_method: method,
+            payment_status: 'paid',
+            reference_number: referenceNumber,
+            payment_comment: comment,
+        };
+    }
+
+    try {
+        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const validationMessage = data.errors ? Object.values(data.errors).flat()[0] : null;
+            throw new Error(validationMessage || data.message || 'Payment could not be saved.');
+        }
+
+        // Always refresh balance from the authoritative server response
+        if (data.order) {
+            applySplitOrderSummary(data.order);
+            if (!splitExistingOrder) {
+                clearSplitCartAfterFirstPayment();
+            }
+        } else if (typeof data.remaining_balance === 'number') {
+            // Fallback: use server-provided remaining_balance directly
+            splitRemainingBalance = data.remaining_balance;
+            document.getElementById('split-remaining').textContent = `₱${splitRemainingBalance.toFixed(2)}`;
+            document.getElementById('split-payment-amount').value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+            document.getElementById('split-cash-received').value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+            document.getElementById('split-add-payment-btn').classList.toggle('hidden', splitRemainingBalance <= 0);
+            document.getElementById('split-complete-payment-btn').classList.toggle('hidden', splitRemainingBalance > 0);
+        }
+        // Clear payment inputs so the next payer can enter cleanly
+        document.getElementById('split-payment-person').value = '';
+        document.getElementById('split-payment-amount').value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+        const cashReceivedInput = document.getElementById('split-cash-received');
+        cashReceivedInput.value = splitRemainingBalance > 0 ? splitRemainingBalance.toFixed(2) : '';
+        cashReceivedInput.dataset.manual = 'false';
+        document.getElementById('split-reference').value = '';
+        document.getElementById('split-payment-comment').value = '';
+        document.getElementById('split-payment-history').classList.remove('hidden');
+        await loadSplitPaymentHistory();
+        splitPaymentRequestId = null;
+        if (splitOrderId) sessionStorage.removeItem(`${posOrderPaymentRequestPrefix}${splitOrderId}`);
+        splitCheckoutRequestId = null;
+        sessionStorage.removeItem(posSplitOrderRequestKey);
+        showSplitPaymentFeedback('Payment saved successfully.', true);
+    } catch (error) {
+        showSplitPaymentFeedback(error.message || 'Payment could not be saved.');
+    } finally {
+        splitModalBusy = false;
+        button.disabled = false;
+        button.textContent = 'Add Payment';
+    }
+}
+
+function clearSplitCartAfterFirstPayment() {
+    cart = [];
+    currentHeldOrderId = null;
+    currentHeldOrderNumber = null;
+    document.getElementById('order-customer-name').value = '';
+    splitEnabled = false;
+    splitPeople = [];
+    activeSplitPerson = '';
+    const toggle = document.getElementById('split-toggle');
+    if (toggle) toggle.checked = false;
+    document.getElementById('split-people-panel')?.classList.add('hidden');
+    renderSplitPeople();
+    renderCart();
+    updateTotals();
+    persistPosCartRecovery();
+    const checkoutButton = document.getElementById('checkout-btn');
+    if (checkoutButton) checkoutButton.disabled = true;
+}
+
+function completeSplitPayment() {
+    if (!splitOrderId || splitRemainingBalance > 0) return;
+    window.location.href = splitOrderDetailsUrlTemplate.replace('__ORDER__', encodeURIComponent(splitOrderId));
 }
 
 function appendItemComment(key, preset) {
@@ -1808,10 +3139,23 @@ function renderCart() {
     const listEl  = document.getElementById('cart-list');
     const btn     = document.getElementById('checkout-btn');
     const holdBtn = document.getElementById('hold-btn');
+    const holdButtonLabel = document.getElementById('hold-button-label');
     const badge   = document.getElementById('cart-badge');
     const totalCount = cart.reduce((sum, i) => sum + (parseInt(i.qty, 10) || 0), 0);
     if (badge) badge.textContent = totalCount;
-    if (holdBtn) holdBtn.disabled = cart.length === 0;
+    if (holdBtn) holdBtn.disabled = false;
+    if (holdButtonLabel) holdButtonLabel.textContent = cart.length === 0 ? 'View Saved' : 'Save Order';
+    if (holdBtn) {
+        const viewingSavedOrders = cart.length === 0;
+        holdBtn.title = viewingSavedOrders ? 'View saved orders' : 'Choose how to save this order';
+        holdBtn.setAttribute('aria-label', viewingSavedOrders ? 'View saved orders' : 'Save current order');
+        holdBtn.classList.toggle('border-amber-300', viewingSavedOrders);
+        holdBtn.classList.toggle('text-amber-800', viewingSavedOrders);
+        holdBtn.classList.toggle('hover:bg-amber-50', viewingSavedOrders);
+        holdBtn.classList.toggle('border-heim-300', !viewingSavedOrders);
+        holdBtn.classList.toggle('text-heim-800', !viewingSavedOrders);
+        holdBtn.classList.toggle('hover:bg-heim-50', !viewingSavedOrders);
+    }
     persistPosCartRecovery();
     updateMobileOrderShortcut();
 
@@ -1828,6 +3172,7 @@ function renderCart() {
         const names = (item.recipe || []).map(r => r.ingredient && r.ingredient.name ? r.ingredient.name : '').filter(Boolean);
         return names.length ? `Ingredients: ${names.join(', ')}` : '';
     }).filter(Boolean).join(' | ');
+    const showSplitControls = isSplitOrderEditorActive();
 
     if (listEl) {
         listEl.innerHTML = cart.map(item => {
@@ -1851,9 +3196,9 @@ function renderCart() {
                                 <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-heim-50 text-heim-800 border border-heim-200">${escapeHtml(item.size)}</span>
                                 <p class="mt-1 text-xs font-semibold text-slate-600">₱${item.unit_price.toFixed(2)} × ${item.qty}</p>
                                 ${item.addons.length ? `<span class="ml-1 text-[11px] text-slate-500">${item.addons.length} add-on${item.addons.length === 1 ? '' : 's'}</span>` : ''}
-                                ${splitEnabled
+                                ${showSplitControls
                                     ? `<p class="mt-1 text-xs font-medium ${item.assigned_to ? 'text-heim-800' : 'text-amber-700'}">${item.assigned_to ? `Assigned to ${escapeHtml(item.assigned_to)}` : 'Unassigned · edit item to assign'}</p>`
-                                    : (item.assigned_to ? `<p class="mt-1 text-xs font-medium text-heim-800">Assigned to ${escapeHtml(item.assigned_to)}</p>` : '')}
+                                    : ''}
                                 ${item.comment
                                     ? `<p class="mt-1 text-xs text-amber-800"><span class="font-semibold">📝</span> ${escapeHtml(item.comment)}</p>`
                                     : `<button type="button" onclick="focusItemComment('${item.key}')" class="mt-1 text-xs font-semibold text-heim-700 hover:text-heim-900">+ Add comment</button>`}
@@ -1866,7 +3211,7 @@ function renderCart() {
                                         <button type="button" onclick="toggleItemDetails('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit item</button>
                                         <button type="button" onclick="focusItemComment('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Add comment</button>
                                         <button type="button" onclick="focusItemQuantity('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Change quantity</button>
-                                        <button type="button" onclick="focusItemAssignee('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Move to person</button>
+                                        ${showSplitControls ? `<button type="button" onclick="focusItemAssignee('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Move to person</button>` : ''}
                                         <button type="button" onclick="removeItem('${item.key}')" class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50">Remove item</button>
                                     </div>
                                 </details>
@@ -1918,7 +3263,7 @@ function renderCart() {
                                 aria-label="Special instruction for ${escapeHtml(item.name)}"
                                 placeholder="e.g. Less ice, no sugar, extra hot..."
                                 class="w-full text-sm px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-heim-500 focus:border-heim-400 text-slate-800 placeholder-slate-400 font-medium transition-colors">
-                            ${splitEnabled ? `
+                            ${showSplitControls ? `
                                 <label class="block text-xs font-semibold text-slate-700 mt-2.5 mb-1">Assigned person</label>
                                 <select id="cart-item-assignee-${item.key}" onchange="setItemAssignee('${item.key}', this.value)"
                                     aria-label="Assign ${escapeHtml(item.name)} to a person"
@@ -1926,7 +3271,7 @@ function renderCart() {
                                     <option value="">Not assigned</option>
                                     ${[...new Set([...splitPeople, ...(item.assigned_to ? [item.assigned_to] : [])])].map(person => `<option value="${escapeHtml(person)}" ${person === item.assigned_to ? 'selected' : ''}>${escapeHtml(person)}</option>`).join('')}
                                 </select>
-                            ` : (item.assigned_to ? `<p class="mt-2 text-xs font-black text-indigo-700 flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>For: ${escapeHtml(item.assigned_to)}</p>` : '')}
+                            ` : ''}
                             <div class="flex flex-wrap gap-1.5 mt-2.5">
                                 <button type="button" onclick="appendItemComment('${item.key}', 'Less ice')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🧊 Less ice</button>
                                 <button type="button" onclick="appendItemComment('${item.key}', 'No sugar')" class="text-xs font-bold bg-white border-2 border-slate-200 hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 px-3 py-1.5 rounded-xl text-slate-600 transition-colors">🚫 No sugar</button>
@@ -2068,7 +3413,6 @@ function checkoutPayerTotals() {
 
 function updateCheckoutPayers() {
     const payerSelect = document.getElementById('payment-person-name');
-    const hint = document.getElementById('payer-assignment-hint');
     if (!payerSelect) return;
 
     const reviewCount = document.getElementById('checkout-review-count');
@@ -2076,12 +3420,11 @@ function updateCheckoutPayers() {
     if (reviewCount) reviewCount.textContent = `· ${cart.length} ${cart.length === 1 ? 'item' : 'items'}`;
     if (reviewRows) {
         reviewRows.innerHTML = cart.map(item => {
-            const person = (item.assigned_to || '').trim();
             return `
                 <div class="flex items-start justify-between gap-3 px-3 py-2.5 text-xs">
                     <div class="min-w-0">
                         <p class="font-semibold text-slate-800">${escapeHtml(item.name)} <span class="font-normal text-slate-500">· ${escapeHtml(item.size)} × ${item.qty}</span></p>
-                        <p class="mt-0.5 text-slate-500">${person ? `Assigned to ${escapeHtml(person)}` : 'Not assigned to a person'}${item.comment ? ` · ${escapeHtml(item.comment)}` : ''}</p>
+                        ${item.comment ? `<p class="mt-0.5 text-slate-500">${escapeHtml(item.comment)}</p>` : ''}
                         ${item.addons?.length ? `<p class="mt-0.5 text-slate-500">Add-ons: ${item.addons.map(addon => escapeHtml(addon.name)).join(', ')}</p>` : ''}
                     </div>
                     <span class="shrink-0 font-mono font-semibold text-slate-800">₱${(item.unit_price * item.qty).toFixed(2)}</span>
@@ -2092,20 +3435,13 @@ function updateCheckoutPayers() {
 
     const selectedPerson = payerSelect.value;
     const totals = checkoutPayerTotals();
-    payerSelect.replaceChildren(new Option(
-        totals.size ? 'Full order / select a person' : 'Full order payment',
-        ''
-    ));
-
-    totals.forEach((amount, person) => {
-        const alreadyPaid = stagedCheckoutPayments
-            .filter(payment => payment.person_name === person)
-            .reduce((sum, payment) => sum + payment.amount_paid, 0);
-        const remaining = Math.max(0, Math.round((amount - alreadyPaid) * 100) / 100);
-        payerSelect.add(new Option(`${person} · ₱${remaining.toFixed(2)} remaining`, person));
-    });
-    if ([...payerSelect.options].some(option => option.value === selectedPerson)) {
-        payerSelect.value = selectedPerson;
+    if (payerSelect instanceof HTMLSelectElement) {
+        payerSelect.replaceChildren(new Option('Full order payment', ''));
+        if ([...payerSelect.options].some(option => option.value === selectedPerson)) {
+            payerSelect.value = selectedPerson;
+        }
+    } else {
+        payerSelect.value = '';
     }
 
     const summary = document.getElementById('checkout-split-summary');
@@ -2126,12 +3462,6 @@ function updateCheckoutPayers() {
                 </div>
             `;
         }).join('');
-    }
-
-    if (hint) {
-        hint.textContent = totals.size
-            ? 'Record payments for each person’s assigned products. A single full-order payment may leave the person blank.'
-            : 'No assigned people. This payment applies to the full order.';
     }
 
     const stagedSummary = document.getElementById('checkout-staged-summary');
@@ -2167,25 +3497,14 @@ function selectCheckoutPayer() {
     const payerSelect = document.getElementById('payment-person-name');
     const amountInput = document.getElementById('amount-to-pay');
     const hint = document.getElementById('payer-assignment-hint');
-    const totals = checkoutPayerTotals();
-    const person = payerSelect?.value || '';
-    const paidForPerson = stagedCheckoutPayments
-        .filter(payment => person ? payment.person_name === person : true)
-        .reduce((sum, payment) => sum + payment.amount_paid, 0);
-    const assignedDue = person ? (totals.get(person) || 0) : orderTotal;
-    const due = Math.max(0, Math.round((assignedDue - paidForPerson) * 100) / 100);
+    const due = orderTotal;
 
     if (amountInput) {
         amountInput.value = due.toFixed(2);
         amountInput.max = due.toFixed(2);
     }
-    if (hint) {
-        hint.textContent = person
-            ? `${person} has ₱${due.toFixed(2)} remaining on assigned products.`
-            : (totals.size
-                ? `The full order has ₱${due.toFixed(2)} remaining. Choose a person for a split payment.`
-                : 'No assigned people. This payment applies to the full order.');
-    }
+    if (payerSelect) payerSelect.value = '';
+    if (hint) hint.textContent = 'This payment applies to the full order.';
 
     computeChange();
     updateOnlineAmount();
@@ -2207,11 +3526,6 @@ function openCheckout() {
         showPosFeedback('The discount must leave a positive order total.', 'error');
         return;
     }
-    if (splitEnabled && (!splitPeople.length || cart.some(item => !item.assigned_to))) {
-        showPosFeedback('Assign every order item to a person before starting split payment.', 'error');
-        return;
-    }
-
     clearPosFeedback();
     stagedCheckoutPayments = [];
 
@@ -2223,12 +3537,17 @@ function openCheckout() {
     const amtInput = document.getElementById('amount-received');
     if (amtInput) amtInput.value = '';
     const amountToPayInput = document.getElementById('amount-to-pay');
-    if (amountToPayInput) amountToPayInput.value = orderTotal.toFixed(2);
+    if (amountToPayInput) {
+        amountToPayInput.value = orderTotal.toFixed(2);
+        amountToPayInput.max = orderTotal.toFixed(2);
+    }
     const personInput = document.getElementById('payment-person-name');
     if (personInput) personInput.value = '';
+    const checkoutCustomerInput = document.getElementById('checkout-customer-name');
+    if (checkoutCustomerInput) checkoutCustomerInput.value = document.getElementById('order-customer-name')?.value.trim() || '';
     updateCheckoutPayers();
     const orderReview = document.getElementById('checkout-order-review');
-    if (orderReview) orderReview.open = splitEnabled || checkoutPayerTotals().size > 0;
+    if (orderReview) orderReview.open = false;
     const paymentCommentInput = document.getElementById('payment-comment');
     if (paymentCommentInput) paymentCommentInput.value = '';
     ['pl-customer-name', 'pl-customer-phone', 'pl-due-date', 'pl-notes'].forEach(id => {
@@ -2270,7 +3589,9 @@ function closeCheckout() {
 
 document.addEventListener('keydown', function (event) {
     if (event.key !== 'Escape') return;
-    if (document.getElementById('checkout-modal')?.style.display === 'flex') {
+    if (document.getElementById('save-order-modal')?.style.display === 'flex') {
+        closeSaveOrderModal();
+    } else if (document.getElementById('checkout-modal')?.style.display === 'flex') {
         closeCheckout();
     } else if (document.getElementById('size-modal')?.style.display === 'flex') {
         closeSizeModal();
@@ -2361,6 +3682,39 @@ function computeChange() {
     if (!display) return;
     display.textContent = '₱' + change.toFixed(2);
     display.className = 'font-bold text-base font-mono ' + (received >= due ? 'text-heim-700' : 'text-red-600');
+
+    const partialAlert = document.getElementById('checkout-partial-alert');
+    const completeBtn = document.getElementById('complete-btn');
+    const alreadyStaged = (typeof stagedCheckoutPayments !== 'undefined')
+        ? stagedCheckoutPayments.reduce((sum, payment) => sum + payment.amount_paid, 0)
+        : 0;
+    const remainingToCover = Math.max(0, Math.round((orderTotal - alreadyStaged) * 100) / 100);
+
+    if (partialAlert) {
+        if (due > 0 && due < remainingToCover && (!stagedCheckoutPayments || stagedCheckoutPayments.length === 0)) {
+            const balanceLeft = Math.round((remainingToCover - due) * 100) / 100;
+            partialAlert.textContent = `Partial payment: ₱${balanceLeft.toFixed(2)} will remain open on this order.`;
+            partialAlert.classList.remove('hidden');
+        } else {
+            partialAlert.classList.add('hidden');
+        }
+    }
+
+    if (completeBtn) {
+        if (due > 0 && due < remainingToCover && (!stagedCheckoutPayments || stagedCheckoutPayments.length === 0)) {
+            completeBtn.textContent = `Record Partial Payment (₱${due.toFixed(2)})`;
+        } else if (stagedCheckoutPayments && stagedCheckoutPayments.length > 0) {
+            completeBtn.textContent = remainingToCover <= 0 ? 'Complete Order' : 'Complete Staged Payment';
+        } else {
+            completeBtn.textContent = 'Complete Order';
+        }
+    }
+}
+
+function switchToSplitPayment() {
+    closeCheckout();
+    openSaveOrderModal();
+    chooseSplitOrder();
 }
 
 function stageCheckoutPayment() {
@@ -2451,6 +3805,15 @@ function completeOrder() {
         cashierInput.focus();
         return;
     }
+    const customerInput = document.getElementById('checkout-customer-name');
+    const customerName = customerInput?.value.trim() || '';
+    if (!customerName) {
+        errorEl.textContent = 'Please enter the customer name or table before completing the order.';
+        errorEl.classList.remove('hidden');
+        customerInput?.focus();
+        return;
+    }
+    document.getElementById('order-customer-name').value = customerName;
     if (!hasStagedPayments && (amountPaid <= 0 || amountPaid > orderTotal)) {
         errorEl.textContent = `Payment amount must be between ₱0.01 and the order total of ₱${orderTotal.toFixed(2)}.`;
         errorEl.classList.remove('hidden');
@@ -2681,6 +4044,8 @@ async function openShiftOutModal() {
     document.getElementById('so-difference').textContent = '-';
     document.getElementById('so-expected').textContent = 'Enter count to reveal';
     document.getElementById('so-cash-summary').classList.add('hidden');
+    document.getElementById('so-cash-in').textContent = 'Hidden until counted';
+    document.getElementById('so-cash-out').textContent = 'Hidden until counted';
     document.getElementById('so-open-orders-warning').classList.add('hidden');
     document.getElementById('so-use-denominations').checked = false;
     document.querySelectorAll('[data-denomination]').forEach(input => { input.value = '0'; input.disabled = true; });
@@ -2770,6 +4135,8 @@ function updateShiftOutDifference() {
             const cash = data.summary;
             summary.classList.remove('hidden');
             document.getElementById('so-cash-sales').textContent = `₱${Number(cash.cash_sales).toFixed(2)}`;
+            document.getElementById('so-cash-in').textContent = `+₱${Number(cash.cash_in || 0).toFixed(2)}`;
+            document.getElementById('so-cash-out').textContent = `−₱${Number(cash.cash_out || 0).toFixed(2)}`;
             document.getElementById('so-cash-refunds').textContent = `−₱${Number(cash.cash_refunds).toFixed(2)}`;
             document.getElementById('so-cash-voids').textContent = `−₱${Number(cash.cash_voids).toFixed(2)}`;
             document.getElementById('so-expected').textContent = `₱${Number(data.expected_cash).toFixed(2)}`;
@@ -2864,32 +4231,338 @@ async function submitShiftOut() {
     }
 }
 
+// ── Cash In & Cash Out Drawer Movements ──────────────────────────────────────
+const cashMovementPresets = {
+    cash_in: ['Change float addition', 'Petty cash top-up', 'Starting fund addition', 'Customer deposit'],
+    cash_out: ['Drawer drop to safe', 'Petty cash purchase', 'Supplier cash payout', 'Emergency expense']
+};
+let cachedDrawerAvailable = 0;
+
+function setCashMovementType(type) {
+    document.getElementById('cm-type').value = type;
+    const btnIn = document.getElementById('cm-btn-type-in');
+    const btnOut = document.getElementById('cm-btn-type-out');
+    const submitBtn = document.getElementById('cm-submit-btn');
+    const maxHint = document.getElementById('cm-max-cashout-hint');
+
+    if (type === 'cash_in') {
+        btnIn.className = 'flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-emerald-50/80 p-3 text-emerald-900 font-bold text-xs shadow-xs transition-all';
+        btnOut.className = 'flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-3 text-gray-600 font-bold text-xs shadow-xs hover:border-amber-300 transition-all';
+        submitBtn.textContent = 'Confirm Cash In';
+        submitBtn.className = 'brand-button flex-1';
+        maxHint.classList.add('hidden');
+    } else {
+        btnOut.className = 'flex items-center justify-center gap-2 rounded-xl border-2 border-amber-500 bg-amber-50/80 p-3 text-amber-900 font-bold text-xs shadow-xs transition-all';
+        btnIn.className = 'flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-3 text-gray-600 font-bold text-xs shadow-xs hover:border-emerald-300 transition-all';
+        submitBtn.textContent = 'Confirm Cash Out';
+        submitBtn.className = 'bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-sm transition-colors flex-1';
+        maxHint.classList.remove('hidden');
+    }
+
+    renderCashMovementPresets(type);
+}
+
+function renderCashMovementPresets(type) {
+    const container = document.getElementById('cm-reason-presets');
+    container.innerHTML = '';
+    (cashMovementPresets[type] || []).forEach(preset => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'rounded-lg bg-gray-100 hover:bg-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors';
+        chip.textContent = preset;
+        chip.onclick = () => { document.getElementById('cm-reason').value = preset; };
+        container.appendChild(chip);
+    });
+}
+
+function switchCashMovementTab(tab) {
+    const tabNew = document.getElementById('cm-tab-new');
+    const tabHist = document.getElementById('cm-tab-history');
+    const panelNew = document.getElementById('cm-panel-new');
+    const panelHist = document.getElementById('cm-panel-history');
+    const submitBtn = document.getElementById('cm-submit-btn');
+
+    if (tab === 'new') {
+        tabNew.className = 'border-b-2 border-heim-600 pb-2 px-3 text-xs font-bold text-heim-800 transition-colors';
+        tabHist.className = 'border-b-2 border-transparent pb-2 px-3 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors';
+        panelNew.classList.remove('hidden');
+        panelHist.classList.add('hidden');
+        submitBtn.classList.remove('hidden');
+    } else {
+        tabHist.className = 'border-b-2 border-heim-600 pb-2 px-3 text-xs font-bold text-heim-800 transition-colors';
+        tabNew.className = 'border-b-2 border-transparent pb-2 px-3 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors';
+        panelHist.classList.remove('hidden');
+        panelNew.classList.add('hidden');
+        submitBtn.classList.add('hidden');
+        loadCashMovements();
+    }
+}
+
+async function openCashMovementModal() {
+    document.getElementById('cm-amount').value = '';
+    document.getElementById('cm-reason').value = '';
+    const errEl = document.getElementById('cm-error');
+    if (errEl) errEl.classList.add('hidden');
+    const succEl = document.getElementById('cm-success');
+    if (succEl) succEl.classList.add('hidden');
+
+    switchCashMovementTab('new');
+    setCashMovementType('cash_in');
+    await loadCashMovements();
+
+    document.getElementById('cash-movement-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('cm-amount').focus(), 100);
+}
+
+function closeCashMovementModal() {
+    document.getElementById('cash-movement-modal').style.display = 'none';
+}
+
+async function loadCashMovements() {
+    try {
+        const response = await fetch(@json(route('shifts.cash-movements.index')), {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to load cash movements.');
+
+        cachedDrawerAvailable = Number(data.available_cash || 0);
+        document.getElementById('cm-drawer-available').textContent = '₱' + cachedDrawerAvailable.toFixed(2);
+        document.getElementById('cm-max-cashout-val').textContent = '₱' + cachedDrawerAvailable.toFixed(2);
+
+        const summary = data.summary || {};
+        document.getElementById('cm-summary-in').textContent = '+₱' + Number(summary.cash_in || 0).toFixed(2);
+        document.getElementById('cm-summary-out').textContent = '−₱' + Number(summary.cash_out || 0).toFixed(2);
+
+        const movements = data.movements || [];
+        document.getElementById('cm-history-count').textContent = movements.length;
+
+        const listContainer = document.getElementById('cm-history-list');
+        const emptyContainer = document.getElementById('cm-history-empty');
+        listContainer.innerHTML = '';
+
+        if (movements.length === 0) {
+            emptyContainer.classList.remove('hidden');
+        } else {
+            emptyContainer.classList.add('hidden');
+            movements.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'py-3 flex items-center justify-between text-xs gap-3 ' + (m.status === 'reversed' ? 'opacity-55' : '');
+                const isIn = m.type === 'cash_in';
+                const isRev = m.status === 'reversed';
+
+                item.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5 font-bold">
+                            <span class="${isIn ? 'text-emerald-700' : 'text-amber-700'}">${isIn ? '↑ Cash In' : '↓ Cash Out'}</span>
+                            <span class="text-gray-900">${isIn ? '+' : '−'}₱${Number(m.amount).toFixed(2)}</span>
+                            ${isRev ? '<span class="rounded bg-rose-100 px-1.5 py-0.2 text-[10px] text-rose-700 font-bold">Reversed</span>' : ''}
+                        </div>
+                        <p class="text-gray-600 truncate mt-0.5">${m.reason}</p>
+                        <p class="text-[11px] text-gray-400 mt-0.5">By ${m.cashier || '—'} · Auth: ${m.authorized_by || '—'} · ${m.created_at}</p>
+                        ${isRev && m.reversal_reason ? `<p class="text-[11px] text-rose-600 mt-0.5">↩ ${m.reversal_reason}</p>` : ''}
+                    </div>
+                    ${!isRev ? `
+                        <button type="button" onclick="openCashMovementReverseModal(${m.id}, ${m.amount}, '${m.type}')"
+                            class="px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors">
+                            Reverse
+                        </button>
+                    ` : ''}
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+    } catch (err) {
+        console.error('Error loading movements:', err);
+    }
+}
+
+async function submitCashMovement() {
+    const type = document.getElementById('cm-type').value;
+    const amount = parseFloat(document.getElementById('cm-amount').value);
+    const reason = document.getElementById('cm-reason').value.trim();
+    const errEl = document.getElementById('cm-error');
+    const succEl = document.getElementById('cm-success');
+    const btn = document.getElementById('cm-submit-btn');
+
+    errEl.classList.add('hidden');
+    succEl.classList.add('hidden');
+
+    if (isNaN(amount) || amount <= 0) {
+        errEl.textContent = 'Please enter a valid amount greater than 0.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    if (!reason || reason.length < 3) {
+        errEl.textContent = 'Please provide a clear reason (at least 3 characters).';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    if (type === 'cash_out' && amount > cachedDrawerAvailable) {
+        errEl.textContent = `Cash Out exceeds current drawer cash (₱${cachedDrawerAvailable.toFixed(2)} available).`;
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    const prevText = btn.textContent;
+    btn.textContent = 'Processing...';
+
+    const payload = {
+        type,
+        amount,
+        reason,
+        authorizer_email: document.getElementById('cm-authorizer-email')?.value?.trim() || '',
+        authorizer_password: document.getElementById('cm-authorizer-password')?.value || ''
+    };
+
+    try {
+        const response = await fetch(@json(route('shifts.cash-movements.store')), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to record cash movement.');
+
+        document.getElementById('cm-amount').value = '';
+        document.getElementById('cm-reason').value = '';
+        if (document.getElementById('cm-authorizer-password')) {
+            document.getElementById('cm-authorizer-password').value = '';
+        }
+
+        showPosFeedback(`${type === 'cash_in' ? 'Cash In' : 'Cash Out'} of ₱${amount.toFixed(2)} recorded successfully.`, 'success');
+        await loadCashMovements();
+        switchCashMovementTab('history');
+    } catch (err) {
+        errEl.textContent = err.message || 'Failed to record cash movement.';
+        errEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+function openCashMovementReverseModal(id, amount, type) {
+    document.getElementById('cm-rev-id').value = id;
+    document.getElementById('cm-rev-summary').textContent = `${type === 'cash_in' ? 'Cash In' : 'Cash Out'} of ₱${Number(amount).toFixed(2)}`;
+    document.getElementById('cm-rev-reason').value = '';
+    const errEl = document.getElementById('cm-rev-error');
+    if (errEl) errEl.classList.add('hidden');
+    if (document.getElementById('cm-rev-password')) document.getElementById('cm-rev-password').value = '';
+
+    document.getElementById('cm-reverse-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('cm-rev-reason').focus(), 100);
+}
+
+function closeCashMovementReverseModal() {
+    document.getElementById('cm-reverse-modal').style.display = 'none';
+}
+
+async function submitCashMovementReverse() {
+    const id = document.getElementById('cm-rev-id').value;
+    const reason = document.getElementById('cm-rev-reason').value.trim();
+    const errEl = document.getElementById('cm-rev-error');
+    const btn = document.getElementById('cm-rev-submit-btn');
+
+    errEl.classList.add('hidden');
+    if (!reason || reason.length < 5) {
+        errEl.textContent = 'Please enter a reversal reason (at least 5 characters).';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Reversing...';
+
+    const payload = {
+        reversal_reason: reason,
+        authorizer_email: document.getElementById('cm-rev-email')?.value?.trim() || '',
+        authorizer_password: document.getElementById('cm-rev-password')?.value || ''
+    };
+
+    try {
+        const url = `/shifts/cash-movements/${id}/reverse`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to reverse cash movement.');
+
+        closeCashMovementReverseModal();
+        showPosFeedback('Cash movement reversed successfully.', 'success');
+        await loadCashMovements();
+    } catch (err) {
+        errEl.textContent = err.message || 'Failed to reverse cash movement.';
+        errEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirm Reversal';
+    }
+}
+
 // ── Hold & Resume Orders ─────────────────────────────────────────────────────
+let holdRequestInProgress = false;
+
+function showSaveOrderError(message) {
+    const feedback = document.getElementById('save-order-feedback');
+    if (feedback && document.getElementById('save-order-modal')?.style.display === 'flex') {
+        feedback.textContent = message;
+        feedback.className = 'rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700';
+        return;
+    }
+
+    showPosFeedback(message, 'error');
+}
+
 async function holdCurrentOrder() {
+    if (holdRequestInProgress) return;
+
     const cashierInput = document.getElementById('cashier-name');
     const cashier = cashierInput ? cashierInput.value.trim() : '';
     if (!cashier) {
-        showPosFeedback('Please enter the cashier name before saving this order.', 'error');
+        showSaveOrderError('Please enter the cashier name before saving this order.');
         if (cashierInput) cashierInput.focus();
         return;
     }
     if (cart.length === 0) {
-        showPosFeedback('Cannot save an empty order.', 'error');
+        showSaveOrderError('Cannot save an empty order.');
         return;
     }
     if (currentDiscountAmount > 0 && orderTotal <= 0) {
-        showPosFeedback('The discount must leave a positive order total.', 'error');
+        showSaveOrderError('The discount must leave a positive order total.');
         return;
     }
 
+    holdRequestInProgress = true;
     const holdBtn = document.getElementById('hold-btn');
+    const holdButtonLabel = document.getElementById('hold-button-label');
     if (holdBtn) {
         holdBtn.disabled = true;
-        holdBtn.innerHTML = '<span>⏳</span> Saving...';
+        if (holdButtonLabel) holdButtonLabel.textContent = 'Saving...';
     }
 
     try {
+        const saveRequestStorageKey = `pos-save-request-id-{{ auth()->id() }}`;
+        let saveRequestId = sessionStorage.getItem(saveRequestStorageKey);
+        if (!saveRequestId) {
+            saveRequestId = crypto.randomUUID();
+            sessionStorage.setItem(saveRequestStorageKey, saveRequestId);
+        }
         const payload = {
+            checkout_request_id: saveRequestId,
             cashier_name: cashier,
             order_type: currentOrderType,
             grab_order_code: document.getElementById('grab-order-code')?.value.trim() || null,
@@ -2902,7 +4575,9 @@ async function holdCurrentOrder() {
                 assigned_to: i.assigned_to || null,
                 addon_ids: (i.addons || []).map(a => a.id)
             })),
-            discount: parseFloat(document.getElementById('discount')?.value) || 0,
+            discount: document.getElementById('discount-type')?.value === 'custom'
+                ? (parseFloat(document.getElementById('discount')?.value) || 0)
+                : 0,
             discount_type: document.getElementById('discount-type')?.value || 'none',
             discount_label: document.getElementById('discount-type')?.selectedOptions[0]?.text || null,
             discount_id_number: document.getElementById('discount-id-number')?.value || null,
@@ -2924,9 +4599,11 @@ async function holdCurrentOrder() {
             throw new Error(data.message || 'Failed to save order.');
         }
 
+        sessionStorage.removeItem(saveRequestStorageKey);
         clearCart();
         currentHeldOrderId = null;
         closeCheckout();
+        closeSaveOrderModal();
         showPosFeedback(data.message || 'Order saved successfully.', 'success');
         loadHeldOrdersCount();
     } catch (err) {
@@ -2935,13 +4612,12 @@ async function holdCurrentOrder() {
             checkoutError.textContent = err.message || 'An error occurred while holding the order.';
             checkoutError.classList.remove('hidden');
         } else {
-            showPosFeedback(err.message || 'An error occurred while saving the order.', 'error');
+            showSaveOrderError(err.message || 'An error occurred while saving the order.');
         }
     } finally {
-        if (holdBtn) {
-            holdBtn.disabled = cart.length === 0;
-            holdBtn.innerHTML = '<span>📌</span> Save';
-        }
+        holdRequestInProgress = false;
+        if (holdBtn) holdBtn.disabled = false;
+        renderCart();
     }
 }
 
@@ -2961,7 +4637,7 @@ async function loadHeldOrdersCount() {
         const badge = document.getElementById('held-count-badge');
         if (badge) {
             badge.textContent = count;
-            badge.style.display = count > 0 ? 'inline-block' : 'none';
+            badge.classList.toggle('hidden', count === 0);
         }
         const totalCountEl = document.getElementById('held-modal-total-count');
         if (totalCountEl) {
@@ -3024,8 +4700,8 @@ function renderHeldOrders(orders) {
         list.innerHTML = `
             <div class="flex flex-col items-center justify-center py-12 text-center text-gray-400">
                 <span class="text-3xl mb-2">📋</span>
-                <p class="text-sm font-semibold text-gray-600">No saved orders</p>
-                <p class="text-xs text-gray-400 mt-1">Orders saved for later will appear here.</p>
+                <p class="text-sm font-semibold text-gray-600">No saved or unpaid orders</p>
+                <p class="text-xs text-gray-400 mt-1">Tickets saved for later and orders with a balance due will appear here.</p>
             </div>
         `;
         return;
@@ -3033,8 +4709,9 @@ function renderHeldOrders(orders) {
 
     list.innerHTML = orders.map(order => {
         const items = order.order_items || [];
-        const isPinned = !!order.is_pinned;
-        const formattedDate = new Date(order.held_at || order.created_at).toLocaleTimeString([], {
+        const isHeld = order.saved_order_type === 'held' || order.status === 'held';
+        const isPinned = isHeld && !!order.is_pinned;
+        const formattedDate = new Date((isHeld ? order.held_at : order.created_at) || order.created_at).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
             timeZone: @json(config('app.business_timezone', 'Asia/Manila'))
@@ -3051,13 +4728,14 @@ function renderHeldOrders(orders) {
                         <div class="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
                             <span>Cashier: <strong class="text-gray-700">${escapeHtml(order.cashier_name)}</strong></span>
                             <span>•</span>
-                            <span>Held at: <strong>${formattedDate}</strong></span>
+                            <span>${isHeld ? 'Saved' : 'Ordered'}: <strong>${formattedDate}</strong></span>
                         </div>
                         <div class="mt-1 text-[11px] font-semibold text-slate-600">${escapeHtml(({ dine_in: 'Dine-in', take_out: 'Take-out', grab: 'GrabFood' })[order.order_type] || 'Dine-in')}${order.customer_name ? ` · ${escapeHtml(order.customer_name)}` : ''}${order.order_type === 'grab' ? ` · ${escapeHtml(order.grab_order_code || 'Code not entered')}` : ''}</div>
                     </div>
                     <div class="text-right">
                         <span class="font-extrabold text-base text-heim-700 font-mono">₱${parseFloat(order.total).toFixed(2)}</span>
                         <p class="text-[10px] text-gray-400">${items.length} item${items.length === 1 ? '' : 's'}</p>
+                        ${isHeld ? '' : `<p class="mt-1 text-[10px] font-semibold text-amber-700">Paid ₱${Number(order.total_paid).toFixed(2)} · Due ₱${Number(order.remaining_balance).toFixed(2)}</p>`}
                     </div>
                 </div>
 
@@ -3075,22 +4753,50 @@ function renderHeldOrders(orders) {
                     `).join('')}
                 </div>
 
-                <div class="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <div class="flex items-center gap-1.5">
-                        <button type="button" onclick="togglePinOrder(${order.id})"
-                            class="px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 ${isPinned ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'}">
-                            <span>📌</span>
-                            <span>${isPinned ? 'Unpin' : 'Pin Ticket'}</span>
-                        </button>
-                        <button type="button" onclick="voidHeldOrder(${order.id}, '${order.order_number}')"
-                            class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors">
-                            Void
-                        </button>
-                    </div>
-                    <button type="button" onclick="resumeHeldOrder(${order.id})"
-                        class="brand-button px-4 py-1.5 text-xs font-bold shadow-xs">
-                        Open →
-                    </button>
+                <div class="flex flex-col gap-2 border-t border-gray-100 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                    ${isHeld ? `
+                        <div class="flex min-w-0 items-center justify-between gap-2">
+                            <button type="button" onclick="togglePinOrder(${order.id})"
+                                class="px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 ${isPinned ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'}">
+                                <span>📌</span>
+                                <span>${isPinned ? 'Unpin' : 'Pin Ticket'}</span>
+                            </button>
+                            <button type="button" onclick="resumeHeldOrder(${order.id})"
+                                class="brand-button shrink-0 px-4 py-1.5 text-xs font-bold shadow-xs">
+                                Open →
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <button type="button" onclick="voidHeldOrder(${order.id}, '${escapeHtml(order.order_number)}')"
+                                class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors">
+                                Void
+                            </button>
+                            <button type="button" onclick="openHeldOrderSplitPayments(${order.id})"
+                                class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold transition-colors">
+                                Split / Partial Payments
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <button type="button" onclick="voidHeldOrder(${order.id}, '${escapeHtml(order.order_number)}')"
+                                class="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-semibold transition-colors">
+                                Void
+                            </button>
+                            ${Number(order.total_paid || 0) > 0 ? `
+                                <span class="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                                    Partially Paid (₱${Number(order.total_paid).toFixed(2)})
+                                </span>
+                            ` : ''}
+                            <button type="button" onclick="openHeldOrderSplitPayments(${order.id})"
+                                class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold transition-colors">
+                                Split Payment
+                            </button>
+                            <button type="button" onclick="openExistingUnpaidOrder(${order.id}, ${order.payment_portions?.length > 0 ? 'true' : 'false'})"
+                                class="brand-button ml-auto shrink-0 px-4 py-1.5 text-xs font-bold shadow-xs">
+                                Continue payment →
+                            </button>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -3099,7 +4805,8 @@ function renderHeldOrders(orders) {
 
 async function togglePinOrder(orderId) {
     try {
-        const response = await fetch(`/pos/saved-orders/${orderId}/pin`, {
+        const url = savedOrderPinUrlTemplate.replace('__ORDER__', encodeURIComponent(orderId));
+        const response = await fetch(url, {
             method: 'PATCH',
             headers: {
                 'Accept': 'application/json',
@@ -3120,12 +4827,13 @@ async function togglePinOrder(orderId) {
 async function resumeHeldOrder(orderId) {
     if (cart.length > 0) {
         if (!confirm('Loading this saved order will replace the current items in your cart. Proceed?')) {
-            return;
+            return false;
         }
     }
 
     try {
-        const response = await fetch(`/pos/saved-orders/${orderId}/resume`, {
+        const url = savedOrderResumeUrlTemplate.replace('__ORDER__', encodeURIComponent(orderId));
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -3135,7 +4843,7 @@ async function resumeHeldOrder(orderId) {
 
         const result = await response.json();
         if (!response.ok || !result.success) {
-            throw new Error(result.error || 'Failed to open saved order.');
+            throw new Error(result.error || result.message || 'Failed to open saved order.');
         }
 
         const data = result.data;
@@ -3178,27 +4886,21 @@ async function resumeHeldOrder(orderId) {
 
         // Restore discount
         const discSelect = document.getElementById('discount-type');
-        if (discSelect && data.discount_type) {
-            discSelect.value = data.discount_type;
-            if (typeof onDiscountTypeChange === 'function') {
-                onDiscountTypeChange();
-            }
-        }
+        if (discSelect) discSelect.value = data.discount_type || 'none';
         const discInput = document.getElementById('discount');
-        if (discInput && data.discount) {
-            discInput.value = data.discount;
-        }
+        if (discInput) discInput.value = data.discount_type === 'custom' ? (data.discount || 0) : 0;
+        if (typeof onDiscountTypeChange === 'function') onDiscountTypeChange();
         const discIdInput = document.getElementById('discount-id-number');
-        if (discIdInput && data.discount_id_number) {
-            discIdInput.value = data.discount_id_number;
-        }
+        if (discIdInput) discIdInput.value = data.discount_id_number || '';
 
         renderCart();
         closeHeldOrdersModal();
         loadHeldOrdersCount();
         showPosFeedback(`Opened saved order #${data.order_number}.`, 'success');
+        return true;
     } catch (err) {
         alert(err.message || 'Failed to open saved order.');
+        return false;
     }
 }
 
@@ -3240,7 +4942,8 @@ async function confirmVoidHeldOrder() {
     confirmBtn.textContent = 'Voiding...';
 
     try {
-        const response = await fetch(`/pos/saved-orders/${orderId}`, {
+        const url = savedOrderVoidUrlTemplate.replace('__ORDER__', encodeURIComponent(orderId));
+        const response = await fetch(url, {
             method: 'DELETE',
             headers: {
                 'Accept': 'application/json',
@@ -3275,6 +4978,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById(id)?.addEventListener('input', persistPosCartRecovery);
     });
     restorePosCartRecovery();
+    renderCart();
     document.getElementById('main-content')?.addEventListener('scroll', updateMobileOrderShortcut, { passive: true });
     window.addEventListener('resize', updateMobileOrderShortcut, { passive: true });
     updateMobileOrderShortcut();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AddonIngredient;
+use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\Supplier;
@@ -19,7 +20,12 @@ class IngredientController extends Controller
             'status' => ['nullable', 'in:active,inactive'],
             'stock_status' => ['nullable', 'in:low_stock,out_of_stock'],
         ]);
-        $query = Ingredient::with(['inventory', 'supplier'])->orderBy('name');
+        $branchId = $request->user()?->branch_id
+            ?? Branch::where('is_active', true)->orderBy('id')->value('id');
+        $query = Ingredient::with([
+            'inventory' => fn ($inventory) => $inventory->where('branch_id', $branchId),
+            'supplier',
+        ])->orderBy('name');
 
         if ($search = $filters['search'] ?? null) {
             $query->where('name', 'like', "%{$search}%");
@@ -30,12 +36,15 @@ class IngredientController extends Controller
         if ($stockStatus = $filters['stock_status'] ?? null) {
             if ($stockStatus === 'out_of_stock') {
                 $query->where(fn ($q) => $q
-                    ->whereDoesntHave('inventory')
-                    ->orWhereHas('inventory', fn ($inventory) => $inventory->where('current_stock', '<=', 0)));
+                    ->whereDoesntHave('inventory', fn ($inventory) => $inventory->where('branch_id', $branchId))
+                    ->orWhereHas('inventory', fn ($inventory) => $inventory
+                        ->where('branch_id', $branchId)
+                        ->where('current_stock', '<=', 0)));
             } elseif ($stockStatus === 'low_stock') {
                 $query->whereHas('inventory', fn ($q) => $q
-                    ->whereRaw('inventories.current_stock <= CASE WHEN ingredients.reorder_level > 0 THEN ingredients.reorder_level ELSE ingredients.minimum_stock END')
-                    ->where('inventories.current_stock', '>', 0));
+                    ->where('branch_id', $branchId)
+                    ->whereRaw('inventory.current_stock <= CASE WHEN ingredients.reorder_level > 0 THEN ingredients.reorder_level ELSE ingredients.minimum_stock END')
+                    ->where('inventory.current_stock', '>', 0));
             }
         }
 

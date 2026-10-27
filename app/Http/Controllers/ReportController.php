@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\CashierShift;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
@@ -9,9 +10,11 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Refund;
+use App\Models\ShiftCashMovement;
 use App\Models\VoidLog;
 use App\Services\AuditService;
 use App\Services\ExportService;
+use App\Services\OrderBalanceService;
 use App\Support\BusinessDateRange;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -35,11 +38,14 @@ class ReportController extends Controller
     {
         $filters = $this->normalizeDateFilters($request->validate([
             'type' => ['nullable', 'in:daily,weekly,monthly,yearly,custom,all'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'required_if:type,custom', 'date_format:Y-m-d'],
             'to' => ['nullable', 'required_if:type,custom', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]));
 
+        $user = $request->user();
+        $selectedBranchId = $user->isOwner() ? ($filters['branch_id'] ?? null) : $user->branch_id;
         $type = $filters['type'] ?? 'daily';
         $date = $filters['date'] ?? now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         $from = $filters['from'] ?? null;
@@ -51,9 +57,15 @@ class ReportController extends Controller
         $saleStatuses = ['completed', 'partially_paid', 'refunded'];
 
         $query = Order::where('created_at', '>=', $startUtc)
-            ->where('created_at', '<', $endExclusiveUtc);
+            ->where('created_at', '<', $endExclusiveUtc)
+            ->when($selectedBranchId, fn ($query) => $query->where('branch_id', $selectedBranchId));
 
         $salesOrdersQuery = (clone $query)->whereIn('status', $saleStatuses);
+        $openOrderBalances = app(OrderBalanceService::class)->summarizeOpenBalances(clone $query);
+        $pendingOrderCount = (int) ($openOrderBalances->get('pending')->order_count ?? 0);
+        $pendingOrderBalance = (float) ($openOrderBalances->get('pending')->balance_due ?? 0);
+        $partiallyPaidOrderCount = (int) ($openOrderBalances->get('partially_paid')->order_count ?? 0);
+        $partiallyPaidOrderBalance = (float) ($openOrderBalances->get('partially_paid')->balance_due ?? 0);
 
         $totalSales = $salesOrdersQuery->sum('total');
         $totalOrders = $salesOrdersQuery->count();
@@ -61,6 +73,7 @@ class ReportController extends Controller
             ->whereHas('order', fn ($q) => $q->whereIn('status', $saleStatuses)
                 ->where('orders.created_at', '>=', $startUtc)
                 ->where('orders.created_at', '<', $endExclusiveUtc)
+                ->when($selectedBranchId, fn ($q) => $q->where('orders.branch_id', $selectedBranchId))
             )->sum('quantity');
 
         // Payment breakdown (Cash vs Online Payment)
@@ -70,6 +83,7 @@ class ReportController extends Controller
             ->whereIn('orders.status', $saleStatuses)
             ->where('orders.created_at', '>=', $startUtc)
             ->where('orders.created_at', '<', $endExclusiveUtc)
+            ->when($selectedBranchId, fn ($query) => $query->where('orders.branch_id', $selectedBranchId))
             ->select(
                 DB::raw("CASE WHEN LOWER(payments.method) = 'cash' THEN 'cash' ELSE 'online' END as method"),
                 DB::raw('SUM(payments.amount_paid) as total'),
@@ -87,6 +101,7 @@ class ReportController extends Controller
             ->whereIn('orders.status', $saleStatuses)
             ->where('orders.created_at', '>=', $startUtc)
             ->where('orders.created_at', '<', $endExclusiveUtc)
+            ->when($selectedBranchId, fn ($query) => $query->where('orders.branch_id', $selectedBranchId))
             ->select(
                 'products.name as product',
                 'product_sizes.size_name',
@@ -102,6 +117,7 @@ class ReportController extends Controller
         $byCashier = Order::whereIn('status', $saleStatuses)
             ->where('created_at', '>=', $startUtc)
             ->where('created_at', '<', $endExclusiveUtc)
+            ->when($selectedBranchId, fn ($query) => $query->where('branch_id', $selectedBranchId))
             ->select('cashier_name', DB::raw('SUM(total) as total_sales'), DB::raw('COUNT(*) as total_orders'))
             ->groupBy('cashier_name')
             ->orderByDesc('total_sales')
@@ -109,6 +125,7 @@ class ReportController extends Controller
 
         $refundsInPeriod = Refund::query()
             ->where('status', 'completed')
+            ->whereHas('order', fn ($query) => $query->when($selectedBranchId, fn ($query) => $query->where('branch_id', $selectedBranchId)))
             ->where(function ($query) use ($startUtc, $endExclusiveUtc) {
                 $query->where(function ($query) use ($startUtc, $endExclusiveUtc) {
                     $query->whereNotNull('refunded_at')
@@ -147,17 +164,31 @@ class ReportController extends Controller
             ])
             ->values();
 
-        $user = $request->user();
+        $branchSales = Branch::query()
+            ->withSum(['orders as total_sales' => fn ($query) => $query
+                ->whereIn('status', $saleStatuses)
+                ->where('created_at', '>=', $startUtc)
+                ->where('created_at', '<', $endExclusiveUtc)], 'total')
+            ->withCount(['orders as total_orders' => fn ($query) => $query
+                ->whereIn('status', $saleStatuses)
+                ->where('created_at', '>=', $startUtc)
+                ->where('created_at', '<', $endExclusiveUtc)])
+            ->when(! $user->isOwner(), fn ($query) => $query->whereKey($user->branch_id))
+            ->orderBy('name')
+            ->get();
+
         AuditService::logFromUser($user, 'generated_sales_report', 'Reports', [
             'type' => $type,
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'branch_id' => $selectedBranchId,
         ]);
 
         if ($request->get('export') === 'excel') {
             $headers = [
                 'Order ID',
                 'Order Number',
+                'Branch',
                 'Date & Time',
                 'Cashier',
                 'Payment Methods',
@@ -167,10 +198,15 @@ class ReportController extends Controller
                 'Discount (PHP)',
                 'Total (PHP)',
                 'Status',
+                'Pending Orders Count',
+                'Pending Balance (PHP)',
+                'Partially Paid Orders Count',
+                'Partially Paid Balance (PHP)',
             ];
 
             $orders = (clone $salesOrdersQuery)
                 ->with([
+                    'branch',
                     'payments' => fn ($payments) => $payments->whereIn('status', ['paid', 'refunded']),
                     'items' => fn ($items) => $items->where('status', 'active'),
                 ])
@@ -190,6 +226,7 @@ class ReportController extends Controller
                 $rows[] = [
                     $order->id,
                     $order->order_number ?? ('#'.$order->id),
+                    $order->branch?->name ?? '',
                     $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('Y-m-d H:i:s'),
                     $order->cashier_name ?? '—',
                     $paymentMethods ?: '—',
@@ -199,6 +236,10 @@ class ReportController extends Controller
                     number_format((float) $order->discount, 2, '.', ''),
                     number_format((float) $order->total, 2, '.', ''),
                     ucfirst($order->status),
+                    '',
+                    '',
+                    '',
+                    '',
                 ];
             }
 
@@ -209,22 +250,32 @@ class ReportController extends Controller
                 '',
                 '',
                 '',
+                '',
                 $totalItems,
                 number_format((float) $salesOrdersQuery->sum('subtotal'), 2, '.', ''),
                 number_format((float) $salesOrdersQuery->sum('discount'), 2, '.', ''),
                 number_format((float) $totalSales, 2, '.', ''),
                 '',
+                $pendingOrderCount,
+                number_format($pendingOrderBalance, 2, '.', ''),
+                $partiallyPaidOrderCount,
+                number_format($partiallyPaidOrderBalance, 2, '.', ''),
             ];
 
             return ExportService::streamCsv("sales-report-{$startDate}-to-{$endDate}.csv", $headers, $rows);
         }
 
+        $branches = $user->isOwner() ? Branch::orderBy('name')->get() : collect();
+        $selectedBranchName = $selectedBranchId ? Branch::find($selectedBranchId)?->name : 'All Branches';
+
         return view('reports.sales', compact(
             'type', 'date', 'from', 'to', 'startDate', 'endDate',
             'totalSales', 'totalOrders', 'totalItems',
+            'pendingOrderCount', 'pendingOrderBalance',
+            'partiallyPaidOrderCount', 'partiallyPaidOrderBalance',
             'paymentBreakdown', 'bestSellers', 'byCashier',
             'refundsCount', 'refundsAmount', 'dailyBreakdown',
-            'user'
+            'user', 'branches', 'selectedBranchId', 'selectedBranchName', 'branchSales'
         ));
     }
 
@@ -233,20 +284,30 @@ class ReportController extends Controller
         $filters = $this->normalizeDateFilters($request->validate([
             'from' => 'nullable|date',
             'to' => 'nullable|date|after_or_equal:from',
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]));
 
+        $user = $request->user();
+        $branches = $user->isOwner() ? Branch::where('is_active', true)->orderBy('name')->get() : collect();
+        $branchId = $user->isOwner()
+            ? ($filters['branch_id'] ?? $user->branch_id ?? $branches->first()?->id)
+            : $user->branch_id;
+        $branchName = Branch::find($branchId)?->name ?? 'Assigned Branch';
         $defaultDate = now(config('app.business_timezone', 'Asia/Manila'))->toDateString();
         $from = $filters['from'] ?? $filters['to'] ?? $defaultDate;
         $to = $filters['to'] ?? $from;
 
         // Current stock status
-        $allIngredients = Ingredient::with('inventory')->orderBy('name')->get();
+        $allIngredients = Ingredient::with([
+            'inventory' => fn ($query) => $query->where('branch_id', $branchId),
+        ])->orderBy('name')->get();
         $lowStock = $allIngredients->filter(fn ($i) => $i->getStockStatus() === 'low_stock');
         $outOfStock = $allIngredients->filter(fn ($i) => $i->getStockStatus() === 'out_of_stock');
 
         // Stock-in in period
         $stockIns = InventoryTransaction::with(['ingredient', 'supplier'])
             ->where('type', 'stock_in')
+            ->where('branch_id', $branchId)
             ->effectiveDateFrom($from)
             ->effectiveDateTo($to)
             ->orderByRaw('COALESCE(transaction_date, created_at) DESC')
@@ -255,6 +316,7 @@ class ReportController extends Controller
         // Waste in period
         $wasteRecords = InventoryTransaction::with('ingredient')
             ->where('type', 'waste')
+            ->where('branch_id', $branchId)
             ->effectiveDateFrom($from)
             ->effectiveDateTo($to)
             ->orderByRaw('COALESCE(transaction_date, created_at) DESC')
@@ -263,6 +325,7 @@ class ReportController extends Controller
         // Net sales consumption subtracts stock returned by voided/refunded items.
         $salesConsumption = InventoryTransaction::with('ingredient')
             ->whereIn('type', ['sales_consumption', 'sales_return'])
+            ->where('branch_id', $branchId)
             ->effectiveDateFrom($from)
             ->effectiveDateTo($to)
             ->select('ingredient_id')
@@ -291,13 +354,14 @@ class ReportController extends Controller
                 'total_consumed' => (float) $rows->sum('total_consumed'),
             ]);
 
-        $user = $request->user();
         AuditService::logFromUser($user, 'generated_inventory_report', 'Reports', [
             'from' => $from, 'to' => $to,
+            'branch_id' => $branchId,
         ]);
 
         if ($request->get('export') === 'excel') {
             $stockInMap = InventoryTransaction::where('type', 'stock_in')
+                ->where('branch_id', $branchId)
                 ->effectiveDateFrom($from)
                 ->effectiveDateTo($to)
                 ->groupBy('ingredient_id')
@@ -305,6 +369,7 @@ class ReportController extends Controller
                 ->pluck('total_qty', 'ingredient_id');
 
             $wasteMap = InventoryTransaction::where('type', 'waste')
+                ->where('branch_id', $branchId)
                 ->effectiveDateFrom($from)
                 ->effectiveDateTo($to)
                 ->groupBy('ingredient_id')
@@ -366,7 +431,8 @@ class ReportController extends Controller
 
         return view('reports.inventory', compact(
             'from', 'to', 'allIngredients', 'lowStock', 'outOfStock',
-            'stockIns', 'wasteRecords', 'salesConsumption', 'consumptionTotals', 'user'
+            'stockIns', 'wasteRecords', 'salesConsumption', 'consumptionTotals', 'user',
+            'branches', 'branchId', 'branchName'
         ));
     }
 
@@ -602,6 +668,8 @@ class ReportController extends Controller
 
         $summary = $shift->cashSummary();
         $shift->setAttribute('cash_sales', $summary['cash_sales']);
+        $shift->setAttribute('cash_in', $summary['cash_in']);
+        $shift->setAttribute('cash_out', $summary['cash_out']);
         $shift->setAttribute('cash_refunds', $summary['cash_refunds']);
         $shift->setAttribute('cash_voids', $summary['cash_voids']);
         $shift->setAttribute('online_sales', $summary['online_sales']);
@@ -614,6 +682,8 @@ class ReportController extends Controller
         $shift->setAttribute('expected_cash', round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
+            + $summary['cash_in']
+            - $summary['cash_out']
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2
@@ -628,6 +698,8 @@ class ReportController extends Controller
         $expectedCash = round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
+            + $summary['cash_in']
+            - $summary['cash_out']
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2
@@ -639,7 +711,10 @@ class ReportController extends Controller
         $payments = $shift->payments()->with('order')->latest()->get();
         $refunds = Refund::where('shift_id', $shift->id)->with('order')->latest()->get();
         $voidLogs = VoidLog::where('shift_id', $shift->id)->with('order', 'orderItem.product')->latest('voided_at')->get();
-        $adjustments = $shift->cashMovements()->with('recordedBy')->latest()->get();
+        $adjustments = $shift->cashMovements()->where('type', 'adjustment')->with('recordedBy')->latest()->get();
+        $cashMovements = $shift->cashMovements()->whereIn('type', ['cash_in', 'cash_out'])
+            ->with(['cashier', 'authorizedBy', 'recordedBy', 'reversedBy'])
+            ->latest()->get();
 
         return view('reports.shift-show', compact(
             'shift',
@@ -650,6 +725,80 @@ class ReportController extends Controller
             'refunds',
             'voidLogs',
             'adjustments',
+            'cashMovements',
+        ));
+    }
+
+    public function cashMovements(Request $request)
+    {
+        $filters = $this->normalizeDateFilters($request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'shift_id' => ['nullable', 'integer', 'exists:cashier_shifts,id'],
+            'cashier_name' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', 'in:cash_in,cash_out'],
+            'status' => ['nullable', 'in:approved,reversed'],
+        ]));
+
+        $user = $request->user();
+        $selectedBranchId = $user->isOwner() ? ($filters['branch_id'] ?? null) : $user->branch_id;
+        $tz = config('app.business_timezone', 'Asia/Manila');
+        $from = $filters['from'] ?? now($tz)->toDateString();
+        $to = $filters['to'] ?? $from;
+
+        $query = ShiftCashMovement::with(['shift', 'cashier', 'authorizedBy', 'recordedBy', 'reversedBy'])
+            ->whereIn('type', ['cash_in', 'cash_out'])
+            ->when($selectedBranchId, fn ($q) => $q->where('shift_cash_movements.branch_id', $selectedBranchId))
+            ->when($filters['shift_id'] ?? null, fn ($q, $sid) => $q->where('shift_id', $sid))
+            ->when($filters['type'] ?? null, fn ($q, $t) => $q->where('type', $t))
+            ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s))
+            ->when($filters['cashier_name'] ?? null, fn ($q, $cn) => $q->whereHas('cashier', fn ($uq) => $uq->where('name', 'like', "%{$cn}%")))
+            ->where('created_at', '>=', BusinessDateRange::startUtc($from))
+            ->where('created_at', '<', BusinessDateRange::endExclusiveUtc($to))
+            ->latest('id');
+
+        $summaryQuery = clone $query;
+        $totalCashIn = (float) (clone $summaryQuery)->where('status', 'approved')->where('type', 'cash_in')->sum('amount');
+        $totalCashOut = (float) (clone $summaryQuery)->where('status', 'approved')->where('type', 'cash_out')->sum('amount');
+        $netMovement = $totalCashIn - $totalCashOut;
+        $totalApproved = (clone $summaryQuery)->where('status', 'approved')->count();
+        $totalReversed = (clone $summaryQuery)->where('status', 'reversed')->count();
+
+        if ($request->get('export') === 'excel') {
+            abort_if(! $user->canExportOrPrint(), 403, 'Only managers and owners can export reports.');
+            $filename = 'cash-movements-report-'.now($tz)->format('Y-m-d').'.csv';
+            $headers = [
+                'ID', 'Type', 'Amount', 'Reason', 'Status',
+                'Cashier', 'Authorized By', 'Branch',
+                'Shift ID', 'Date & Time',
+                'Reversed At', 'Reversed By', 'Reversal Reason',
+            ];
+            $rows = $query->get()->map(fn ($m) => [
+                $m->id,
+                $m->type === 'cash_in' ? 'Cash In' : 'Cash Out',
+                number_format((float) $m->amount, 2, '.', ''),
+                $m->reason,
+                ucfirst($m->status),
+                $m->cashier?->name ?? '—',
+                $m->authorizedBy?->name ?? '—',
+                $m->branch?->name ?? '—',
+                $m->shift_id,
+                $m->created_at?->copy()->timezone($tz)->format('Y-m-d H:i:s') ?? '',
+                $m->reversed_at?->copy()->timezone($tz)->format('Y-m-d H:i:s') ?? '',
+                $m->reversedBy?->name ?? '',
+                $m->reversal_reason ?? '',
+            ]);
+            return ExportService::streamCsv($filename, $headers, $rows);
+        }
+
+        $movements = $query->paginate(25)->withQueryString();
+        $branches = $user->isOwner() ? Branch::where('is_active', true)->orderBy('name')->get() : collect();
+
+        return view('reports.cash-movements', compact(
+            'movements', 'filters', 'branches', 'selectedBranchId',
+            'from', 'to', 'totalCashIn', 'totalCashOut', 'netMovement',
+            'totalApproved', 'totalReversed'
         ));
     }
 

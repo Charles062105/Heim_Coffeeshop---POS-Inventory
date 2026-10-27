@@ -187,11 +187,19 @@
                     <span>Grand Total</span>
                     <span class="text-heim-800 font-mono">₱{{ number_format($order->total, 2) }}</span>
                 </div>
+                <div class="flex justify-between border-t border-gray-100 pt-3 text-xs">
+                    <span class="font-semibold text-gray-500">Payment Status</span>
+                    <span class="font-bold text-gray-800">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')) }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="font-semibold text-gray-500">Paid / Balance Due</span>
+                    <span class="font-mono font-bold text-gray-800">₱{{ number_format($order->paidAmount(), 2) }} / ₱{{ number_format($order->remainingBalance(), 2) }}</span>
+                </div>
             </div>
         </div>
 
         {{-- Payment info --}}
-        @if($order->payments->isNotEmpty())
+        @if($order->payments->isNotEmpty() || $splitPayments->isNotEmpty())
         <div class="border-t border-gray-100 px-6 py-5 bg-heim-50/50">
             @if($splitPayments->isNotEmpty())
             <div class="mb-5">
@@ -228,7 +236,9 @@
             @endif
 
             <div class="flex items-center justify-between mb-3">
-                <h3 class="brand-label text-heim-800">Payment Breakdown</h3>
+                <div class="flex items-center gap-4">
+                    <h3 class="brand-label text-heim-800">Payment Breakdown</h3>
+                </div>
                 <a href="{{ route('orders.receipt', $order) }}" target="_blank" class="inline-flex items-center gap-1 text-xs font-bold text-heim-700 hover:text-heim-900 transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                     Print Slip
@@ -293,57 +303,8 @@
 
         @if(in_array($order->status, ['pending', 'partially_paid']) && $order->remainingBalance() > 0)
         <div class="border-t border-gray-100 px-6 py-5">
-            <h3 class="brand-label mb-3 text-heim-800">Record Split / Partial Payment</h3>
-            <form method="POST" action="{{ route('orders.payments.store', $order) }}" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                @csrf
-                @php($assignedPeople = $order->orderItems->pluck('assigned_to')->filter()->unique()->values())
-                @if($assignedPeople->isNotEmpty())
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Paying Person</label>
-                    <select name="person_name" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                        <option value="">Select person</option>
-                        @foreach($assignedPeople as $person)<option value="{{ $person }}">{{ $person }}</option>@endforeach
-                    </select>
-                </div>
-                @else
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Paying Person (optional)</label>
-                    <input name="person_name" maxlength="150" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                </div>
-                @endif
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Amount to Apply (₱)</label>
-                    <input name="amount_paid" type="number" min="0.01" max="{{ number_format($order->remainingBalance(), 2, '.', '') }}" step="0.01" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Payment Method</label>
-                    <select name="payment_method" onchange="toggleCashReceivedRequirement(this)" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                        <option value="cash">Cash</option><option value="online">Online</option><option value="grabfood">GrabFood</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Payment Status</label>
-                    <select name="payment_status" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                        <option value="paid">Paid</option><option value="pending">Pending</option><option value="failed">Failed</option>
-                    </select>
-                    <p class="mt-1 text-[11px] text-gray-400">Pending or failed attempts require an online payment method.</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Cash Received (₱, if cash)</label>
-                    <input name="amount_received" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Reference Number (online)</label>
-                    <input name="reference_number" maxlength="100" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                </div>
-                <div class="sm:col-span-2">
-                    <label class="block text-xs font-bold text-gray-600 mb-1">Payment Comment (purpose, source, or platform)</label>
-                    <input name="payment_comment" maxlength="255" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                </div>
-                <div class="sm:col-span-2">
-                    <button class="brand-button">Record Payment</button>
-                </div>
-            </form>
+            <p class="text-sm text-gray-600">Continue this order and record any additional payments from the POS Save Order workflow.</p>
+            <a href="{{ route('pos.index') }}" class="mt-3 inline-flex rounded-xl border border-heim-200 bg-white px-4 py-2.5 text-sm font-bold text-heim-800 hover:bg-heim-50">Open POS</a>
         </div>
         @endif
 
@@ -366,13 +327,20 @@
     </div>
 
     {{-- Refund / Cancel / Void actions (requires manager/owner authorization via modal) --}}
-    @if(!in_array($order->status, ['held', 'refunded', 'voided', 'cancelled']))
+    @if(!in_array($order->status, ['refunded', 'voided', 'cancelled']))
     <div class="brand-card rounded-2xl shadow-sm p-6">
         <h3 class="font-bold text-gray-900 mb-2 text-base">Order Actions</h3>
         <p class="text-xs text-gray-400 mb-4">Cashiers can request these actions. Enter an active Manager or Owner email and password to authorize refunds, cancellations, and voids.</p>
 
         <div class="flex flex-wrap items-center gap-3">
-            @if($order->status === 'completed')
+            @if($order->status === 'held')
+                <a href="{{ route('pos.index') }}" class="px-5 py-2.5 bg-heim-600 hover:bg-heim-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors">
+                    Resume in POS
+                </a>
+                <button type="button" onclick="triggerDiscardHeld()" class="px-5 py-2.5 border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-bold rounded-xl transition-colors">
+                    Void Saved Ticket
+                </button>
+            @elseif($order->status === 'completed')
                 @if($order->payments->isNotEmpty()
                     && $order->payments->contains(fn ($payment) => $payment->method === 'cash' && $payment->status === 'paid')
                     && $order->payments->every(fn ($payment) => $payment->method === 'cash'))
@@ -396,6 +364,7 @@
                 </button>
             @endif
 
+            @if($order->status !== 'held')
             <details class="relative">
                 <summary class="cursor-pointer list-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">More ⋮</summary>
                 <div class="absolute bottom-full right-0 z-20 mb-1 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
@@ -404,6 +373,7 @@
                     </button>
                 </div>
             </details>
+            @endif
         </div>
     </div>
 
@@ -431,6 +401,13 @@
         <input type="hidden" name="reason" id="vf-reason">
     </form>
 
+    {{-- Hidden discard held form --}}
+    <form id="discard-held-form" method="POST" action="{{ route('pos.discard-held', $order) }}" class="hidden">
+        @csrf
+        @method('DELETE')
+        <input type="hidden" name="reason" id="dh-reason">
+    </form>
+
     {{-- Hidden void item form template --}}
     <form id="void-item-form" method="POST" action="" class="hidden">
         @csrf
@@ -443,11 +420,15 @@
 
 @push('scripts')
 <script>
-function toggleCashReceivedRequirement(methodSelect) {
-    const receivedInput = document.querySelector('input[name="amount_received"]');
-    if (receivedInput) receivedInput.required = methodSelect.value === 'cash';
+function triggerDiscardHeld() {
+    const reason = prompt('Enter a reason for voiding this saved ticket (minimum 5 characters):');
+    if (!reason || reason.trim().length < 5) {
+        if (reason !== null) alert('A reason with at least 5 characters is required.');
+        return;
+    }
+    document.getElementById('dh-reason').value = reason.trim();
+    document.getElementById('discard-held-form').submit();
 }
-
 function triggerRefund() {
     openAuthModal(function(data) {
         document.getElementById('rf-email').value = data.authorizer_email;

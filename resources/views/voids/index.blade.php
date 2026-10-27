@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Void Transactions')
 @section('header', 'Void Transactions & History')
-@section('subheader', 'Audit trail of manager- and owner-authorized order and item cancellations')
+@section('subheader', 'Audit trail of voided orders and items, including saved tickets')
 
 @section('content')
 <div class="space-y-6">
@@ -48,7 +48,7 @@
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
                 <h2 class="font-bold text-gray-900 text-base">Void Transaction Records</h2>
-                <p class="text-xs text-gray-400">Manager- and owner-authorized transaction cancellations</p>
+                <p class="text-xs text-gray-400">Order and item voids recorded during POS operations</p>
             </div>
             <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
                 {{ $voidLogs->total() }} records
@@ -110,8 +110,12 @@
                             @if($void->requested_role)<span class="text-gray-400 capitalize">({{ $void->requested_role }})</span>@endif
                         </td>
                         <td class="px-5 py-4 text-xs">
-                            <span class="font-bold text-gray-900">{{ $void->authorized_by }}</span>
-                            <span class="text-gray-400 capitalize ml-1">({{ $void->authorized_role }})</span>
+                            @if($void->authorized_by)
+                                <span class="font-bold text-gray-900">{{ $void->authorized_by }}</span>
+                                <span class="text-gray-400 capitalize ml-1">({{ $void->authorized_role }})</span>
+                            @else
+                                <span class="text-gray-500">Not required for saved tickets</span>
+                            @endif
                         </td>
                         <td class="px-5 py-4 text-center">
                             <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800">Voided</span>
@@ -139,8 +143,8 @@
                                 <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-300 mb-2">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
-                                <p class="text-sm font-semibold text-gray-700">No voided transactions recorded</p>
-                                <p class="text-xs text-gray-400">All manager- and owner-authorized void operations will appear here.</p>
+                                <p class="text-sm font-semibold text-gray-700">No void audit records found</p>
+                                <p class="text-xs text-gray-400">Voided orders without audit records, if any, are listed below.</p>
                             </div>
                         </td>
                     </tr>
@@ -155,6 +159,52 @@
         </div>
         @endif
     </div>
+
+    @if($unloggedVoidedOrders->total() > 0)
+    <div class="brand-card rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-amber-100 bg-amber-50/60">
+            <h2 class="font-bold text-gray-900 text-base">Voided Orders Without Audit Records</h2>
+            <p class="mt-1 text-xs text-gray-600">These orders are marked voided but have no matching void record. A reason and authorization details were not stored.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50/75 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <tr>
+                        <th class="px-5 py-3.5 text-left">Order #</th>
+                        <th class="px-5 py-3.5 text-left">Record</th>
+                        <th class="px-5 py-3.5 text-left">Cashier</th>
+                        <th class="px-5 py-3.5 text-right">Total</th>
+                        <th class="px-5 py-3.5 text-right">Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    @foreach($unloggedVoidedOrders as $order)
+                    <tr class="hover:bg-amber-50/40 transition-colors">
+                        <td class="px-5 py-4">
+                            <a href="{{ route('orders.show', $order) }}" class="font-mono font-bold text-heim-700 hover:underline">
+                                {{ $order->order_number }}
+                            </a>
+                        </td>
+                        <td class="px-5 py-4">
+                            <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">Missing audit record</span>
+                        </td>
+                        <td class="px-5 py-4 text-xs font-medium text-gray-700">{{ $order->cashier_name }}</td>
+                        <td class="px-5 py-4 text-right font-mono text-xs text-gray-700">₱{{ number_format($order->total, 2) }}</td>
+                        <td class="px-5 py-4 text-right text-xs text-gray-500">
+                            {{ $order->updated_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A') }}
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @if($unloggedVoidedOrders->hasPages())
+        <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            {{ $unloggedVoidedOrders->links() }}
+        </div>
+        @endif
+    </div>
+    @endif
 
 </div>
 @endsection

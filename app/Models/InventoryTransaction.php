@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBranch;
 use App\Support\BusinessDateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,10 +10,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class InventoryTransaction extends Model
 {
-    use HasFactory;
+    use BelongsToBranch, HasFactory;
 
     protected $fillable = [
-        'ingredient_id', 'type', 'quantity', 'previous_stock', 'new_stock',
+        'ingredient_id', 'branch_id', 'type', 'quantity', 'previous_stock', 'new_stock',
         'reference_id', 'reference_type', 'reason', 'performed_by', 'performed_role',
         'supplier_id', 'reference_number', 'unit_cost', 'transaction_date', 'expiration_date',
     ];
@@ -32,6 +33,11 @@ class InventoryTransaction extends Model
     public function ingredient()
     {
         return $this->belongsTo(Ingredient::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function reference()

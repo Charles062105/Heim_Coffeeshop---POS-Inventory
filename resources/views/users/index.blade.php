@@ -32,12 +32,21 @@
                     <option value="inactive" @selected(request('status') === 'inactive')>Archived Only</option>
                 </select>
             </div>
+            <div class="w-48">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Branch</label>
+                <select name="branch_id" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:bg-white transition-all">
+                    <option value="">All Branches</option>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) request('branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </div>
             <div class="flex items-center gap-2">
                 <button type="submit" class="brand-btn-filter justify-center h-[38px]">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
                     Filter
                 </button>
-                @if(request('role') || request('status'))
+                @if(request('role') || request('status') || request('branch_id'))
                 <a href="{{ route('users.index') }}" class="brand-btn-reset h-[38px] flex items-center justify-center">
                     Clear
                 </a>
@@ -70,6 +79,7 @@
                     <th class="px-6 py-3.5 text-left">Staff Member</th>
                     <th class="px-6 py-3.5 text-left">Email Address</th>
                     <th class="px-6 py-3.5 text-center">System Role</th>
+                    <th class="px-6 py-3.5 text-left">Branch</th>
                     <th class="px-6 py-3.5 text-center">Status</th>
                     <th class="px-6 py-3.5 text-right">Actions</th>
                 </tr>
@@ -92,6 +102,7 @@
                     </td>
                     <td class="px-6 py-4 text-gray-600 font-medium">{{ $user->email }}</td>
                     <td class="px-6 py-4 text-center">@include('components.status-badge', ['status' => $user->role])</td>
+                    <td class="px-6 py-4 text-gray-600">{{ $user->branch?->name ?? 'All branches' }}</td>
                     <td class="px-6 py-4 text-center">@include('components.status-badge', ['status' => $user->status])</td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end gap-3">
@@ -111,7 +122,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="5" class="px-6 py-12 text-center">
+                    <td colspan="6" class="px-6 py-12 text-center">
                         <div class="flex flex-col items-center justify-center">
                             <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-300 mb-2">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>

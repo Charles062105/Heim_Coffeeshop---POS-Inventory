@@ -40,16 +40,26 @@ class ShiftController extends Controller
 
         $summary = $shift->cashSummary();
         $openOrders = $this->openOrderCount($shift);
+        $expectedCash = $this->expectedCash($shift, $summary);
+        $availableCash = $shift->availableCash();
 
         return response()->json([
             'active' => true,
             'shift' => [
                 'id' => $shift->id,
+                'branch_id' => $shift->branch_id,
+                'branch_name' => $shift->branch?->name,
                 'cashier_name' => $shift->cashier_name,
                 'shift_date' => $shift->shift_date->format('M d, Y'),
                 'start_time' => $shift->localStartTime()->format('h:i A'),
                 'started_at' => $shift->localStartTime()->toIso8601String(),
                 'beginning_cash' => (float) $shift->beginning_cash,
+                'available_cash' => $availableCash,
+                'cash_sales' => $summary['cash_sales'],
+                'cash_in' => $summary['cash_in'],
+                'cash_out' => $summary['cash_out'],
+                'cash_refunds' => $summary['cash_refunds'],
+                'cash_voids' => $summary['cash_voids'],
                 'unresolved_orders' => $openOrders,
                 'non_cash_summary' => [
                     'online_sales' => $summary['online_sales'],
@@ -279,6 +289,315 @@ class ShiftController extends Controller
         return back()->with('success', 'Adjustment recorded in the audit trail. The closed shift figures were not changed.');
     }
 
+    public function activeCashMovements(Request $request)
+    {
+        $shiftId = $request->input('shift_id');
+        $shift = $shiftId
+            ? CashierShift::find($shiftId)
+            : CashierShift::activeForUser($request->user()->id);
+
+        if (! $shift) {
+            return response()->json([
+                'active' => false,
+                'movements' => [],
+                'summary' => null,
+            ]);
+        }
+
+        $movements = ShiftCashMovement::where('shift_id', $shift->id)
+            ->with(['cashier', 'authorizedBy', 'recordedBy', 'reversedBy'])
+            ->latest('id')
+            ->get();
+
+        $summary = $shift->cashSummary();
+        $expectedCash = $this->expectedCash($shift, $summary);
+        $availableCash = $shift->availableCash();
+
+        return response()->json([
+            'active' => true,
+            'shift_id' => $shift->id,
+            'status' => $shift->status,
+            'cashier_name' => $shift->cashier_name,
+            'branch_name' => $shift->branch?->name,
+            'summary' => [
+                'beginning_cash' => (float) $shift->beginning_cash,
+                'cash_sales' => $summary['cash_sales'],
+                'cash_in' => $summary['cash_in'],
+                'cash_out' => $summary['cash_out'],
+                'cash_refunds' => $summary['cash_refunds'],
+                'cash_voids' => $summary['cash_voids'],
+                'expected_cash' => $expectedCash,
+                'available_cash' => $availableCash,
+            ],
+            'movements' => $movements->map(fn ($m) => [
+                'id' => $m->id,
+                'type' => $m->type,
+                'type_label' => $m->type === 'cash_in' ? 'Cash In' : ($m->type === 'cash_out' ? 'Cash Out' : 'Adjustment'),
+                'amount' => (float) $m->amount,
+                'reason' => $m->reason,
+                'status' => $m->status,
+                'cashier_name' => $m->cashier?->name ?? $shift->cashier_name,
+                'recorded_by' => $m->recordedBy?->name,
+                'authorized_by' => $m->authorizedBy?->name ?? '—',
+                'created_at' => $m->created_at?->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A'),
+                'reversed_at' => $m->reversed_at?->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A'),
+                'reversed_by' => $m->reversedBy?->name,
+                'reversal_reason' => $m->reversal_reason,
+                'can_reverse' => $m->isApproved() && $shift->isOpen() && in_array($m->type, ['cash_in', 'cash_out'], true),
+            ]),
+        ]);
+    }
+
+    public function storeCashMovement(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => ['required', 'in:cash_in,cash_out'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01'],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+            'request_id' => ['nullable', 'string', 'max:100'],
+            'authorizer_email' => ['nullable', 'email'],
+            'authorizer_password' => ['nullable', 'string'],
+        ]);
+
+        $user = $request->user();
+        $shift = CashierShift::activeForUser($user->id);
+        if (! $shift) {
+            return $this->errorResponse($request, 'No active cashier shift found. You must be on an active shift to record cash movements.', 422);
+        }
+
+        $authorizer = $this->resolveAuthorizer($request, $shift->branch_id);
+
+        $movement = DB::transaction(function () use ($shift, $validated, $user, $authorizer) {
+            $lockedShift = CashierShift::query()->lockForUpdate()->findOrFail($shift->id);
+            if (! $lockedShift->isOpen()) {
+                throw ValidationException::withMessages(['shift' => 'Cash movements can only be recorded on an active shift.']);
+            }
+
+            // Idempotency check
+            if (! empty($validated['request_id'])) {
+                $existing = ShiftCashMovement::where('shift_id', $lockedShift->id)
+                    ->where('request_id', $validated['request_id'])
+                    ->first();
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            $amount = round((float) $validated['amount'], 2);
+            $type = $validated['type'];
+
+            if ($type === 'cash_out') {
+                $availableCash = $lockedShift->availableCash();
+                if ($amount > $availableCash) {
+                    throw ValidationException::withMessages([
+                        'amount' => "Cash Out amount (₱".number_format($amount, 2).") exceeds available drawer cash (₱".number_format($availableCash, 2).").",
+                    ]);
+                }
+            }
+
+            $record = ShiftCashMovement::create([
+                'shift_id' => $lockedShift->id,
+                'branch_id' => $lockedShift->branch_id ?? $user->branch_id,
+                'cashier_id' => $lockedShift->user_id ?? $user->id,
+                'recorded_by' => $user->id,
+                'authorized_by' => $authorizer->id,
+                'type' => $type,
+                'amount' => $amount,
+                'reason' => trim($validated['reason']),
+                'status' => 'approved',
+                'request_id' => $validated['request_id'] ?? null,
+            ]);
+
+            AuditService::logFromUser($user, 'shift_cash_movement_recorded', 'POS', [
+                'shift_id' => $lockedShift->id,
+                'movement_id' => $record->id,
+                'type' => $type,
+                'amount' => $amount,
+                'reason' => $record->reason,
+                'cashier' => $lockedShift->cashier_name,
+                'authorized_by' => $authorizer->name,
+                'authorized_role' => $authorizer->role,
+                'branch_id' => $record->branch_id,
+            ], $record);
+
+            return $record;
+        }, 3);
+
+        $freshShift = $shift->fresh();
+        $summary = $freshShift->cashSummary();
+        $expectedCash = $this->expectedCash($freshShift, $summary);
+        $availableCash = $freshShift->availableCash();
+        $typeLabel = $movement->type === 'cash_in' ? 'Cash In' : 'Cash Out';
+        $message = "{$typeLabel} of ₱".number_format($movement->amount, 2)." recorded successfully.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'movement' => [
+                    'id' => $movement->id,
+                    'type' => $movement->type,
+                    'type_label' => $typeLabel,
+                    'amount' => (float) $movement->amount,
+                    'reason' => $movement->reason,
+                    'status' => $movement->status,
+                    'cashier_name' => $freshShift->cashier_name,
+                    'authorized_by' => $authorizer->name,
+                    'created_at' => $movement->created_at?->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y h:i A'),
+                ],
+                'summary' => [
+                    'beginning_cash' => (float) $freshShift->beginning_cash,
+                    'cash_sales' => $summary['cash_sales'],
+                    'cash_in' => $summary['cash_in'],
+                    'cash_out' => $summary['cash_out'],
+                    'cash_refunds' => $summary['cash_refunds'],
+                    'cash_voids' => $summary['cash_voids'],
+                    'expected_cash' => $expectedCash,
+                    'available_cash' => $availableCash,
+                ],
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function reverseCashMovement(Request $request, ShiftCashMovement $movement)
+    {
+        $validated = $request->validate([
+            'reversal_reason' => ['required', 'string', 'min:5', 'max:500'],
+            'authorizer_email' => ['nullable', 'email'],
+            'authorizer_password' => ['nullable', 'string'],
+        ]);
+
+        if (in_array($movement->type, ['adjustment'], true)) {
+            return $this->errorResponse($request, 'Post-closure adjustments cannot be reversed.', 422);
+        }
+
+        if ($movement->status === 'reversed') {
+            return $this->errorResponse($request, 'This cash movement has already been reversed.', 422);
+        }
+
+        $user = $request->user();
+        $authorizer = $this->resolveAuthorizer($request, $movement->branch_id);
+
+        $reversedMovement = DB::transaction(function () use ($movement, $validated, $user, $authorizer) {
+            $lockedShift = CashierShift::query()->lockForUpdate()->findOrFail($movement->shift_id);
+            $lockedMovement = ShiftCashMovement::query()->lockForUpdate()->findOrFail($movement->id);
+
+            if ($lockedMovement->status === 'reversed') {
+                throw ValidationException::withMessages(['movement' => 'This cash movement has already been reversed.']);
+            }
+
+            // Liquidity check: reversing a Cash In withdraws money from drawer
+            if ($lockedMovement->type === 'cash_in' && $lockedShift->isOpen()) {
+                $availableCash = $lockedShift->availableCash();
+                if ($availableCash < (float) $lockedMovement->amount) {
+                    throw ValidationException::withMessages([
+                        'reversal_reason' => "Cannot reverse Cash In: remaining drawer cash (₱".number_format($availableCash, 2).") is less than the reversal amount (₱".number_format((float) $lockedMovement->amount, 2).").",
+                    ]);
+                }
+            }
+
+            $lockedMovement->update([
+                'status' => 'reversed',
+                'reversed_at' => now(),
+                'reversed_by' => $authorizer->id,
+                'reversal_reason' => trim($validated['reversal_reason']),
+            ]);
+
+            if (! $lockedShift->isOpen()) {
+                $summary = $lockedShift->cashSummary();
+                $expectedCash = $this->expectedCash($lockedShift, $summary);
+                $lockedShift->update([
+                    'cash_in' => $summary['cash_in'],
+                    'cash_out' => $summary['cash_out'],
+                    'expected_cash' => $expectedCash,
+                    'difference' => round((float) $lockedShift->actual_cash - $expectedCash, 2),
+                ]);
+            }
+
+            AuditService::logFromUser($user, 'shift_cash_movement_reversed', 'POS', [
+                'shift_id' => $lockedShift->id,
+                'movement_id' => $lockedMovement->id,
+                'type' => $lockedMovement->type,
+                'amount' => (float) $lockedMovement->amount,
+                'reversal_reason' => $lockedMovement->reversal_reason,
+                'reversed_by' => $authorizer->name,
+                'reversed_role' => $authorizer->role,
+            ], $lockedMovement);
+
+            return $lockedMovement;
+        }, 3);
+
+        $shift = $reversedMovement->shift->fresh();
+        $summary = $shift->cashSummary();
+        $message = "Movement #{$reversedMovement->id} ({$reversedMovement->type}) reversed successfully.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'movement' => $reversedMovement,
+                'summary' => [
+                    'beginning_cash' => (float) $shift->beginning_cash,
+                    'cash_sales' => $summary['cash_sales'],
+                    'cash_in' => $summary['cash_in'],
+                    'cash_out' => $summary['cash_out'],
+                    'cash_refunds' => $summary['cash_refunds'],
+                    'cash_voids' => $summary['cash_voids'],
+                    'expected_cash' => $this->expectedCash($shift, $summary),
+                    'available_cash' => $shift->availableCash(),
+                ],
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    private function resolveAuthorizer(Request $request, ?int $branchId = null): User
+    {
+        $user = $request->user();
+
+        if ($user && $user->canAuthorize() && ! $request->filled('authorizer_email')) {
+            if ($branchId && ! $user->isOwner() && $user->branch_id && $user->branch_id !== $branchId) {
+                throw ValidationException::withMessages([
+                    'authorizer_email' => 'Authorizer does not have permission for this branch.',
+                ]);
+            }
+            return $user;
+        }
+
+        if (! $request->filled('authorizer_email') || ! $request->filled('authorizer_password')) {
+            throw ValidationException::withMessages([
+                'authorizer_email' => 'Manager or owner credentials are required to authorize this transaction.',
+            ]);
+        }
+
+        $authorizer = User::where('email', $request->input('authorizer_email'))
+            ->where('status', 'active')
+            ->first();
+
+        if (! $authorizer || ! Hash::check($request->input('authorizer_password'), $authorizer->password)) {
+            throw ValidationException::withMessages([
+                'authorizer_email' => 'Authorization failed. Invalid credentials.',
+            ]);
+        }
+
+        if (! $authorizer->canAuthorize()) {
+            throw ValidationException::withMessages([
+                'authorizer_email' => 'Authorization failed. Authorizer must be a manager or owner.',
+            ]);
+        }
+
+        if ($branchId && ! $authorizer->isOwner() && $authorizer->branch_id && $authorizer->branch_id !== $branchId) {
+            throw ValidationException::withMessages([
+                'authorizer_email' => 'Authorizer does not have permission for this branch.',
+            ]);
+        }
+
+        return $authorizer;
+    }
+
     private function validateCount(Request $request): float
     {
         $validated = $request->validate([
@@ -339,6 +658,8 @@ class ShiftController extends Controller
             'shift_id' => $shift->id,
             'beginning_cash' => (float) $shift->beginning_cash,
             'cash_sales' => (float) $shift->cash_sales,
+            'cash_in' => (float) ($shift->cash_in ?? $summary['cash_in'] ?? 0),
+            'cash_out' => (float) ($shift->cash_out ?? $summary['cash_out'] ?? 0),
             'cash_refunds' => (float) $shift->cash_refunds,
             'cash_voids' => (float) $shift->cash_voids,
             'expected_cash' => (float) $shift->expected_cash,
@@ -401,6 +722,8 @@ class ShiftController extends Controller
                 'open_user_id' => null,
                 'closed_by' => $closedBy->id,
                 'cash_sales' => $summary['cash_sales'],
+                'cash_in' => $summary['cash_in'] ?? 0,
+                'cash_out' => $summary['cash_out'] ?? 0,
                 'cash_refunds' => $summary['cash_refunds'],
                 'cash_voids' => $summary['cash_voids'],
                 'online_sales' => $summary['online_sales'],
@@ -427,6 +750,8 @@ class ShiftController extends Controller
         return round(
             (float) $shift->beginning_cash
             + $summary['cash_sales']
+            + ($summary['cash_in'] ?? 0)
+            - ($summary['cash_out'] ?? 0)
             - $summary['cash_refunds']
             - $summary['cash_voids'],
             2

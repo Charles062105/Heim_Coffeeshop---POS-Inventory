@@ -15,7 +15,7 @@
             Print Report
         </button>
     @endif
-        <a href="{{ route('adjustments.index', ['type' => 'stock_in']) }}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-heim-600 hover:bg-heim-700 shadow-md shadow-heim-600/20 active:scale-95 transition-all print:hidden">
+        <a href="{{ route('adjustments.index', ['type' => 'stock_in', 'branch_id' => $branchId]) }}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-heim-600 hover:bg-heim-700 shadow-md shadow-heim-600/20 active:scale-95 transition-all print:hidden">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             Record Stock-In
         </a>
@@ -119,13 +119,23 @@
                 </select>
             </div>
 
+            @if(auth()->user()->isOwner())
+            <div class="w-48">
+                <select name="branch_id" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:bg-white transition-all">
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) $branchId === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
+
             <button type="submit" class="brand-btn-filter">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
                 Filter
             </button>
 
-            @if(request('search') || request('stock_status'))
-            <a href="{{ route('inventory.index') }}" class="brand-btn-reset">
+            @if(request('search') || request('stock_status') || request('branch_id'))
+            <a href="{{ route('inventory.index', auth()->user()->isOwner() ? ['branch_id' => $branchId] : []) }}" class="brand-btn-reset">
                 Clear
             </a>
             @endif
@@ -199,12 +209,12 @@
                     </td>
                     <td class="px-5 py-4 text-right print:hidden">
                         <div class="flex items-center justify-end gap-1.5">
-                            <a href="{{ route('adjustments.index', ['ingredient_id' => $ingredient->id, 'type' => 'stock_in']) }}"
+                            <a href="{{ route('adjustments.index', ['ingredient_id' => $ingredient->id, 'type' => 'stock_in', 'branch_id' => $branchId]) }}"
                                class="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1.5 rounded-lg transition-colors" title="Record Stock-In">
                                 <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
                                 Stock-In
                             </a>
-                            <a href="{{ route('adjustments.index', ['ingredient_id' => $ingredient->id]) }}"
+                            <a href="{{ route('adjustments.index', ['ingredient_id' => $ingredient->id, 'branch_id' => $branchId]) }}"
                                class="inline-flex items-center gap-1 text-xs font-bold text-heim-700 bg-heim-50 hover:bg-heim-100 border border-heim-200 px-2.5 py-1.5 rounded-lg transition-colors" title="Adjust Stock">
                                 <svg class="w-3 h-3 text-heim-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
                                 Adjust

@@ -56,6 +56,36 @@ Port forwarding is not production hosting: it does not provide production
 hardening, availability, or protection for test data and credentials. Never
 use real customer, payment, or business data in a shared development instance.
 
+## 4. Local business deployment / safe production settings
+
+This project is intended to run as a local business-machine deployment, not as a
+publicly hosted web app. Use the local host URL that matches the machine and keep
+all access private unless a client-specific LAN deployment has been explicitly
+approved.
+
+When adjusting environment values, preserve the existing `.env` and keep a backup
+before changing anything. After editing `.env`, always clear and rebuild the
+Laravel config cache so the runtime reflects the new values:
+
+```powershell
+php artisan config:clear
+php artisan config:cache
+```
+
+For the intended operational deployment, ensure:
+
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL` matches the local application URL
+- production assets are built with `npm.cmd run build`
+- no debugging or stack traces are exposed to end users
+
+Do not expose the application on a public network without additional security
+hardening, firewall rules, TLS, and an explicit client approval for that
+deployment architecture.
+
+## 5. Stop forwarding
+
 ## 4. Stop forwarding
 
 When finished, stop `php artisan serve` with `Ctrl+C`. In the **Ports** view,
@@ -78,3 +108,7 @@ select **Stop Forwarding Port** for port `8000` if it remains listed.
   `http://127.0.0.1:8000` locally after starting `php artisan serve`. VS Code
   remote port forwarding is intended for servers running in a remote VS Code
   environment.
+
+For deployment, package the system as an application, create separate accounts
+for each branch, keep branch reports and stock separate, and provide combined
+sales totals across branches.

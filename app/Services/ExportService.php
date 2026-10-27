@@ -28,13 +28,22 @@ class ExportService
             // Write UTF-8 Byte Order Mark (BOM) so Microsoft Excel opens characters & currency properly
             fwrite($handle, "\xEF\xBB\xBF");
 
-            fputcsv($handle, $headers);
+            fputcsv($handle, array_map(self::sanitizeCsvCell(...), $headers));
 
             foreach ($rows as $row) {
-                fputcsv($handle, (array) $row);
+                fputcsv($handle, array_map(self::sanitizeCsvCell(...), (array) $row));
             }
 
             fclose($handle);
         }, 200, $responseHeaders);
+    }
+
+    private static function sanitizeCsvCell(mixed $value): mixed
+    {
+        if (is_string($value) && preg_match('/^[\x00-\x20]*[=+\-@]/', $value) === 1) {
+            return "'".$value;
+        }
+
+        return $value;
     }
 }

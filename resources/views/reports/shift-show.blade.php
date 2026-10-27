@@ -31,6 +31,12 @@
         <div class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
             <div class="flex justify-between"><span>Starting cash</span><strong>₱{{ number_format((float) $shift->beginning_cash, 2) }}</strong></div>
             <div class="flex justify-between"><span>Cash sales</span><strong>₱{{ number_format($summary['cash_sales'], 2) }}</strong></div>
+            @if(($summary['cash_in'] ?? 0) > 0)
+            <div class="flex justify-between"><span class="text-emerald-700">Cash In (additions)</span><strong class="text-emerald-700">+₱{{ number_format($summary['cash_in'], 2) }}</strong></div>
+            @endif
+            @if(($summary['cash_out'] ?? 0) > 0)
+            <div class="flex justify-between"><span class="text-amber-700">Cash Out (removals)</span><strong class="text-amber-700">−₱{{ number_format($summary['cash_out'], 2) }}</strong></div>
+            @endif
             <div class="flex justify-between"><span>Cash refunds</span><strong class="text-rose-700">−₱{{ number_format($summary['cash_refunds'], 2) }}</strong></div>
             <div class="flex justify-between"><span>Cash voids</span><strong class="text-rose-700">−₱{{ number_format($summary['cash_voids'], 2) }}</strong></div>
             <div class="flex justify-between border-t border-gray-100 pt-2 font-bold"><span>Expected cash</span><strong>₱{{ number_format($expectedCash, 2) }}</strong></div>
@@ -158,6 +164,37 @@
             @endforelse
         </div>
     </section>
+
+    {{-- ── Cash Movements (Cash In / Cash Out) ─────────────────── --}}
+    @if($cashMovements->isNotEmpty() || ($shift->isOpen() && auth()->user()->canAuthorize()))
+    <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h2 class="mb-3 font-bold text-gray-900">Cash Movements</h2>
+        @if($cashMovements->isEmpty())
+            <p class="text-sm text-gray-500">No Cash In / Cash Out movements recorded for this shift.</p>
+        @else
+        <div class="divide-y divide-gray-100">
+            @foreach($cashMovements as $mov)
+            <div class="flex flex-wrap items-center justify-between gap-2 py-2.5 text-xs">
+                <div class="flex flex-col gap-0.5">
+                    <span class="font-semibold {{ $mov->type === 'cash_in' ? 'text-emerald-700' : 'text-amber-700' }}">
+                        {{ $mov->type === 'cash_in' ? '↑ Cash In' : '↓ Cash Out' }}
+                        @if($mov->status === 'reversed') <span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-rose-700">Reversed</span>@endif
+                    </span>
+                    <span class="text-gray-600">{{ $mov->reason }}</span>
+                    <span class="text-gray-400">By {{ $mov->cashier?->name ?? '—' }} · Auth: {{ $mov->authorizedBy?->name ?? '—' }} · {{ $mov->created_at?->copy()->timezone(config('app.business_timezone'))->format('M d, h:i A') }}</span>
+                    @if($mov->status === 'reversed')
+                    <span class="text-rose-500">Reversed by {{ $mov->reversedBy?->name }} — {{ $mov->reversal_reason }}</span>
+                    @endif
+                </div>
+                <strong class="{{ $mov->status === 'reversed' ? 'line-through text-gray-400' : ($mov->type === 'cash_in' ? 'text-emerald-700' : 'text-amber-700') }}">
+                    {{ $mov->type === 'cash_in' ? '+' : '−' }}₱{{ number_format((float) $mov->amount, 2) }}
+                </strong>
+            </div>
+            @endforeach
+        </div>
+        @endif
+    </section>
+    @endif
 
     <section class="grid gap-5 lg:grid-cols-2">
         <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">

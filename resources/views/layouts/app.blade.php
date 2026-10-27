@@ -107,25 +107,52 @@
             overflow: hidden;
             padding: 1rem;
         }
+        .pos-shell,
+        .dashboard-shell {
+            width: 100vw;
+        }
+        .pos-shell {
+            zoom: 100% !important;
+        }
+        .dashboard-shell {
+            zoom: 100% !important;
+        }
+        @media (min-width: 1024px) {
+            .pos-terminal-grid {
+                grid-template-columns: minmax(0, 2.2fr) minmax(22rem, 0.95fr);
+            }
+        }
+        .pos-product-grid {
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.75rem), 1fr));
+        }
+        @media (max-width: 639px) {
+            .pos-product-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (min-width: 1280px) {
+            .dashboard-shell .dashboard-kpi-grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+            }
+            .dashboard-shell .dashboard-sales-summary-grid {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+            }
+        }
         .pos-main > .pos-terminal {
             flex: 1 1 0%;
             min-height: 0;
         }
         @media (min-width: 1280px) and (max-height: 950px) {
             .pos-order-panel {
-                overflow-y: auto !important;
-                overscroll-behavior: contain;
+                overflow: hidden !important;
             }
             .pos-order-panel #cart-items {
-                flex: 0 0 15rem;
-                max-height: 32vh;
-                min-height: 15rem;
+                flex: 1 1 0%;
+                max-height: none;
+                min-height: 8rem;
             }
         }
         @media (max-width: 1279px) {
-            .pos-shell {
-                zoom: 100% !important;
-            }
             .pos-main {
                 overflow-y: auto;
                 overscroll-behavior-y: contain;
@@ -233,7 +260,7 @@
         ->unreadForUser($u)
         ->count() : 0;
 @endphp
-<div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="app-shell flex h-full w-full overflow-hidden bg-gray-50 {{ request()->routeIs('pos.index') ? 'pos-shell' : '' }}" style="zoom: 90%">
+<div x-data="{ sidebarOpen: false, userMenuOpen: false }" class="app-shell flex h-full w-full overflow-hidden bg-gray-50 {{ request()->routeIs('pos.index') ? 'pos-shell' : (request()->routeIs('dashboard') ? 'dashboard-shell' : '') }}" style="zoom: 90%">
 
     {{-- ── Mobile Sidebar Backdrop ─────────────────────────────────────────────── --}}
     <div 
@@ -293,12 +320,14 @@
 
             @if($u && $u->canManageInventory())
             <p class="sidebar-section-label pt-6">Reports</p>
-            <a href="{{ route('reports.sales') }}" class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M8 15v-4m4 4V7m4 8V9m4 6V4"/></svg><span>Reports</span></a>
+            <a href="{{ route('reports.decision-dashboard.index') }}" class="nav-link {{ request()->routeIs('reports.decision-dashboard.*', 'decision-dashboard') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg><span>Decision Dashboard</span></a>
+            <a href="{{ route('reports.sales') }}" class="nav-link {{ request()->routeIs('reports.sales', 'reports.inventory', 'reports.grab', 'reports.shifts*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M8 15v-4m4 4V7m4 8V9m4 6V4"/></svg><span>Reports</span></a>
             @endif
 
             <p class="sidebar-section-label pt-6">Administration</p>
             @if($u && $u->isOwner())
             <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2m6-10a4 4 0 100-8 4 4 0 000 8zm8-5v6m3-3h-6"/></svg><span>Users &amp; Accounts</span></a>
+            <a href="{{ route('branches.index') }}" class="nav-link {{ request()->routeIs('branches.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18m6 0V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg><span>Branches</span></a>
             @endif
             @if($u)
             <a href="{{ route('profile.edit') }}" class="nav-link {{ request()->routeIs('profile.*', 'audit-logs.*', 'settings.tax.*') ? 'active' : '' }}"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8a4 4 0 100 8 4 4 0 000-8zm8 4a8 8 0 01-.2 1.8l2 1.5-2 3.5-2.4-1a8 8 0 01-3.1 1.8L14 22h-4l-.4-2.4a8 8 0 01-3.1-1.8l-2.4 1-2-3.5 2-1.5a8 8 0 010-3.6l-2-1.5 2-3.5 2.4 1a8 8 0 013.1-1.8L10 2h4l.4 2.4a8 8 0 013.1 1.8l2.4-1 2 3.5-2 1.5A8 8 0 0120 12z"/></svg><span>Settings</span></a>
@@ -335,6 +364,12 @@
                         <h1 class="text-lg sm:text-xl font-bold text-gray-800 tracking-tight leading-tight truncate">
                             @yield('header', 'Dashboard')
                         </h1>
+                        @if($u && in_array($u->role, ['manager', 'cashier'], true) && $u->branch)
+                            <span class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-800" aria-label="Your assigned branch: {{ $u->branch->name }}">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18m6 0V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01"/></svg>
+                                {{ $u->branch->name }}
+                            </span>
+                        @endif
                         @hasSection('header-badge')
                             @yield('header-badge')
                         @endif
@@ -485,10 +520,12 @@
                 $navigationTabs[] = ['label' => 'Stock Movements', 'route' => 'adjustments.index', 'active' => ['adjustments.*', 'inventory.transactions', 'stock-in.*', 'waste.*', 'consumption.*']];
             } elseif (str_starts_with($currentRoute, 'reports.')) {
                 $navigationTabs = [
+                    ['label' => 'Decision Dashboard', 'route' => 'reports.decision-dashboard.index', 'active' => ['reports.decision-dashboard.*', 'decision-dashboard']],
                     ['label' => 'Sales', 'route' => 'reports.sales', 'active' => ['reports.sales']],
                     ['label' => 'Grab', 'route' => 'reports.grab', 'active' => ['reports.grab']],
                     ['label' => 'Inventory', 'route' => 'reports.inventory', 'active' => ['reports.inventory']],
-                    ['label' => 'Shifts', 'route' => 'reports.shifts', 'active' => ['reports.shifts']],
+                    ['label' => 'Shifts', 'route' => 'reports.shifts', 'active' => ['reports.shifts', 'reports.shifts.show']],
+                    ['label' => 'Cash Movements', 'route' => 'reports.cash-movements', 'active' => ['reports.cash-movements']],
                 ];
             } elseif (str_starts_with($currentRoute, 'profile.') || str_starts_with($currentRoute, 'settings.tax.') || str_starts_with($currentRoute, 'audit-logs.')) {
                 $navigationTabs[] = ['label' => 'Security', 'route' => 'profile.edit', 'active' => ['profile.*']];
@@ -809,8 +846,9 @@ async function submitAuth() {
         });
         const data = await res.json();
         if (data.success) {
+            const callback = _authCallback;
             closeAuthModal();
-            if (_authCallback) _authCallback({ authorizer_email: email, authorizer_password: password, reason });
+            if (callback) callback({ authorizer_email: email, authorizer_password: password, reason });
         } else {
             errorEl.textContent = data.message || 'Authorization failed.';
             errorEl.classList.remove('hidden');

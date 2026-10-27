@@ -662,6 +662,9 @@ class SystemAuditTest extends TestCase
         $ing2 = Ingredient::create(['name' => 'Ingredient Out Of Stock', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
         Inventory::create(['ingredient_id' => $ing2->id, 'current_stock' => 0]);
 
+        $lowStockIngredient = Ingredient::create(['name' => 'Ingredient Low Stock', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $lowStockIngredient->id, 'current_stock' => 5]);
+
         Ingredient::create(['name' => 'Ingredient Missing Inventory', 'unit' => 'g', 'minimum_stock' => 10, 'status' => 'active']);
 
         $response = $this->actingAs($manager)->get(route('ingredients.index', ['stock_status' => 'out_of_stock']));
@@ -672,6 +675,12 @@ class SystemAuditTest extends TestCase
             ['Ingredient Out Of Stock', 'Ingredient Missing Inventory'],
             $ingredients->getCollection()->pluck('name')->all()
         );
+
+        $response = $this->actingAs($manager)->get(route('ingredients.index', ['stock_status' => 'low_stock']));
+        $response->assertOk();
+        $ingredients = $response->viewData('ingredients');
+        $this->assertSame(1, $ingredients->total());
+        $this->assertSame('Ingredient Low Stock', $ingredients->getCollection()->first()->name);
     }
 
     public function test_ingredient_delete_preserves_stock_and_referenced_inventory_history(): void

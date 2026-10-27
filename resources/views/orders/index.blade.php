@@ -118,7 +118,14 @@
                         @endif
                     </td>
                     <td class="px-5 py-4 text-center">
-                        @include('components.status-badge', ['status' => $order->status])
+                        <div class="flex flex-col items-center gap-1">
+                            @include('components.status-badge', ['status' => $order->status])
+                            @if($order->payment_status && $order->payment_status !== $order->status)
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {{ $order->payment_status === 'paid' ? 'bg-emerald-100 text-emerald-800' : ($order->payment_status === 'partially_paid' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">
+                                    {{ str_replace('_', ' ', $order->payment_status) }}
+                                </span>
+                            @endif
+                        </div>
                     </td>
                     <td class="px-5 py-4 text-right">
                         <div class="text-xs font-medium text-gray-700">{{ $order->created_at->copy()->timezone(config('app.business_timezone', 'Asia/Manila'))->format('M d, Y') }}</div>

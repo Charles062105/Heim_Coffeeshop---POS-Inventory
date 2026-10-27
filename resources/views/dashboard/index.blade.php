@@ -17,7 +17,7 @@
 @endphp
 
 {{-- ── TOP KPI CARDS ────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
+<div class="dashboard-kpi-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
     
     @if($userRole === 'cashier')
         {{-- My Sales Today --}}
@@ -67,6 +67,29 @@
             <p class="text-xs text-gray-400 mt-2">Total revenue handled by {{ $u->name }}</p>
         </div>
 
+        {{-- Orders awaiting full payment --}}
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-amber-100 hover:shadow-md transition-all">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Open Order Balances</span>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{{ number_format($pendingOrders) }}</p>
+            <div class="mt-2 space-y-1 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-gray-500">Pending ({{ number_format($pendingOrderCount) }})</span>
+                    <span class="font-semibold text-gray-700">₱{{ number_format($pendingOrderBalance, 2) }}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-gray-500">Partially paid ({{ number_format($partiallyPaidOrderCount) }})</span>
+                    <span class="font-semibold text-gray-700">₱{{ number_format($partiallyPaidOrderBalance, 2) }}</span>
+                </div>
+            </div>
+        </div>
+
         {{-- POS Quick Entry Card --}}
         <div class="bg-gradient-to-br from-heim-700 via-heim-800 to-heim-900 rounded-2xl p-5 text-white flex flex-col justify-between shadow-sm">
             <div>
@@ -112,6 +135,29 @@
             <p class="text-xs text-gray-400 mt-2">All-time tender; refunds reported separately</p>
         </div>
 
+        {{-- Orders awaiting full payment --}}
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-amber-100 hover:shadow-md transition-all">
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Open Order Balances</span>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shadow-xs">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{{ number_format($pendingOrders) }}</p>
+            <div class="mt-2 space-y-1 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-gray-500">Pending ({{ number_format($pendingOrderCount) }})</span>
+                    <span class="font-semibold text-gray-700">₱{{ number_format($pendingOrderBalance, 2) }}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-gray-500">Partially paid ({{ number_format($partiallyPaidOrderCount) }})</span>
+                    <span class="font-semibold text-gray-700">₱{{ number_format($partiallyPaidOrderBalance, 2) }}</span>
+                </div>
+            </div>
+        </div>
+
         {{-- Low Stock --}}
         <a href="{{ route('inventory.index') }}?stock_status=low_stock" class="block bg-white rounded-2xl p-5 shadow-sm border {{ $lowStockCount > 0 ? 'border-amber-200 bg-amber-50/40 hover:bg-amber-50/70' : 'border-gray-100' }} hover:shadow-md transition-all group">
             <div class="flex items-center justify-between gap-3 mb-3">
@@ -153,6 +199,10 @@
 </div>
 
 {{-- ── QUICK ACTIONS STRIP (Item #3) ────────────────────────────────────────── --}}
+@if($userRole !== 'cashier')
+<details class="mb-6 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+    <summary class="cursor-pointer px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">Quick actions</summary>
+@endif
 <div class="mb-6">
     <div class="flex items-center justify-between mb-3 px-1">
         <div class="flex items-center gap-2">
@@ -248,66 +298,131 @@
         @endif
     </div>
 </div>
+@if($userRole !== 'cashier')
+</details>
+@endif
 
 {{-- ── MAIN WORKSPACE SECTIONS ─────────────────────────────────────────────── --}}
 <div class="space-y-6">
 
     {{-- ══════════════════════════════════════════════════════════════════════════
-         SECTION 1: FINANCIAL & SALES INTELLIGENCE (8 cols + 4 cols)
-         Sales Overview Chart (Left) + Payment Breakdown Tender (Right)
+         SECTION 1: FINANCIAL & SALES INTELLIGENCE
+         Sales Overview Chart (Left) + Sales Details (Right)
        ══════════════════════════════════════════════════════════════════════════ --}}
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {{-- ── 📈 Sales Overview Chart (Col 8) ─────────────────────────────── --}}
-        <div class="lg:col-span-8 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between"
+        {{-- ── 📈 Sales Overview Chart ─────────────────────────────────────── --}}
+        <div class="lg:col-span-7 bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100/90 flex flex-col justify-between transition-shadow hover:shadow-md"
              x-data="{
                  activeTooltip: null,
+                 chartMode: 'sales',
                  tooltipData: { label: '', date: '', total: '0.00', count: 0, x: 0, y: 0 }
              }">
-            
+
             {{-- Header & Scope Badge --}}
             <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
-                <div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 rounded-lg bg-heim-50 text-heim-700 flex items-center justify-center">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
-                        </div>
-                        <h2 class="font-bold text-gray-900 text-base">Sales Overview</h2>
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-heim-800 text-white flex items-center justify-center shadow-xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
                     </div>
-                    <p class="text-xs text-gray-400 mt-0.5">{{ $userRole === 'cashier' ? 'Your tender received by payment date' : 'Tender received by payment date; refunds reported separately' }}</p>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-bold text-gray-900 text-base tracking-tight">Sales Overview</h2>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-0.5">{{ $userRole === 'cashier' ? 'Your tender received by payment date' : 'Tender received by payment date; refunds reported separately' }}</p>
+                    </div>
                 </div>
-                
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-heim-50 text-heim-800 border border-heim-200/60">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>This Week</span>
+
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <div class="inline-flex rounded-xl bg-gray-100/80 p-0.5 text-xs font-semibold border border-gray-200/50" role="group" aria-label="Sales overview chart metric">
+                        <button type="button" @click="chartMode = 'sales'" :aria-pressed="chartMode === 'sales'" :class="chartMode === 'sales' ? 'bg-heim-700 text-white shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'" class="rounded-lg px-3 py-1.5 transition-all duration-150">Sales</button>
+                        <button type="button" @click="chartMode = 'orders'" :aria-pressed="chartMode === 'orders'" :class="chartMode === 'orders' ? 'bg-heim-700 text-white shadow-xs font-bold' : 'text-gray-500 hover:text-gray-900'" class="rounded-lg px-3 py-1.5 transition-all duration-150">Orders</button>
+                    </div>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/60 shadow-2xs">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span>Last 7 Days</span>
                     </span>
                     @if($userRole !== 'cashier')
-                        <a href="{{ route('reports.sales') }}" class="text-xs font-semibold text-heim-700 hover:text-heim-800 hover:underline">
-                            Full Report →
+                        <a href="{{ route('reports.sales') }}" class="group inline-flex items-center gap-1 text-xs font-bold text-heim-700 hover:text-heim-800 transition-colors ml-1">
+                            <span>Full Report</span>
+                            <span class="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
                         </a>
                     @endif
                 </div>
             </div>
 
             {{-- Summary Stats Pills --}}
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
-                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">7-Day Total</span>
-                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">₱{{ number_format($weekTotal, 2) }}</span>
+            <div class="dashboard-sales-summary-grid grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5 my-3.5">
+                <div class="p-3 rounded-xl bg-gradient-to-b from-emerald-50/40 to-slate-50/60 border border-emerald-100/70 hover:border-emerald-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">7-Day Total</span>
+                        <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5 tracking-tight tabular-nums">₱{{ number_format($weekTotal, 2) }}</span>
+                    </div>
+                    @if($weekChangePercent !== null)
+                        <span class="mt-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold {{ $weekChangePercent >= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
+                            <span>{{ $weekChangePercent >= 0 ? '↑' : '↓' }}</span>
+                            <span>{{ $weekChangePercent > 0 ? '+' : '' }}{{ number_format($weekChangePercent, 1) }}% vs. last week</span>
+                        </span>
+                    @else
+                        <span class="mt-1.5 block text-[10px] text-gray-400">
+                            {{ $weekTotal > 0 ? 'New sales activity' : 'No sales in either period' }}
+                        </span>
+                    @endif
                 </div>
-                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Orders with Payments</span>
-                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">{{ $weekOrders }}</span>
+                <div class="p-3 rounded-xl bg-slate-50/80 hover:bg-white border border-gray-100 hover:border-gray-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Orders with Payments</span>
+                        <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5 tracking-tight tabular-nums">{{ $weekOrders }}</span>
+                    </div>
+                    @if($weekOrdersChangePercent !== null)
+                        <span class="mt-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold {{ $weekOrdersChangePercent >= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
+                            <span>{{ $weekOrdersChangePercent >= 0 ? '↑' : '↓' }}</span>
+                            <span>{{ $weekOrdersChangePercent > 0 ? '+' : '' }}{{ number_format($weekOrdersChangePercent, 1) }}% vs. last week</span>
+                        </span>
+                    @else
+                        <span class="mt-1.5 block text-[10px] text-gray-400">
+                            {{ $weekOrders > 0 ? 'New paid orders' : 'No paid orders in either period' }}
+                        </span>
+                    @endif
                 </div>
-                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Daily Average</span>
-                    <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5">₱{{ number_format($weekAverage, 2) }}</span>
+                <div class="p-3 rounded-xl bg-slate-50/80 hover:bg-white border border-gray-100 hover:border-gray-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Average Order Value</span>
+                        <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5 tracking-tight tabular-nums">₱{{ number_format($averageOrderValue, 2) }}</span>
+                    </div>
+                    <span class="mt-1.5 block text-[10px] text-gray-400 leading-tight">Order totals placed this week</span>
                 </div>
-                <div class="p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Peak Day</span>
-                    <span class="text-base sm:text-lg font-black text-heim-700 block mt-0.5 truncate">
-                        {{ $peakDay && $peakDay['total'] > 0 ? $peakDay['label'] . ' (₱' . number_format($peakDay['total'], 0) . ')' : 'None' }}
+                <div class="p-3 rounded-xl bg-slate-50/80 hover:bg-white border border-gray-100 hover:border-gray-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Daily Average</span>
+                        <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5 tracking-tight tabular-nums">₱{{ number_format($weekAverage, 2) }}</span>
+                    </div>
+                    <span class="mt-1.5 block text-[10px] text-gray-400 leading-tight">Tender received per day</span>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50/80 hover:bg-white border border-gray-100 hover:border-gray-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Tender / Paid Order</span>
+                        <span class="text-base sm:text-lg font-black text-gray-900 block mt-0.5 tracking-tight tabular-nums">₱{{ number_format($averageTenderPerOrder, 2) }}</span>
+                    </div>
+                    <span class="mt-1.5 block text-[10px] text-gray-400 leading-tight">Payments ÷ paid orders</span>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50/80 hover:bg-white border border-gray-100 hover:border-gray-200 transition-all flex flex-col justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Peak Day</span>
+                        @if($peakDay && $peakDay['total'] > 0)
+                            <div class="mt-0.5">
+                                <span class="text-base sm:text-lg font-black text-heim-700 block leading-tight">{{ $peakDay['label'] }}</span>
+                                <span class="text-[11px] font-bold text-emerald-700 block">₱{{ number_format($peakDay['total'], 0) }}</span>
+                            </div>
+                        @else
+                            <span class="text-base sm:text-lg font-black text-gray-400 block mt-0.5 leading-tight">None</span>
+                        @endif
+                    </div>
+                    <span class="mt-1 block text-[10px] text-gray-400 leading-tight">
+                        {{ $peakDay && $peakDay['total'] > 0 ? ($peakDay['date'] ?? 'Highest volume') : 'No sales recorded' }}
                     </span>
                 </div>
             </div>
@@ -315,15 +430,32 @@
             {{-- SVG Chart Container --}}
             @php
                 $maxVal = max(100, (float) $salesTrend->max('total'));
-                $chartMax = $maxVal > 0 ? ceil(($maxVal * 1.25) / 100) * 100 : 1000;
-                if ($chartMax < 500) $chartMax = 500;
+                $target = $maxVal * 1.2;
+                $stepMagnitude = pow(10, max(0, floor(log10($target / 3))));
+                $normStep = ($target / 3) / max(1, $stepMagnitude);
+                if ($normStep <= 1.5) {
+                    $gridStep = 1.0 * $stepMagnitude;
+                } elseif ($normStep <= 3.0) {
+                    $gridStep = 2.0 * $stepMagnitude;
+                } elseif ($normStep <= 6.0) {
+                    $gridStep = 5.0 * $stepMagnitude;
+                } else {
+                    $gridStep = 10.0 * $stepMagnitude;
+                }
+                if ($gridStep < 50) $gridStep = 50;
+                $stepsCount = 3;
+                $chartMax = $gridStep * $stepsCount;
+                if ($chartMax < $maxVal) {
+                    $stepsCount = 4;
+                    $chartMax = $gridStep * $stepsCount;
+                }
 
                 $points = [];
                 $count = count($salesTrend);
                 foreach ($salesTrend as $idx => $day) {
                     $x = 75 + ($idx * (550 / max(1, $count - 1)));
                     $ratio = $chartMax > 0 ? min(1, max(0, $day['total'] / $chartMax)) : 0;
-                    $y = 170 - ($ratio * 135);
+                    $y = 165 - ($ratio * 130);
                     $points[] = [
                         'x'     => round($x, 1),
                         'y'     => round($y, 1),
@@ -347,27 +479,30 @@
                         $cy2 = $p1['y'];
                         $pathD .= " C {$cx1} {$cy1}, {$cx2} {$cy2}, {$p1['x']} {$p1['y']}";
                     }
-                    $areaD = $pathD . " L {$points[count($points)-1]['x']} 175 L {$points[0]['x']} 175 Z";
+                    $areaD = $pathD . " L {$points[count($points)-1]['x']} 165 L {$points[0]['x']} 165 Z";
                 }
             @endphp
 
-            <div class="relative w-full aspect-[21/9] sm:aspect-[24/9] min-h-[190px] mt-2">
-                <svg viewBox="0 0 700 220" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+            <div class="relative w-full aspect-[21/9] sm:aspect-[24/9] min-h-[160px] mt-1">
+                <svg x-show="chartMode === 'sales'" viewBox="0 0 700 220" class="w-full h-full overflow-visible" preserveAspectRatio="none">
                     <defs>
                         <linearGradient id="heimSalesGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#155d49" stop-opacity="0.32" />
-                            <stop offset="70%" stop-color="#3f947e" stop-opacity="0.08" />
-                            <stop offset="100%" stop-color="#3f947e" stop-opacity="0.0" />
+                            <stop offset="0%" stop-color="#15803d" stop-opacity="0.28" />
+                            <stop offset="60%" stop-color="#16a34a" stop-opacity="0.08" />
+                            <stop offset="100%" stop-color="#22c55e" stop-opacity="0.00" />
                         </linearGradient>
+                        <filter id="heimLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#15803d" flood-opacity="0.25" />
+                        </filter>
                     </defs>
 
                     {{-- Horizontal Grid Lines & Y-axis labels --}}
-                    @for($g = 0; $g <= 3; $g++)
+                    @for($g = 0; $g <= $stepsCount; $g++)
                         @php
-                            $gridY = 170 - ($g * 45);
-                            $gridVal = round(($chartMax / 3) * $g);
+                            $gridY = 165 - ($g * (130 / $stepsCount));
+                            $gridVal = round($gridStep * $g);
                         @endphp
-                        <line x1="60" y1="{{ $gridY }}" x2="640" y2="{{ $gridY }}" stroke="#f1f5f9" stroke-width="1.5" stroke-dasharray="4 4" />
+                        <line x1="60" y1="{{ $gridY }}" x2="640" y2="{{ $gridY }}" stroke="{{ $g === 0 ? '#e2e8f0' : '#f1f5f9' }}" stroke-width="{{ $g === 0 ? 1.5 : 1.2 }}" stroke-dasharray="{{ $g === 0 ? 'none' : '4 4' }}" />
                         <text x="50" y="{{ $gridY + 4 }}" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
                             ₱{{ number_format($gridVal, 0) }}
                         </text>
@@ -380,16 +515,19 @@
 
                     {{-- Line Stroke --}}
                     @if(!empty($pathD))
-                    <path d="{{ $pathD }}" fill="none" stroke="#155d49" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="{{ $pathD }}" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#heimLineGlow)" />
                     @endif
 
                     {{-- Data points & X-axis Labels --}}
                     @foreach($points as $idx => $pt)
+                        {{-- Hover vertical guide line --}}
+                        <line x-show="activeTooltip === {{ $idx }}" x1="{{ $pt['x'] }}" y1="20" x2="{{ $pt['x'] }}" y2="165" stroke="#15803d" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.45" class="pointer-events-none" />
+
                         {{-- X-axis day text --}}
-                        <text x="{{ $pt['x'] }}" y="200" fill="#64748b" font-size="11" font-weight="700" text-anchor="middle">
+                        <text x="{{ $pt['x'] }}" y="195" fill="#475569" font-size="11" font-weight="700" text-anchor="middle">
                             {{ $pt['label'] }}
                         </text>
-                        <text x="{{ $pt['x'] }}" y="214" fill="#94a3b8" font-size="9" font-weight="500" text-anchor="middle">
+                        <text x="{{ $pt['x'] }}" y="210" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle">
                             {{ $pt['date'] }}
                         </text>
 
@@ -399,33 +537,97 @@
                               @mouseleave="activeTooltip = null" />
 
                         {{-- Visible Circle Node --}}
-                        <circle cx="{{ $pt['x'] }}" cy="{{ $pt['y'] }}" r="5" fill="#ffffff" stroke="#155d49" stroke-width="2.5" class="transition-all duration-150" />
-                        <circle cx="{{ $pt['x'] }}" cy="{{ $pt['y'] }}" r="8" fill="#155d49" fill-opacity="0.15" class="pointer-events-none" />
+                        <circle cx="{{ $pt['x'] }}" cy="{{ $pt['y'] }}" r="8" fill="#15803d" fill-opacity="0.12" class="pointer-events-none" />
+                        <circle cx="{{ $pt['x'] }}" cy="{{ $pt['y'] }}" r="5" fill="#ffffff" stroke="#15803d" stroke-width="2.5" class="transition-all duration-150" />
+                        <circle x-show="activeTooltip === {{ $idx }}" cx="{{ $pt['x'] }}" cy="{{ $pt['y'] }}" r="2.5" fill="#15803d" class="pointer-events-none" />
+                    @endforeach
+                </svg>
+
+                @php
+                    $orderChartMax = max(1, (int) $salesTrend->max('count'));
+                    $orderStep = ceil($orderChartMax / 3);
+                    $orderChartMax = $orderStep * 3;
+                @endphp
+                <svg x-show="chartMode === 'orders'" x-cloak viewBox="0 0 700 220" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="heimBarGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#15803d" />
+                            <stop offset="100%" stop-color="#22c55e" />
+                        </linearGradient>
+                    </defs>
+                    @for($g = 0; $g <= 3; $g++)
+                        @php $gridY = 165 - ($g * 43.3); @endphp
+                        <line x1="60" y1="{{ $gridY }}" x2="640" y2="{{ $gridY }}" stroke="{{ $g === 0 ? '#e2e8f0' : '#f1f5f9' }}" stroke-width="{{ $g === 0 ? 1.5 : 1.2 }}" stroke-dasharray="{{ $g === 0 ? 'none' : '4 4' }}" />
+                        <text x="50" y="{{ $gridY + 4 }}" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="end">
+                            {{ (int) ($orderStep * $g) }}
+                        </text>
+                    @endfor
+                    @foreach($salesTrend as $idx => $day)
+                        @php
+                            $x = 75 + ($idx * (550 / max(1, count($salesTrend) - 1)));
+                            $barHeight = $orderChartMax > 0 ? ($day['count'] / $orderChartMax) * 130 : 0;
+                        @endphp
+                        <rect x="{{ $x - 14 }}" y="{{ 165 - $barHeight }}" width="28" height="{{ max(2, $barHeight) }}" rx="6" ry="6" fill="url(#heimBarGradient)" opacity="0.9" class="transition-all duration-200 hover:opacity-100" />
+                        <text x="{{ $x }}" y="195" fill="#475569" font-size="11" font-weight="700" text-anchor="middle">{{ $day['label'] }}</text>
+                        <text x="{{ $x }}" y="210" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle">{{ $day['date'] }}</text>
+                        @if($day['count'] > 0)
+                            <text x="{{ $x }}" y="{{ max(22, 157 - $barHeight) }}" fill="#15803d" font-size="10.5" font-weight="800" text-anchor="middle">{{ $day['count'] }}</text>
+                        @endif
                     @endforeach
                 </svg>
 
                 {{-- Interactive Floating HTML Tooltip --}}
                 <div x-show="activeTooltip !== null"
                      x-cloak
-                     class="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-3 px-3 py-2 rounded-xl bg-gray-900/95 text-white text-xs shadow-xl backdrop-blur-sm transition-all duration-75 border border-gray-700"
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 translate-y-1 scale-95"
+                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     class="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-3 px-3.5 py-2.5 rounded-xl bg-gray-900/95 text-white text-xs shadow-2xl backdrop-blur-md transition-all duration-75 border border-gray-700/60 min-w-[125px]"
                      :style="`left: ${(tooltipData.x / 700) * 100}%; top: ${(tooltipData.y / 220) * 100}%;`">
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-heim-300" x-text="`${tooltipData.label} · ${tooltipData.date}`"></span>
+                    <div class="flex items-center justify-between gap-2 pb-1 border-b border-gray-800">
+                        <span class="font-bold text-emerald-400" x-text="`${tooltipData.label} · ${tooltipData.date}`"></span>
                     </div>
-                    <div class="text-sm font-extrabold text-white mt-0.5" x-text="`₱${tooltipData.total}`"></div>
-                    <div class="text-[10px] text-gray-400 mt-0.5" x-text="`${tooltipData.count} order(s) with payment`"></div>
+                    <div class="text-base font-black text-white mt-1 tabular-nums" x-text="`₱${tooltipData.total}`"></div>
+                    <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                        <span x-text="`${tooltipData.count} order(s) with payment`"></span>
+                    </div>
+                    <div class="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-[6px] border-t-gray-900/95"></div>
                 </div>
             </div>
 
-            @if($weekTotal == 0)
-            <div class="text-center py-2 text-xs text-gray-400">
-                Waiting for payments this week to plot daily sales.
-            </div>
+            {{-- Insight Footer --}}
+            @if($weekTotal > 0 && $peakDay && $peakDay['total'] > 0)
+                <div class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div class="flex items-center gap-2 text-gray-600">
+                        <span class="flex h-5 w-5 items-center justify-center rounded-md bg-amber-50 text-amber-600 font-bold text-xs">⭐</span>
+                        <span>
+                            <strong>Peak performance:</strong> {{ $peakDay['label'] }} ({{ $peakDay['date'] }}) generated <strong>₱{{ number_format($peakDay['total'], 2) }}</strong>
+                            @if($weekTotal > 0)
+                                <span class="text-gray-400">({{ round(($peakDay['total'] / $weekTotal) * 100) }}% of 7-day total)</span>
+                            @endif
+                        </span>
+                    </div>
+                    <span class="text-[11px] font-semibold text-gray-400">
+                        Avg. ₱{{ number_format($weekAverage, 2) }}/day
+                    </span>
+                </div>
+            @elseif($weekTotal == 0)
+                <div class="mt-3 pt-3 border-t border-gray-100 text-center py-2 text-xs text-gray-400">
+                    Waiting for payments this week to plot daily sales.
+                </div>
             @endif
         </div>
 
-        {{-- ── 💳 Payment Breakdown (Col 4) ─────────────────────────────────── --}}
-        <div class="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
+        <div class="dashboard-side-panel lg:col-span-5 flex min-w-0 flex-col gap-4">
+        {{-- ── 💳 Payment Breakdown ─────────────────────────────────────────── --}}
+        <details class="dashboard-payment-breakdown overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm" open>
+            <summary class="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                <span>Payment method breakdown</span>
+                <span class="shrink-0 rounded-xl bg-heim-50 px-2.5 py-1 text-xs font-black text-heim-800">₱{{ number_format($paymentTotal, 2) }}</span>
+            </summary>
+            <div class="bg-gray-50/50 p-2">
+        <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-gray-100">
                     <div class="flex items-center gap-2">
@@ -445,11 +647,17 @@
                     @forelse($paymentSummary as $pm)
                         @php 
                             $pct = round(($pm->total / $pmTotal) * 100);
-                            $isCash = strtolower($pm->method) === 'cash';
+                            $method = strtolower($pm->method);
+                            $isCash = $method === 'cash';
                             $icon = $isCash ? '💵' : '📱';
                             $badgeColor = $isCash ? 'bg-emerald-500' : 'bg-blue-500';
                             $lightBg = $isCash ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-blue-50 text-blue-800 border-blue-100';
-                            $label = $isCash ? 'Cash' : 'Online Payment';
+                            $label = match ($method) {
+                                'cash' => 'Cash',
+                                'online' => 'Online Payment',
+                                'grab', 'grabfood' => 'GrabFood',
+                                default => ucwords(str_replace(['_', '-'], ' ', $method)),
+                            };
                         @endphp
                         <div class="p-3 rounded-xl border {{ $lightBg }} transition-all">
                             <div class="flex items-center justify-between text-xs mb-1.5">
@@ -483,13 +691,218 @@
                 </div>
             @endif
         </div>
+            </div>
+        </details>
 
+        {{-- ── PRODUCT SALES RANKING ────────────────────────────────────────── --}}
+        <section class="dashboard-product-ranking bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+             x-data="{ showLeastSelling: false }">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l4-4 4 4 6-7m0 0h-5m5 0v5"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="font-bold text-gray-900 text-base"
+                        x-text="showLeastSelling ? 'Least-Selling Products' : 'Best-Selling Products'"></h2>
+                    <p class="text-xs text-gray-400"
+                       x-text="showLeastSelling ? 'Active products with the fewest units sold' : 'Top products by units sold'"></p>
+                </div>
+            </div>
+            <button type="button"
+                    @click="showLeastSelling = !showLeastSelling"
+                    :aria-pressed="showLeastSelling.toString()"
+                    :aria-label="showLeastSelling ? 'Show best-selling products' : 'Show least-selling products'"
+                    class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 shadow-xs transition hover:border-heim-300 hover:bg-heim-50 hover:text-heim-800 focus:outline-none focus:ring-2 focus:ring-heim-500 focus:ring-offset-2">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6-4v12m0 0l-4-4m4 4l4-4"/>
+                </svg>
+                <span x-text="showLeastSelling ? 'Show best sellers' : 'Show least sellers'"></span>
+            </button>
+        </div>
+        <div class="divide-y divide-gray-50" x-show="!showLeastSelling">
+            @forelse($topProducts as $index => $product)
+                <div class="flex items-center justify-between gap-4 px-5 py-3.5">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-xs font-bold text-emerald-700">{{ $index + 1 }}</span>
+                        <span class="truncate text-sm font-semibold text-gray-800">{{ $product['name'] }}</span>
+                    </div>
+                    <span class="shrink-0 text-sm font-bold text-gray-900">{{ number_format($product['sold']) }} sold</span>
+                </div>
+            @empty
+                <p class="px-5 py-8 text-center text-sm text-gray-400">No product sales recorded yet.</p>
+            @endforelse
+        </div>
+        <div class="divide-y divide-gray-50" x-show="showLeastSelling" x-cloak>
+            @forelse($leastProducts as $product)
+                <div class="flex items-center justify-between gap-4 px-5 py-3.5">
+                    <span class="truncate text-sm font-semibold text-gray-800">{{ $product['name'] }}</span>
+                    <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">{{ number_format($product['sold']) }} sold</span>
+                </div>
+            @empty
+                <p class="px-5 py-8 text-center text-sm text-gray-400">No active products to show.</p>
+            @endforelse
+        </div>
+        </section>
+        </div>
     </div>
+
+    @if($userRole !== 'cashier')
+    <details class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <summary class="cursor-pointer px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">
+            More operations insights
+            <span class="ml-2 text-xs font-medium text-gray-400">Order statuses, peak hours, refunds, cancellations, and peak-day products</span>
+        </summary>
+        <div class="space-y-6 border-t border-gray-100 p-5">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section class="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Today's Order Status</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Orders placed today by current status</p>
+            </div>
+            <div class="divide-y divide-gray-50">
+                @foreach($orderStatusBreakdown as $status)
+                    <div class="flex items-center justify-between px-5 py-3 text-sm">
+                        <span class="font-medium text-gray-700">{{ $status['label'] }}</span>
+                        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">{{ number_format($status['count']) }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+
+        <section class="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Today's Peak Hours</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Order volume by two-hour window; held tickets are excluded</p>
+            </div>
+            @php $peakHourlyCount = max(1, (int) $hourlyActivity->max('orders')); @endphp
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 p-5">
+                @foreach($hourlyActivity as $hour)
+                    <div>
+                        <div class="mb-1 flex items-center justify-between gap-3 text-xs">
+                            <span class="font-medium text-gray-600">{{ $hour['label'] }}</span>
+                            <span class="font-bold text-gray-800">{{ number_format($hour['orders']) }} {{ Str::plural('order', $hour['orders']) }}</span>
+                        </div>
+                        <div class="h-2 overflow-hidden rounded-full bg-gray-100">
+                            <div class="h-full rounded-full bg-heim-600" style="width: {{ ($hour['orders'] / $peakHourlyCount) * 100 }}%"></div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Refunds Today</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Completed refunds by refund date</p>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-5 py-4">
+                <span class="text-sm font-semibold text-gray-700">{{ number_format((int) ($refundSummary->count ?? 0)) }} {{ Str::plural('refund', (int) ($refundSummary->count ?? 0)) }}</span>
+                <span class="text-base font-black text-gray-900">₱{{ number_format((float) ($refundSummary->total ?? 0), 2) }}</span>
+            </div>
+            @if($refundReasons->isNotEmpty())
+                <div class="border-t border-gray-100 px-5 py-3">
+                    <h3 class="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Common reasons</h3>
+                    @foreach($refundReasons as $reason)
+                        <div class="flex items-start justify-between gap-3 py-1.5 text-xs">
+                            <span class="text-gray-600">{{ $reason->reason }}</span>
+                            <span class="shrink-0 font-bold text-gray-700">{{ $reason->count }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Cancellations & Voids Today</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Cancelled or voided order value; item-only voids excluded</p>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-gray-100">
+                <div class="px-5 py-4">
+                    <p class="text-xs font-semibold text-gray-500">Cancelled</p>
+                    <p class="mt-1 text-lg font-black text-gray-900">{{ number_format((int) ($cancellationSummary->count ?? 0)) }}</p>
+                    <p class="text-xs text-gray-500">₱{{ number_format((float) ($cancellationSummary->total ?? 0), 2) }}</p>
+                </div>
+                <div class="px-5 py-4">
+                    <p class="text-xs font-semibold text-gray-500">Voided</p>
+                    <p class="mt-1 text-lg font-black text-gray-900">{{ number_format((int) ($voidSummary->count ?? 0)) }}</p>
+                    <p class="text-xs text-gray-500">₱{{ number_format((float) ($voidSummary->total ?? 0), 2) }}</p>
+                </div>
+            </div>
+            @if($cancellationReasons->isNotEmpty() || $voidSummary->count > 0)
+                <div class="border-t border-gray-100 px-5 py-3">
+                    <h3 class="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Reasons</h3>
+                    @foreach($cancellationReasons as $reason)
+                        <div class="flex items-start justify-between gap-3 py-1.5 text-xs">
+                            <span class="text-gray-600">{{ $reason->reason }}</span>
+                            <span class="shrink-0 font-bold text-gray-700">{{ $reason->count }}</span>
+                        </div>
+                    @endforeach
+                    @foreach($voidReasons as $reason)
+                        <div class="flex items-start justify-between gap-3 py-1.5 text-xs">
+                            <span class="text-gray-600">{{ $reason->reason }}</span>
+                            <span class="shrink-0 font-bold text-gray-700">{{ $reason->count }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Top Products on {{ $peakDay && $peakDay['total'] > 0 ? $peakDay['label'] : 'Peak Day' }}</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Ranked by item sales value on the busiest sales day this week</p>
+            </div>
+            <div class="divide-y divide-gray-50">
+                @forelse($peakDayProducts as $product)
+                    <div class="flex items-center justify-between gap-3 px-5 py-3">
+                        <span class="truncate text-sm font-semibold text-gray-700">{{ $product->name }}</span>
+                        <span class="shrink-0 text-sm font-bold text-gray-900">₱{{ number_format((float) $product->revenue, 2) }}</span>
+                    </div>
+                @empty
+                    <p class="px-5 py-6 text-center text-sm text-gray-400">No paid product sales on the peak day yet.</p>
+                @endforelse
+            </div>
+        </section>
+        <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-base">Top Categories on {{ $peakDay && $peakDay['total'] > 0 ? $peakDay['label'] : 'Peak Day' }}</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Category item sales value on the busiest sales day this week</p>
+            </div>
+            <div class="divide-y divide-gray-50">
+                @forelse($peakDayCategories as $category)
+                    <div class="flex items-center justify-between gap-3 px-5 py-3">
+                        <span class="truncate text-sm font-semibold text-gray-700">{{ $category->name }}</span>
+                        <span class="shrink-0 text-sm font-bold text-gray-900">₱{{ number_format((float) $category->revenue, 2) }}</span>
+                    </div>
+                @empty
+                    <p class="px-5 py-6 text-center text-sm text-gray-400">No paid category sales on the peak day yet.</p>
+                @endforelse
+            </div>
+        </section>
+    </div>
+        </div>
+    </details>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════════
          SECTION 2: LIVE STORE OPERATIONS & STAFF ACTIVITY (8 cols + 4 cols)
          Recent Orders Table (Left) + Chronological Staff Activity (Right)
        ══════════════════════════════════════════════════════════════════════════ --}}
+    @if($userRole !== 'cashier')
+    <details class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <summary class="cursor-pointer px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">
+            Recent orders and staff activity
+            <span class="ml-2 text-xs font-medium text-gray-400">Latest tickets and audit events</span>
+        </summary>
+    @endif
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {{-- ── 📋 Recent Orders Table (Col 8) ───────────────────────────────── --}}
@@ -626,6 +1039,9 @@
         @endif
 
     </div>
+    @if($userRole !== 'cashier')
+    </details>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════════
          SECTION 3: INVENTORY HEALTH & DAILY CONSUMPTION (6 cols + 6 cols)
@@ -696,6 +1112,11 @@
         </div>
 
         {{-- ── ⚖️ DAILY CONSUMPTION (Col 6) ─────────────────────────────────── --}}
+        <details class="lg:col-span-6 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <summary class="cursor-pointer px-5 py-4 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                Daily ingredient consumption
+                <span class="ml-2 text-xs font-medium text-gray-400">{{ $todayConsumption->count() }} {{ Str::plural('ingredient', $todayConsumption->count()) }} with activity today</span>
+            </summary>
         <div class="lg:col-span-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
             <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div class="flex items-center gap-2">
@@ -748,6 +1169,7 @@
                 </a>
             </div>
         </div>
+        </details>
         @endif
 
     </div>

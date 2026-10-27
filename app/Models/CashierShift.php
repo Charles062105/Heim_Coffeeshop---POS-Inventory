@@ -11,6 +11,7 @@ class CashierShift extends Model
     use HasFactory;
 
     protected $fillable = [
+        'branch_id',
         'user_id',
         'open_user_id',
         'cashier_name',
@@ -19,6 +20,8 @@ class CashierShift extends Model
         'end_time',
         'beginning_cash',
         'cash_sales',
+        'cash_in',
+        'cash_out',
         'cash_refunds',
         'expected_cash',
         'actual_cash',
@@ -49,6 +52,8 @@ class CashierShift extends Model
             'end_time' => 'datetime',
             'beginning_cash' => 'decimal:2',
             'cash_sales' => 'decimal:2',
+            'cash_in' => 'decimal:2',
+            'cash_out' => 'decimal:2',
             'cash_refunds' => 'decimal:2',
             'expected_cash' => 'decimal:2',
             'actual_cash' => 'decimal:2',
@@ -69,6 +74,11 @@ class CashierShift extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function reviewedBy()
@@ -130,11 +140,24 @@ class CashierShift extends Model
             ->where('reason', 'not like', 'Item void:%')
             ->where('reason', 'not like', 'Order void:%')
             ->sum('amount');
+        $cashInMovements = (float) $this->cashMovements()
+            ->where('type', 'cash_in')
+            ->where('status', 'approved')
+            ->sum('amount');
+        $cashOutMovements = (float) $this->cashMovements()
+            ->where('type', 'cash_out')
+            ->where('status', 'approved')
+            ->sum('amount');
+
+        $cashIn = $cashInMovements > 0 ? $cashInMovements : (float) ($this->cash_in ?? 0);
+        $cashOut = $cashOutMovements > 0 ? $cashOutMovements : (float) ($this->cash_out ?? 0);
         $voids = VoidLog::where('shift_id', $this->id);
         $orders = $this->orders()->whereIn('status', ['completed', 'partially_paid']);
 
         return [
             'cash_sales' => $cashSales,
+            'cash_in' => $cashIn,
+            'cash_out' => $cashOut,
             'cash_refunds' => $cashRefunds,
             'cash_voids' => $cashVoids,
             'online_sales' => (float) $this->payments()
@@ -151,6 +174,36 @@ class CashierShift extends Model
             'dine_in_sales' => (float) (clone $orders)->where('order_type', 'dine_in')->sum('total'),
             'take_out_sales' => (float) (clone $orders)->where('order_type', 'take_out')->sum('total'),
         ];
+    }
+
+    public function availableCash(): float
+    {
+        $summary = $this->cashSummary();
+
+        return round(
+            (float) $this->beginning_cash
+            + $summary['cash_sales']
+            + $summary['cash_in']
+            - $summary['cash_out']
+            - $summary['cash_refunds']
+            - $summary['cash_voids'],
+            2
+        );
+    }
+
+    public function expectedCash(): float
+    {
+        $summary = $this->cashSummary();
+
+        return round(
+            (float) $this->beginning_cash
+            + $summary['cash_sales']
+            + $summary['cash_in']
+            - $summary['cash_out']
+            - $summary['cash_refunds']
+            - $summary['cash_voids'],
+            2
+        );
     }
 
     public function isOpen(): bool

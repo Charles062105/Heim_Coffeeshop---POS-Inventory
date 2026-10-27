@@ -10,8 +10,8 @@ class Payment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'order_id', 'shift_id', 'method', 'amount_received', 'amount_paid', 'change_amount', 'status',
-        'reference_number', 'customer_name', 'comment',
+        'order_id', 'portion_id', 'shift_id', 'method', 'amount_received', 'amount_paid', 'change_amount', 'status',
+        'reference_number', 'customer_name', 'comment', 'request_id',
     ];
 
     protected function casts(): array
@@ -31,5 +31,10 @@ class Payment extends Model
     public function shift()
     {
         return $this->belongsTo(CashierShift::class, 'shift_id');
+    }
+
+    public function portion()
+    {
+        return $this->belongsTo(OrderPaymentPortion::class, 'portion_id');
     }
 }

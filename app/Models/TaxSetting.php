@@ -20,9 +20,9 @@ class TaxSetting extends Model
     protected function casts(): array
     {
         return [
-            'rate'        => 'decimal:2',
+            'rate' => 'decimal:2',
             'is_inclusive' => 'boolean',
-            'is_active'   => 'boolean',
+            'is_active' => 'boolean',
             'archived_at' => 'datetime',
         ];
     }
@@ -56,10 +56,10 @@ class TaxSetting extends Model
 
         if (! $setting) {
             $setting = static::create([
-                'name'         => 'VAT',
-                'rate'         => 12.00,
+                'name' => 'VAT',
+                'rate' => 12.00,
                 'is_inclusive' => true,
-                'is_active'    => true,
+                'is_active' => true,
             ]);
         }
 

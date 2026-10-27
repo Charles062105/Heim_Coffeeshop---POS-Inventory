@@ -50,6 +50,17 @@
                 </p>
             </div>
 
+            <div>
+                <label class="brand-label mb-1.5">Branch <span class="text-rose-500">*</span></label>
+                <select name="branch_id" class="brand-input" required>
+                    <option value="">Select branch...</option>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-gray-500 mt-1.5">Managers and cashiers can only access their assigned branch's operations and reports.</p>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="brand-label mb-1.5">Password <span class="text-rose-500">*</span></label>

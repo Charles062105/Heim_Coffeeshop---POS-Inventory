@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
-    use HasFactory;
+    use BelongsToBranch, HasFactory;
 
     protected $fillable = [
+        'branch_id',
         'order_number',
         'checkout_request_id',
+        'payment_status',
         'order_type',
         'grab_order_code',
         'rider_code',
@@ -57,6 +60,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function items()
     {
         return $this->orderItems();
@@ -70,6 +78,11 @@ class Order extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function paymentPortions()
+    {
+        return $this->hasMany(OrderPaymentPortion::class)->orderBy('id');
     }
 
     public function paidAmount(): float
@@ -141,8 +154,6 @@ class Order extends Model
     {
         return $this->status === 'refunded';
     }
-
-
 
     // Generate a unique order number without relying on a single incremented counter.
     public static function generateOrderNumber(string $prefix = 'ORD-'): string

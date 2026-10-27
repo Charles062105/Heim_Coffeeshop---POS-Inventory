@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Services\ExportService;
 use Illuminate\Http\Request;
@@ -13,8 +14,17 @@ class InventoryController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'stock_status' => ['nullable', 'in:good,low_stock,out_of_stock'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]);
-        $query = Ingredient::with(['inventory', 'supplier'])->orderBy('name');
+        $user = $request->user();
+        $branches = $user->isOwner() ? Branch::where('is_active', true)->orderBy('name')->get() : collect();
+        $branchId = $user->isOwner()
+            ? ($filters['branch_id'] ?? $user->branch_id ?? $branches->first()?->id)
+            : $user->branch_id;
+        $query = Ingredient::with([
+            'inventory' => fn ($inventory) => $inventory->where('branch_id', $branchId),
+            'supplier',
+        ])->orderBy('name');
 
         if ($search = $filters['search'] ?? null) {
             $query->where('name', 'like', "%{$search}%");
@@ -76,7 +86,7 @@ class InventoryController extends Controller
             return ExportService::streamCsv($filename, $columns, $rows);
         }
 
-        return view('inventory.index', compact('ingredients', 'good', 'low', 'outOfStock', 'stockFilter'));
+        return view('inventory.index', compact('ingredients', 'good', 'low', 'outOfStock', 'stockFilter', 'branches', 'branchId'));
     }
 
     public function transactions(Request $request)

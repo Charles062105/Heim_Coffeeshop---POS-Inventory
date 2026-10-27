@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
@@ -49,14 +50,25 @@ class OrderAuthorizationTest extends TestCase
             'status' => 'paid',
         ]);
 
-        $this->actingAs($user)
-            ->get(route('orders.show', $order))
-            ->assertOk()
+        $response = $this->actingAs($user)
+            ->get(route('orders.show', $order));
+        $response->assertOk()
             ->assertSee('Order Actions')
             ->assertSee('Process Refund')
             ->assertDontSee('Cancel Unpaid Order')
             ->assertSee('Void Full Order')
             ->assertSee('Enter an active Manager or Owner email and password to authorize refunds, cancellations, and voids.');
+
+        $page = $response->getContent();
+        $callbackCapture = strpos($page, 'const callback = _authCallback;');
+        $modalClose = strpos($page, 'closeAuthModal();', $callbackCapture ?: 0);
+        $callbackInvoke = strpos($page, 'if (callback) callback({ authorizer_email: email, authorizer_password: password, reason });', $modalClose ?: 0);
+
+        $this->assertNotFalse($callbackCapture);
+        $this->assertNotFalse($modalClose);
+        $this->assertNotFalse($callbackInvoke);
+        $this->assertLessThan($modalClose, $callbackCapture);
+        $this->assertLessThan($callbackInvoke, $modalClose);
     }
 
     public function test_refund_action_is_not_offered_for_completed_order_without_paid_cash_payment(): void
@@ -134,7 +146,7 @@ class OrderAuthorizationTest extends TestCase
         $this->assertDatabaseHas('order_adjustments', ['order_id' => $order->id, 'action' => 'cancel']);
     }
 
-    public function test_cashier_can_view_another_cashiers_order(): void
+    public function test_cashier_can_view_another_cashiers_order_in_the_same_branch(): void
     {
         $user = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
         $this->startShiftFor($user);
@@ -156,7 +168,63 @@ class OrderAuthorizationTest extends TestCase
             ->assertSee($order->order_number);
     }
 
-    public function test_cashier_cannot_record_payment_for_another_cashiers_order(): void
+    public function test_cashier_cannot_view_an_order_from_another_branch(): void
+    {
+        $branch = Branch::query()->where('is_active', true)->orderBy('id')->firstOrFail();
+        $otherBranch = Branch::create([
+            'name' => 'Other Order Branch',
+            'code' => 'ORDER-OTHER',
+            'is_active' => true,
+        ]);
+        $user = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $branch->id,
+            'name' => 'Jane Cashier',
+        ]);
+        $order = Order::create([
+            'branch_id' => $otherBranch->id,
+            'order_number' => 'ORD-OTHER-BRANCH-001',
+            'cashier_name' => 'John Cashier',
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+
+        $this->assertFalse($user->can('view', $order));
+        $this->assertFalse($user->can('recordPayment', $order));
+        $this->actingAs($user)
+            ->get(route('orders.show', $order))
+            ->assertNotFound();
+        $this->get(route('orders.receipt', $order))->assertNotFound();
+        $this->get(route('pos.success', $order))->assertNotFound();
+    }
+
+    public function test_cashier_without_an_assigned_branch_cannot_view_branch_orders(): void
+    {
+        $branch = Branch::query()->where('is_active', true)->orderBy('id')->firstOrFail();
+        $user = User::factory()->create([
+            'role' => 'cashier',
+            'name' => 'Unassigned Cashier',
+        ]);
+        $user->forceFill(['branch_id' => null])->saveQuietly();
+        $order = Order::create([
+            'branch_id' => $branch->id,
+            'order_number' => 'ORD-UNASSIGNED-CASHIER-001',
+            'cashier_name' => 'Other Cashier',
+            'subtotal' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'status' => 'completed',
+        ]);
+
+        $this->assertFalse($user->can('view', $order));
+        $this->actingAs($user)
+            ->get(route('orders.show', $order))
+            ->assertNotFound();
+    }
+
+    public function test_cashier_can_record_payment_for_another_cashiers_order_in_the_same_branch(): void
     {
         $user = User::factory()->create(['role' => 'cashier', 'name' => 'Jane Cashier']);
         $this->startShiftFor($user);
@@ -170,14 +238,25 @@ class OrderAuthorizationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->post(route('orders.payments.store', $order), [
+            ->postJson(route('orders.payments.store', $order), [
                 'amount_paid' => 100,
                 'payment_method' => 'cash',
                 'amount_received' => 100,
             ])
-            ->assertForbidden();
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('remaining_balance', 0);
 
-        $this->assertDatabaseMissing('payments', ['order_id' => $order->id]);
+        $this->assertDatabaseHas('payments', [
+            'order_id' => $order->id,
+            'amount_paid' => 100,
+            'status' => 'paid',
+        ]);
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+        ]);
     }
 
     public function test_cashier_cannot_void_order_without_manager_or_owner_credentials(): void

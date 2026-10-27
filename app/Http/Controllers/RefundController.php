@@ -8,8 +8,8 @@ use App\Models\OrderAdjustment;
 use App\Models\Refund;
 use App\Models\User;
 use App\Services\AuditService;
-use App\Support\BusinessDateRange;
 use App\Services\InventoryService;
+use App\Support\BusinessDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -112,8 +112,12 @@ class RefundController extends Controller
                 'refunded_at' => now(),
             ]);
 
-            $lockedOrder->update(['status' => 'refunded']);
+            $lockedOrder->update([
+                'status' => 'refunded',
+                'payment_status' => 'refunded',
+            ]);
             $lockedOrder->payments()->where('status', 'paid')->update(['status' => 'refunded']);
+            $lockedOrder->paymentPortions()->update(['status' => 'refunded']);
 
             // Optionally restore stock
             if ($request->restore_stock) {

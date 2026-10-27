@@ -46,6 +46,19 @@
             </div>
             @endif
 
+            <div>
+                <label class="brand-label mb-1.5">Branch</label>
+                <select name="branch_id" class="brand-input" @if($user->role !== 'owner') required @endif>
+                    @if($user->role === 'owner')
+                        <option value="">All branches (owner access)</option>
+                    @endif
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected(old('branch_id', $user->branch_id) == $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-gray-500 mt-1.5">Branch staff can only access the assigned branch's operations and reports.</p>
+            </div>
+
             <div class="border-t border-gray-100 pt-4">
                 <p class="text-xs font-bold uppercase tracking-wider text-gray-600 mb-1">Reset Password</p>
                 <p class="text-xs text-gray-400 mb-3">Leave blank if keeping current password. New passwords need at least 8 characters with uppercase and lowercase letters, a number, and a special character.</p>

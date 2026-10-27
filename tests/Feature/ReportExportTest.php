@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Refund;
 use App\Models\User;
 use App\Models\VoidLog;
+use App\Services\ExportService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -26,6 +27,34 @@ class ReportExportTest extends TestCase
     {
         parent::setUp();
         $this->manager = User::factory()->create(['role' => 'manager', 'status' => 'active']);
+    }
+
+    public function test_csv_export_neutralizes_spreadsheet_formulas_in_string_cells(): void
+    {
+        $response = ExportService::streamCsv('formula-test.csv', ['Value'], [[
+            '=1+1',
+            '+SUM(A1,A2)',
+            '-1+2',
+            '@SUM(A1:A2)',
+            "\t=1+1",
+            'Safe text',
+            -5,
+        ]]);
+        ob_start();
+        $response->sendContent();
+        $content = ob_get_clean();
+        $lines = preg_split('/\r\n|\n|\r/', substr($content, 3));
+        $cells = str_getcsv($lines[1]);
+
+        $this->assertSame([
+            "'=1+1",
+            "'+SUM(A1,A2)",
+            "'-1+2",
+            "'@SUM(A1:A2)",
+            "'\t=1+1",
+            'Safe text',
+            '-5',
+        ], $cells);
     }
 
     public function test_audit_logs_excel_export_and_print_mode(): void
@@ -934,6 +963,45 @@ class ReportExportTest extends TestCase
         );
     }
 
+    public function test_void_history_displays_voided_orders_missing_audit_records(): void
+    {
+        $legacyOrder = Order::create([
+            'order_number' => 'ORD-VOID-NO-LOG',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'voided',
+        ]);
+        $loggedOrder = Order::create([
+            'order_number' => 'ORD-VOID-WITH-LOG',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'voided',
+        ]);
+        VoidLog::create([
+            'order_id' => $loggedOrder->id,
+            'amount' => 100,
+            'void_type' => 'order',
+            'reason' => 'Logged void reason',
+            'cashier_name' => $this->manager->name,
+            'authorized_by' => $this->manager->name,
+            'authorized_role' => 'manager',
+            'stock_restored' => false,
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('voids.index'));
+
+        $response->assertOk()
+            ->assertSee($legacyOrder->order_number)
+            ->assertSee('Voided Orders Without Audit Records')
+            ->assertSee('Missing audit record');
+        $this->assertSame(
+            [$legacyOrder->id],
+            $response->viewData('unloggedVoidedOrders')->getCollection()->pluck('id')->all()
+        );
+    }
+
     public function test_refund_history_filters_by_refund_timestamp_in_philippine_time(): void
     {
         $order = Order::create([
@@ -1028,6 +1096,71 @@ class ReportExportTest extends TestCase
         $this->assertSame('online', $paymentBreakdown->first()->method);
         $this->assertSame(30.0, (float) $paymentBreakdown->first()->total);
         $this->assertSame(1, $paymentBreakdown->first()->count);
+    }
+
+    public function test_sales_report_separates_pending_and_partially_paid_balances_by_order_date(): void
+    {
+        $pendingOrder = Order::create([
+            'order_number' => 'ORD-REPORT-PENDING-BALANCE',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 80,
+            'total' => 80,
+            'status' => 'pending',
+        ]);
+        $partialOrder = Order::create([
+            'order_number' => 'ORD-REPORT-PARTIAL-BALANCE',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'partially_paid',
+        ]);
+        $partialOrder->payments()->create([
+            'method' => 'cash',
+            'amount_received' => 30,
+            'amount_paid' => 30,
+            'change_amount' => 0,
+            'status' => 'paid',
+        ]);
+        $outsideRangeOrder = Order::create([
+            'order_number' => 'ORD-REPORT-OUTSIDE-BALANCE',
+            'cashier_name' => $this->manager->name,
+            'subtotal' => 500,
+            'total' => 500,
+            'status' => 'pending',
+        ]);
+
+        foreach ([
+            [$pendingOrder, '2026-10-07 12:00:00'],
+            [$partialOrder, '2026-10-07 13:00:00'],
+            [$outsideRangeOrder, '2026-10-06 12:00:00'],
+        ] as [$order, $createdAt]) {
+            $order->forceFill([
+                'created_at' => Carbon::parse($createdAt, 'UTC'),
+                'updated_at' => Carbon::parse($createdAt, 'UTC'),
+            ])->save();
+        }
+
+        $filters = [
+            'type' => 'custom',
+            'from' => '2026-10-07',
+            'to' => '2026-10-07',
+        ];
+        $response = $this->actingAs($this->manager)->get(route('reports.sales', $filters));
+
+        $response->assertOk()
+            ->assertSee('Pending Balance')
+            ->assertSee('Partially Paid Balance')
+            ->assertViewHas('pendingOrderCount', 1)
+            ->assertViewHas('pendingOrderBalance', 80.0)
+            ->assertViewHas('partiallyPaidOrderCount', 1)
+            ->assertViewHas('partiallyPaidOrderBalance', 70.0);
+
+        $export = $this->get(route('reports.sales', $filters + ['export' => 'excel']));
+        $content = $export->streamedContent();
+        $this->assertStringContainsString('Pending Balance (PHP)', $content);
+        $this->assertStringContainsString('Partially Paid Balance (PHP)', $content);
+        $this->assertStringContainsString('80.00', $content);
+        $this->assertStringContainsString('70.00', $content);
     }
 
     public function test_sales_report_keeps_refunded_orders_and_original_tender_visible(): void

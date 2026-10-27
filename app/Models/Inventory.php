@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Inventory extends Model
 {
-    use HasFactory;
+    use BelongsToBranch, HasFactory;
 
     protected $table = 'inventory';
 
-    protected $fillable = ['ingredient_id', 'current_stock'];
+    protected $fillable = ['ingredient_id', 'current_stock', 'branch_id'];
 
     protected function casts(): array
     {
@@ -21,5 +22,10 @@ class Inventory extends Model
     public function ingredient()
     {
         return $this->belongsTo(Ingredient::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

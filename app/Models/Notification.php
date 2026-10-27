@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Notification extends Model
 {
-    use HasFactory;
+    use BelongsToBranch, HasFactory;
 
     protected $fillable = [
-        'type', 'title', 'message', 'target_role', 'ingredient_id',
+        'type', 'title', 'message', 'target_role', 'ingredient_id', 'branch_id',
         'is_resolved', 'resolved_at', 'read_at',
     ];
 
@@ -26,6 +27,11 @@ class Notification extends Model
     public function ingredient()
     {
         return $this->belongsTo(Ingredient::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function reads()

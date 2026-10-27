@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashierShift;
+use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Refund;
@@ -21,21 +22,24 @@ class VoidController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'void_type' => ['nullable', 'in:order,item'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
         $query = VoidLog::with(['order', 'orderItem.product', 'orderItem.size', 'authorizedUser'])
             ->latest('voided_at');
 
-        if ($search = $request->get('search')) {
+        if ($search = $filters['search'] ?? null) {
             $query->where(function ($q) use ($search) {
                 $q->where('cashier_name', 'like', "%{$search}%")
+                    ->orWhere('requested_by', 'like', "%{$search}%")
                     ->orWhere('authorized_by', 'like', "%{$search}%")
                     ->orWhereHas('order', fn ($oq) => $oq->where('order_number', 'like', "%{$search}%"));
             });
         }
 
-        if ($voidType = $request->get('void_type')) {
+        if ($voidType = $filters['void_type'] ?? null) {
             $query->where('void_type', $voidType);
         }
 
@@ -48,7 +52,32 @@ class VoidController extends Controller
 
         $voidLogs = $query->paginate(20)->withQueryString();
 
-        return view('voids.index', compact('voidLogs'));
+        $unloggedVoidedOrdersQuery = Order::query()
+            ->where('status', 'voided')
+            ->whereDoesntHave('voidLogs')
+            ->when(($filters['void_type'] ?? null) === 'item', fn ($orders) => $orders->whereRaw('1 = 0'))
+            ->latest('updated_at')
+            ->latest('id');
+
+        if ($search = $filters['search'] ?? null) {
+            $unloggedVoidedOrdersQuery->where(function ($orders) use ($search) {
+                $orders->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('cashier_name', 'like', "%{$search}%");
+            });
+        }
+
+        if ($from = $filters['from'] ?? null) {
+            $unloggedVoidedOrdersQuery->where('updated_at', '>=', BusinessDateRange::startUtc($from));
+        }
+        if ($to = $filters['to'] ?? null) {
+            $unloggedVoidedOrdersQuery->where('updated_at', '<', BusinessDateRange::endExclusiveUtc($to));
+        }
+
+        $unloggedVoidedOrders = $unloggedVoidedOrdersQuery
+            ->paginate(20, ['*'], 'unlogged_page')
+            ->withQueryString();
+
+        return view('voids.index', compact('voidLogs', 'unloggedVoidedOrders'));
     }
 
     public function voidOrder(Request $request, Order $order)
@@ -93,7 +122,7 @@ class VoidController extends Controller
                 ]);
             }
 
-            $inventoryDeducted = in_array($lockedOrder->status, ['completed', 'partially_paid']);
+            $inventoryDeducted = $this->inventoryWasDeducted($lockedOrder);
             $cashPaid = (float) $lockedOrder->payments()
                 ->where('method', 'cash')
                 ->whereIn('status', ['paid', 'refunded'])
@@ -149,9 +178,13 @@ class VoidController extends Controller
                 InventoryService::restoreFromVoid($lockedOrder, $authorizer->name, $authorizer->role);
             }
             $lockedOrder->payments()->where('status', 'paid')->update(['status' => 'voided']);
+            $lockedOrder->paymentPortions()->update(['status' => 'voided']);
 
             // Mark order and all active items as voided
-            $lockedOrder->update(['status' => 'voided']);
+            $lockedOrder->update([
+                'status' => 'voided',
+                'payment_status' => 'voided',
+            ]);
             $lockedOrder->orderItems()->where('status', 'active')->update(['status' => 'voided']);
 
             $voidLog = VoidLog::create([
@@ -252,7 +285,7 @@ class VoidController extends Controller
                 'total' => (float) $lockedOrder->total,
                 'item_payable_total' => (float) $lockedItem->payable_total,
             ];
-            $inventoryDeducted = in_array($lockedOrder->status, ['completed', 'partially_paid'], true);
+            $inventoryDeducted = $this->inventoryWasDeducted($lockedOrder);
 
             if ($inventoryDeducted) {
                 $lockedItem->load(['product', 'size', 'addons.addon']);
@@ -487,5 +520,31 @@ class VoidController extends Controller
         }
 
         return $authorizer;
+    }
+
+    private function inventoryWasDeducted(Order $order): bool
+    {
+        if (in_array($order->status, ['completed', 'partially_paid'], true)) {
+            return true;
+        }
+
+        if ($order->status !== 'pending') {
+            return false;
+        }
+
+        $orderItemIds = $order->orderItems()->pluck('id');
+
+        return InventoryTransaction::query()
+            ->where('type', 'sales_consumption')
+            ->where(function ($query) use ($order, $orderItemIds) {
+                $query->where(function ($orderQuery) use ($order) {
+                    $orderQuery->where('reference_type', Order::class)
+                        ->where('reference_id', $order->id);
+                })->orWhere(function ($itemQuery) use ($orderItemIds) {
+                    $itemQuery->where('reference_type', OrderItem::class)
+                        ->whereIn('reference_id', $orderItemIds);
+                });
+            })
+            ->exists();
     }
 }

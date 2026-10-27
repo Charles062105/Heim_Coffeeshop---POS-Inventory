@@ -86,6 +86,9 @@
 
             <form method="POST" action="{{ route('adjustments.store') }}" class="space-y-4">
                 @csrf
+                @if(auth()->user()->isOwner())
+                    <input type="hidden" name="branch_id" value="{{ $branchId }}">
+                @endif
                 <div>
                     <label class="brand-label mb-1.5">
                         Ingredient <span class="text-rose-500">*</span>
@@ -231,12 +234,22 @@
                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">To Date</label>
                     <input type="date" name="to" value="{{ request('to') }}" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:bg-white transition-all">
                 </div>
+                @if(auth()->user()->isOwner())
+                <div class="w-full sm:w-auto">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Branch</label>
+                    <select name="branch_id" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-heim-500 focus:bg-white transition-all">
+                        @foreach($branches as $branch)
+                            <option value="{{ $branch->id }}" @selected((string) $branchId === (string) $branch->id)>{{ $branch->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
                 <div class="flex items-center gap-2 pt-1 sm:pt-0">
                     <button type="submit" class="brand-btn-filter">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
                         Filter
                     </button>
-                    @if(request('type') || request('ingredient_id') || request('from') || request('to'))
+                    @if(request('type') || request('ingredient_id') || request('from') || request('to') || request('branch_id'))
                     <a href="{{ route('adjustments.index') }}" class="border border-gray-200 text-gray-600 hover:bg-gray-50 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors">
                         Clear
                     </a>

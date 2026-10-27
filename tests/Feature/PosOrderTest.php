@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AddonIngredient;
+use App\Models\AuditLog;
 use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Ingredient;
@@ -25,7 +26,6 @@ use Tests\TestCase;
 class PosOrderTest extends TestCase
 {
     use RefreshDatabase;
-
 
     public function test_cashier_can_create_a_pos_order_and_view_it(): void
     {
@@ -78,9 +78,50 @@ class PosOrderTest extends TestCase
             ->assertOk()
             ->assertSee('max-h-[calc(100dvh-2rem)]', false)
             ->assertSee('overflow-y-auto overscroll-contain', false)
+            ->assertSee('Split payment')
+            ->assertSee('Void order')
+            ->assertSee('Save Split Portions')
             ->assertSee('if (cart.length > 0) {', false)
             ->assertSee('Save or complete the current cart, then clear it before ending the shift.', false)
             ->assertSee("document.getElementById('hold-btn')?.focus()", false);
+    }
+
+    public function test_saved_order_actions_use_generated_routes_and_saved_ticket_void_is_persisted(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+
+        $this->actingAs($cashier)->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('const savedOrderResumeUrlTemplate = '.json_encode(route('pos.resume-held', ['order' => '__ORDER__'])).';', false)
+            ->assertSee('const savedOrderPinUrlTemplate = '.json_encode(route('pos.toggle-pin', ['order' => '__ORDER__'])).';', false)
+            ->assertSee('const savedOrderVoidUrlTemplate = '.json_encode(route('pos.discard-held', ['order' => '__ORDER__'])).';', false)
+            ->assertDontSee('fetch(`/pos/saved-orders/', false);
+
+        $order = Order::create([
+            'order_number' => 'ORD-SAVED-VOID-ROUTE',
+            'cashier_name' => $cashier->name,
+            'subtotal' => 100,
+            'total' => 100,
+            'status' => 'held',
+            'payment_status' => 'unpaid',
+        ]);
+
+        $this->actingAs($cashier)->deleteJson(route('pos.discard-held', $order), [
+            'reason' => 'Customer cancelled saved ticket',
+        ])->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'voided',
+            'payment_status' => 'voided',
+        ]);
+        $this->assertDatabaseHas('void_logs', [
+            'order_id' => $order->id,
+            'reason' => 'Customer cancelled saved ticket',
+            'void_type' => 'order',
+        ]);
     }
 
     public function test_pos_product_endpoints_only_return_active_products_categories_and_sizes(): void
@@ -283,6 +324,510 @@ class PosOrderTest extends TestCase
             ->assertSee('₱60.00');
     }
 
+    public function test_split_payment_modal_persists_partial_payments_and_retries_without_duplicates(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Split Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Dedicated Split Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Large Order Coffee', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Large', 'price' => 1000, 'status' => 'active']);
+        $ingredient = Ingredient::create(['name' => 'Split Payment Beans', 'unit' => 'g', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 100]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $ingredient->id, 'quantity' => 10]);
+
+        $initialPayment = [
+            'split_payment' => 1,
+            'checkout_request_id' => 'd8ef41b8-22be-4cc8-a42a-c9fa6c350129',
+            'payment_request_id' => 'd8ef41b8-22be-4cc8-a42a-c9fa6c350129',
+            'order_type' => 'dine_in',
+            'customer_name' => 'Table 4',
+            'payment_method' => 'cash',
+            'amount_received' => 200,
+            'amount_paid' => 200,
+            'person_name' => 'Alex',
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ];
+
+        $firstResponse = $this->actingAs($cashier)->postJson(route('pos.store'), $initialPayment)
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('order.total', 1000)
+            ->assertJsonPath('order.total_paid', 200)
+            ->assertJsonPath('order.remaining_balance', 800)
+            ->assertJsonPath('order.status', 'partially_paid');
+        $orderId = $firstResponse->json('order.id');
+        $order = Order::findOrFail($orderId);
+        $this->assertSame('Table 4', $order->customer_name);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'order_payment_recorded',
+            'actor_user_id' => $cashier->id,
+            'reference_id' => $order->payments()->value('id'),
+        ]);
+        $this->assertEquals(90, $ingredient->fresh()->inventory->current_stock);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+
+        $this->postJson(route('pos.store'), $initialPayment)
+            ->assertCreated()
+            ->assertJsonPath('order.id', $orderId);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+
+        $secondPayment = [
+            'split_payment' => 1,
+            'request_id' => '99ec5286-814c-4a74-80cc-778635fc1c5e',
+            'person_name' => 'Blair',
+            'amount_paid' => 300,
+            'amount_received' => 300,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+        ];
+        $this->postJson(route('orders.payments.store', $order), $secondPayment)
+            ->assertOk()
+            ->assertJsonPath('remaining_balance', 500)
+            ->assertJsonPath('payment.cashier_name', 'Split Cashier');
+        $this->postJson(route('orders.payments.store', $order), $secondPayment)
+            ->assertOk()
+            ->assertJsonPath('remaining_balance', 500);
+        $this->assertDatabaseCount('payments', 2);
+        $this->assertSame('partially_paid', $order->fresh()->status);
+
+        $this->getJson(route('orders.payments.history', $order))
+            ->assertOk()
+            ->assertJsonPath('order.total', 1000)
+            ->assertJsonPath('order.total_paid', 500)
+            ->assertJsonPath('order.remaining_balance', 500)
+            ->assertJsonPath('payments.0.cashier_name', 'Split Cashier')
+            ->assertJsonPath('payments.1.person_name', 'Blair');
+        $this->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('POS Save Order workflow')
+            ->assertDontSee('Record Split / Partial Payment')
+            ->assertDontSee('Open Split Payment');
+        $this->get(route('pos.index', ['split_order_id' => $order->id]))
+            ->assertOk()
+            ->assertSee('id="save-order-modal"', false)
+            ->assertSee('Split Payment / Split Order')
+            ->assertSee('split-payment-history', false)
+            ->assertSee('openSaveOrderModal()', false)
+            ->assertDontSee('initialSplitPaymentOrderId', false);
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'split_payment' => 1,
+            'request_id' => '4b98f81d-0f19-4c8e-80ed-d755d3f817bb',
+            'person_name' => 'Casey',
+            'amount_paid' => 500,
+            'amount_received' => 500,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+        ])->assertOk()->assertJsonPath('remaining_balance', 0);
+
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertEquals(90, $ingredient->fresh()->inventory->current_stock);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+        $this->assertDatabaseCount('payments', 3);
+    }
+
+    public function test_save_order_can_create_an_unpaid_split_order_then_continue_it_without_reducing_stock_twice(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Split Order Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Saved Split Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Saved Split Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Large', 'price' => 1000, 'status' => 'active']);
+        $ingredient = Ingredient::create(['name' => 'Saved Split Beans', 'unit' => 'g', 'minimum_stock' => 5, 'status' => 'active']);
+        Inventory::create(['ingredient_id' => $ingredient->id, 'current_stock' => 100]);
+        $recipe = Recipe::create(['product_size_id' => $size->id, 'status' => 'active']);
+        RecipeIngredient::create(['recipe_id' => $recipe->id, 'ingredient_id' => $ingredient->id, 'quantity' => 10]);
+        $heldOrder = $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertOk()->json('order');
+
+        $payload = [
+            'split_payment' => 1,
+            'save_split_order' => 1,
+            'held_order_id' => $heldOrder['id'],
+            'checkout_request_id' => '58d17730-3033-4e72-88db-caa14e63e72b',
+            'payment_request_id' => '58d17730-3033-4e72-88db-caa14e63e72b',
+            'customer_name' => 'Table 8',
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'amount_paid' => 0,
+            'split_portions' => [['payer_name' => 'Alex', 'amount' => 1000]],
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'assigned_to' => 'Alex',
+            ]],
+        ];
+
+        $firstResponse = $this->actingAs($cashier)->postJson(route('pos.store'), $payload)
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('order.total', 1000)
+            ->assertJsonPath('order.total_paid', 0)
+            ->assertJsonPath('order.remaining_balance', 1000)
+            ->assertJsonPath('order.status', 'pending');
+        $order = Order::findOrFail($firstResponse->json('order.id'));
+
+        $this->assertSame('Table 8', $order->customer_name);
+        $this->assertSame($heldOrder['id'], $order->id);
+        $this->assertDatabaseHas('orders', ['id' => $heldOrder['id'], 'status' => 'pending']);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Alex',
+            'due_amount' => 1000,
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseCount('payments', 0);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+        $this->assertSame(90.0, (float) $ingredient->fresh()->inventory->current_stock);
+
+        $this->postJson(route('pos.store'), $payload)
+            ->assertCreated()
+            ->assertJsonPath('order.id', $order->id);
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+
+        $this->getJson(route('pos.split-orders'))
+            ->assertOk()
+            ->assertJsonPath('orders.0.id', $order->id)
+            ->assertJsonPath('orders.0.remaining_balance', 1000);
+        $this->getJson(route('pos.held-orders'))
+            ->assertOk()
+            ->assertJsonPath('0.id', $order->id)
+            ->assertJsonPath('0.saved_order_type', 'payable')
+            ->assertJsonPath('0.payment_portions.0.payer_name', 'Alex')
+            ->assertJsonPath('0.remaining_balance', 1000);
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'split_payment' => 1,
+            'request_id' => '7399f00f-7276-4f12-a3e1-3222f6879331',
+            'person_name' => 'Alex',
+            'amount_paid' => 200,
+            'amount_received' => 200,
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+        ])->assertOk()->assertJsonPath('remaining_balance', 800);
+
+        $this->assertSame('partially_paid', $order->fresh()->status);
+        $this->assertSame('partially_paid', $order->fresh()->payment_status);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Alex',
+            'due_amount' => 1000,
+            'amount_paid' => 200,
+            'status' => 'partially_paid',
+        ]);
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('inventory_transactions', 1);
+        $this->assertSame(90.0, (float) $ingredient->fresh()->inventory->current_stock);
+        $this->getJson(route('pos.split-orders'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer_name' => 'Table 8',
+                'total_paid' => 200,
+                'remaining_balance' => 800,
+            ]);
+        $this->getJson(route('orders.payments.history', $order))
+            ->assertOk()
+            ->assertJsonPath('order.total_paid', 200)
+            ->assertJsonPath('order.remaining_balance', 800)
+            ->assertJsonPath('payments.0.cashier_name', 'Split Order Cashier');
+    }
+
+    public function test_regular_save_order_retries_are_idempotent_and_saved_order_can_be_retrieved(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Save Retry Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 500, 'status' => 'active']);
+        $requestId = '8517ad07-6bd9-4e80-9e38-9d419a0cc753';
+        $payload = [
+            'checkout_request_id' => $requestId,
+            'customer_name' => 'Table 6',
+            'items' => [[
+                'product_size_id' => $size->id,
+                'quantity' => 1,
+                'comment' => 'Oat milk',
+            ]],
+        ];
+
+        $first = $this->actingAs($cashier)->postJson(route('pos.hold'), $payload)
+            ->assertOk()
+            ->assertJsonPath('order.status', 'held');
+        $orderId = $first->json('order.id');
+        $this->postJson(route('pos.hold'), $payload)
+            ->assertOk()
+            ->assertJsonPath('order.id', $orderId);
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('order_items', 1);
+        $this->assertDatabaseCount('payments', 0);
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'customer_name' => 'Table 6',
+            'payment_status' => 'unpaid',
+            'total' => 500,
+        ]);
+        $this->getJson(route('pos.held-orders'))
+            ->assertOk()
+            ->assertJsonPath('0.id', $orderId)
+            ->assertJsonPath('0.saved_order_type', 'held')
+            ->assertJsonPath('0.order_items.0.comment', 'Oat milk');
+    }
+
+    public function test_regular_partial_payments_preserve_each_payment_and_close_the_balance(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Partial Payment Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Regular Partial Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Regular Partial Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 500, 'status' => 'active']);
+
+        $response = $this->actingAs($cashier)->post(route('pos.store'), [
+            'payment_method' => 'cash',
+            'amount_paid' => 200,
+            'amount_received' => 200,
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertRedirect();
+        $order = Order::query()->firstOrFail();
+
+        $this->assertSame('partially_paid', $order->payment_status);
+        $this->assertSame(300.0, $order->remainingBalance());
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'request_id' => 'f17dddbd-9c67-46de-8d83-c7bb359ded6f',
+            'amount_paid' => 0,
+            'amount_received' => 0,
+            'payment_method' => 'cash',
+        ])->assertUnprocessable()->assertJsonValidationErrors('amount_paid');
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'request_id' => '281fd750-e4da-49c7-8c85-f858992a9c3d',
+            'amount_paid' => 301,
+            'amount_received' => 301,
+            'payment_method' => 'cash',
+        ])->assertUnprocessable()->assertJsonValidationErrors('amount_paid');
+        $this->assertDatabaseCount('payments', 1);
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'request_id' => 'aad7b806-e89c-46bc-8244-fdfc2c8472b5',
+            'amount_paid' => 100,
+            'amount_received' => 100,
+            'payment_method' => 'cash',
+        ])->assertOk()->assertJsonPath('remaining_balance', 200);
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'request_id' => 'c6e16ab0-5a6a-44e8-b18b-8479db17bc70',
+            'amount_paid' => 200,
+            'amount_received' => 200,
+            'payment_method' => 'cash',
+        ])->assertOk()->assertJsonPath('remaining_balance', 0);
+
+        $this->assertSame('paid', $order->fresh()->payment_status);
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertSame(3, $order->payments()->where('status', 'paid')->count());
+        $this->assertSame(500.0, $order->paidAmount());
+        $this->getJson(route('orders.payments.history', $order))
+            ->assertOk()
+            ->assertJsonPath('order.total_paid', 500)
+            ->assertJsonPath('order.remaining_balance', 0)
+            ->assertJsonCount(3, 'payments')
+            ->assertJsonPath('payments.0.cashier_name', 'Partial Payment Cashier');
+    }
+
+    public function test_existing_unpaid_order_can_be_split_into_portions_then_paid_by_each_person(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Existing Split Cashier']);
+        $this->startShiftFor($cashier);
+        $order = Order::create([
+            'order_number' => 'ORD-EXISTING-SPLIT-001',
+            'cashier_name' => 'Different Cashier',
+            'subtotal' => 300,
+            'discount' => 0,
+            'total' => 300,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+
+        $this->actingAs($cashier)->postJson(route('orders.payments.portions.store', $order), [
+            'portions' => [
+                ['payer_name' => 'Kai', 'amount' => 100],
+                ['payer_name' => 'Mia', 'amount' => 199],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors('portions');
+        $this->assertDatabaseCount('order_payment_portions', 0);
+
+        $this->postJson(route('orders.payments.portions.store', $order), [
+            'portions' => [
+                ['payer_name' => 'Kai', 'amount' => 100],
+                ['payer_name' => 'Mia', 'amount' => 200],
+            ],
+        ])->assertOk()->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Kai',
+            'due_amount' => 100,
+            'amount_paid' => 0,
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Mia',
+            'due_amount' => 200,
+        ]);
+
+        $this->postJson(route('orders.payments.store', $order), [
+            'request_id' => '3d1812bf-98c3-47af-b6ed-99b35b764f83',
+            'amount_paid' => 40,
+            'amount_received' => 40,
+            'payment_method' => 'cash',
+            'person_name' => 'Kai',
+            'split_payment' => 1,
+        ])->assertOk()->assertJsonPath('remaining_balance', 260);
+
+        $this->assertDatabaseHas('payments', [
+            'order_id' => $order->id,
+            'customer_name' => 'Kai',
+            'portion_id' => $order->paymentPortions()->where('payer_name', 'Kai')->value('id'),
+            'amount_paid' => 40,
+            'status' => 'paid',
+        ]);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Kai',
+            'amount_paid' => 40,
+            'status' => 'partially_paid',
+        ]);
+        $this->assertSame(260.0, $order->fresh()->remainingBalance());
+    }
+
+    public function test_item_quantity_split_saves_distinct_payer_portions(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Quantity Split Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Shared Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 200, 'status' => 'active']);
+
+        $response = $this->actingAs($cashier)->postJson(route('pos.store'), [
+            'split_payment' => 1,
+            'save_split_order' => 1,
+            'checkout_request_id' => '4987b667-69ed-41ee-8968-20c992c3bdc6',
+            'customer_name' => 'Table 15',
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'amount_paid' => 0,
+            'split_portions' => [
+                ['payer_name' => 'Alex', 'amount' => 200],
+                ['payer_name' => 'Blair', 'amount' => 400],
+            ],
+            'items' => [
+                ['product_size_id' => $size->id, 'quantity' => 1, 'assigned_to' => 'Alex'],
+                ['product_size_id' => $size->id, 'quantity' => 2, 'assigned_to' => 'Blair'],
+            ],
+        ])->assertCreated()->assertJsonPath('order.total', 600);
+        $order = Order::findOrFail($response->json('order.id'));
+
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'assigned_to' => 'Alex',
+            'quantity' => 1,
+            'payable_total' => 200,
+        ]);
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'assigned_to' => 'Blair',
+            'quantity' => 2,
+            'payable_total' => 400,
+        ]);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Alex',
+            'due_amount' => 200,
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Blair',
+            'due_amount' => 400,
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_amount_split_portions_preserve_individual_balances_across_partial_payments(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier', 'name' => 'Portion Cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Amount Split Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Shared Coffee', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 600, 'status' => 'active']);
+        $response = $this->actingAs($cashier)->postJson(route('pos.store'), [
+            'split_payment' => 1,
+            'save_split_order' => 1,
+            'checkout_request_id' => '0f52af1d-5661-4f84-9c40-1533eb567c18',
+            'customer_name' => 'Table 12',
+            'payment_method' => 'cash',
+            'amount_received' => 0,
+            'amount_paid' => 0,
+            'split_portions' => [
+                ['payer_name' => 'Alex', 'amount' => 200],
+                ['payer_name' => 'Blair', 'amount' => 200],
+                ['payer_name' => 'Casey', 'amount' => 200],
+            ],
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertCreated()
+            ->assertJsonPath('order.total', 600)
+            ->assertJsonPath('order.total_paid', 0)
+            ->assertJsonPath('order.remaining_balance', 600)
+            ->assertJsonPath('order.payment_status', 'unpaid');
+        $order = Order::findOrFail($response->json('order.id'));
+        $this->assertDatabaseCount('order_payment_portions', 3);
+
+        foreach ([['Alex', 200], ['Blair', 100], ['Blair', 100], ['Casey', 200]] as $index => [$payer, $amount]) {
+            $this->postJson(route('orders.payments.store', $order), [
+                'request_id' => sprintf('1f5f070b-aeb1-49bd-8044-f6d8fee9%04d', $index),
+                'person_name' => $payer,
+                'amount_paid' => $amount,
+                'amount_received' => $amount,
+                'payment_method' => 'cash',
+                'payment_status' => 'paid',
+            ])->assertOk();
+
+            if ($index === 0) {
+                $this->assertSame(400.0, $order->fresh()->remainingBalance());
+                $this->assertSame('partially_paid', $order->fresh()->payment_status);
+            } elseif ($index === 1) {
+                $this->assertSame(300.0, $order->fresh()->remainingBalance());
+            }
+        }
+
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertSame('paid', $order->fresh()->payment_status);
+        $this->assertSame(0.0, $order->fresh()->remainingBalance());
+        $this->assertDatabaseCount('payments', 4);
+        $this->assertDatabaseHas('order_payment_portions', [
+            'order_id' => $order->id,
+            'payer_name' => 'Blair',
+            'due_amount' => 200,
+            'amount_paid' => 200,
+            'status' => 'paid',
+        ]);
+        $this->getJson(route('orders.payments.history', $order))
+            ->assertOk()
+            ->assertJsonPath('order.total_paid', 600)
+            ->assertJsonPath('order.remaining_balance', 0)
+            ->assertJsonPath('order.payment_portions.2.status', 'paid')
+            ->assertJsonCount(4, 'payments');
+    }
+
     public function test_terminal_order_receipts_do_not_show_a_balance_due(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);
@@ -400,6 +945,28 @@ class PosOrderTest extends TestCase
         ]);
     }
 
+    public function test_saved_order_ignores_custom_discount_input_when_discount_type_is_none(): void
+    {
+        $cashier = User::factory()->create(['role' => 'cashier']);
+        $this->startShiftFor($cashier);
+        $category = Category::create(['name' => 'Stale Discount Coffee', 'status' => 'active']);
+        $product = Product::create(['category_id' => $category->id, 'name' => 'Latte', 'status' => 'active']);
+        $size = ProductSize::create(['product_id' => $product->id, 'size_name' => 'Regular', 'price' => 100, 'status' => 'active']);
+
+        $this->actingAs($cashier)->postJson(route('pos.hold'), [
+            'discount' => 10,
+            'discount_type' => 'none',
+            'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('orders', [
+            'status' => 'held',
+            'discount_type' => 'none',
+            'discount' => 0,
+            'total' => 100,
+        ]);
+    }
+
     public function test_resuming_a_held_order_returns_unique_cart_keys_for_duplicate_products(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);
@@ -429,7 +996,7 @@ class PosOrderTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'held']);
     }
 
-    public function test_checkout_removes_a_resumed_held_ticket_only_when_order_is_created(): void
+    public function test_checkout_finalizes_a_resumed_held_ticket_only_when_order_is_created(): void
     {
         $cashier = User::factory()->create(['role' => 'cashier']);
         $this->startShiftFor($cashier);
@@ -461,8 +1028,8 @@ class PosOrderTest extends TestCase
             'items' => [['product_size_id' => $size->id, 'quantity' => 1]],
         ])->assertRedirect();
 
-        $this->assertDatabaseMissing('orders', ['id' => $heldOrderId]);
-        $this->assertDatabaseHas('orders', ['status' => 'completed', 'total' => 100]);
+        $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'completed', 'total' => 100]);
+        $this->assertDatabaseCount('orders', 1);
     }
 
     public function test_reholding_a_resumed_ticket_replaces_the_saved_copy(): void
@@ -484,7 +1051,7 @@ class PosOrderTest extends TestCase
             'items' => [['product_size_id' => $size->id, 'quantity' => 2]],
         ])->assertOk();
 
-        $this->assertDatabaseMissing('orders', ['id' => $heldOrderId]);
+        $this->assertDatabaseHas('orders', ['id' => $heldOrderId, 'status' => 'held']);
         $this->assertDatabaseCount('orders', 1);
         $this->assertSame(2, $reheldResponse->json('order.order_items.0.quantity'));
     }
@@ -1439,7 +2006,7 @@ class PosOrderTest extends TestCase
         $this->assertSame(100.0, (float) $order->total);
         $this->assertSame(10.71, (float) $order->tax_amount);
         $this->assertSame(89.29, (float) $order->vatable_sales);
-        $discountAudit = \App\Models\AuditLog::where('action', 'discount_applied')
+        $discountAudit = AuditLog::where('action', 'discount_applied')
             ->where('reference_id', $order->id)
             ->firstOrFail();
         $this->assertSame($user->id, $discountAudit->actor_user_id);
@@ -1591,7 +2158,7 @@ class PosOrderTest extends TestCase
             ->assertSee("document.getElementById('f-discount-id-number').value = discountIdNumber", false)
             ->assertSee('subtotal / (1 + (taxRate / 100))', false)
             ->assertSee('setInterval(updateShiftInDateTime, 15000)', false)
-            ->assertSee("timeZone: businessTimeZone", false)
+            ->assertSee('timeZone: businessTimeZone', false)
             ->assertSee('function updateOrderSummary()', false)
             ->assertSee('VAT-Exempt Sales');
         $this->assertSame(1, substr_count($response->getContent(), 'onclick="confirmAddToCart()"'));
@@ -1744,7 +2311,12 @@ class PosOrderTest extends TestCase
         $response = $this->actingAs($user)->get(route('pos.index'));
         $response->assertOk();
 
-        $response->assertSee('style="zoom: 90%"', false);
+        $response->assertSee('.pos-shell {', false)
+            ->assertSee('zoom: 100% !important', false)
+            ->assertSee('.pos-terminal-grid', false)
+            ->assertSee('grid-template-columns: minmax(0, 2.2fr) minmax(22rem, 0.95fr)', false)
+            ->assertSee('.pos-product-grid', false)
+            ->assertSee('repeat(auto-fit, minmax(min(100%, 12.75rem), 1fr))', false);
         $response->assertSee('pos-main', false);
         $response->assertSee('pos-terminal', false);
         $response->assertSee('.pos-main [class~="text-xs"]', false);
@@ -1761,54 +2333,98 @@ class PosOrderTest extends TestCase
         $response->assertSee('disabled aria-disabled="true"', false);
         $response->assertSee('pos-cart-recovery-', false);
         $response->assertSee('persistPosCartRecovery()', false)
-            ->assertSee('restorePosCartRecovery()', false);
+            ->assertSee('restorePosCartRecovery()', false)
+            ->assertSee("discInput.value = data.discount_type === 'custom' ? (data.discount || 0) : 0;", false)
+            ->assertSee("document.getElementById('discount-type')?.value === 'custom'", false);
         $response->assertSee("onclick=\"setCashAmount('exact')\"", false)
             ->assertSee("const amount = val === 'exact' ? due : Number(val)", false)
-            ->assertSee("onclick=\"setCashAmount(100)\"", false);
+            ->assertSee('onclick="setCashAmount(100)"', false);
         $response->assertSee('Platform settlement');
         $response->assertSee('Grab orders can be paid in cash at the counter');
         $response->assertSee("cashSec.style.display = showCash ? '' : 'none'", false);
         $response->assertDontSee('checkout-hold-btn', false);
-        $response->assertSee('Saved Orders');
+        $response->assertDontSee('Saved Orders</span>');
+        $response->assertSee('id="hold-button-label">Save Order</span>', false)
+            ->assertSee("holdButtonLabel.textContent = cart.length === 0 ? 'View Saved' : 'Save Order'", false)
+            ->assertSee('function handleOrderPanelAction()', false)
+            ->assertSee('openHeldOrdersModal();', false)
+            ->assertSee('Split / Partial Payments')
+            ->assertSee('onclick="openHeldOrderSplitPayments(${order.id})"', false)
+            ->assertSee('async function openHeldOrderSplitPayments(orderId)', false)
+            ->assertSee("result.error || result.message || 'Failed to open saved order.'", false)
+            ->assertSee('flex flex-col gap-2 border-t border-gray-100 pt-2 sm:flex-row sm:items-center sm:justify-between', false)
+            ->assertSee('flex items-center gap-1.5', false)
+            ->assertSee('View regular saved tickets')
+            ->assertDontSee('openSplitPaymentsFromSavedOrders', false)
+            ->assertSee('function viewRegularSavedOrdersFromSaveModal()', false)
+            ->assertSee('id="held-count-badge"', false);
         $response->assertSee('>Orders</span>', false);
         $response->assertSee('Senior/PWD discounts require an ID.', false);
         $response->assertSee('Custom discounts are limited to managers and owners.', false);
         $response->assertSee('Current Order');
         $response->assertSee('Customer / Table');
-        $response->assertSee('Split Payment');
+        $response->assertSee('Customer / Table:</span>', false);
+        $response->assertSee('id="current-order-customer" class="min-w-0 truncate"', false);
+        $response->assertDontSee('order-customer-name" type="text', false);
+        $response->assertSee('id="order-customer-name" type="hidden"', false);
+        $response->assertSee('id="checkout-customer-name" type="text"', false);
+        $response->assertSee('placeholder="Enter customer name or table number"', false);
+        $response->assertSee('Split Payment / Split Order');
+        $response->assertSee('id="hold-btn"', false);
+        $response->assertSee('id="save-order-feedback"', false);
+        $response->assertSee('function showSaveOrderError(message)', false);
+        $response->assertSee('holdRequestInProgress', false);
+        $response->assertSee('split-item-assignment-list', false);
+        $response->assertSee('Save Order');
         $response->assertSee('PAY ₱0.00');
+        $page = $response->getContent();
+        $this->assertGreaterThan(
+            strpos($page, 'id="save-order-modal"'),
+            strpos($page, 'id="split-toggle"')
+        );
+        $this->assertStringNotContainsString('openSplitPaymentModal', $page);
         $response->assertSee('id="cashier-name" type="hidden"', false);
         $response->assertDontSee('id="cashier-name" type="text"', false);
-        $response->assertSee('payment-person-name', false);
-        $response->assertSee('Payment Amount');
-        $response->assertSee('Paying Person');
+        $response->assertSee('id="payment-person-name" type="hidden"', false);
+        $response->assertSee('id="amount-to-pay" type="number"', false)
+            ->assertSee('Enter the amount being paid now. Any remaining balance stays due on this order.');
+        $response->assertDontSee('Paying Person');
+        $response->assertDontSee('Record Payment');
         $response->assertSee('aria-labelledby="checkout-modal-title"', false);
         $response->assertSee('selectPaymentMethod(currentMethod)', false);
         $response->assertSee('refreshCartItemKey(item)', false);
         $response->assertSee("['pl-customer-name', 'pl-customer-phone', 'pl-due-date', 'pl-notes']", false);
-        $response->assertSee('Customer / Table');
+        $response->assertSee('checkout-customer-name', false);
         $response->assertSee('id="cashier-name"', false);
         $response->assertSee('ot-dine-in', false);
         $response->assertSee('ot-take-out', false);
         $response->assertSee('split-toggle', false);
+        $response->assertSee('split-order-workflow', false)
+            ->assertSee('split-payment-history', false)
+            ->assertSee('open-split-orders-list', false)
+            ->assertSee('Add Payment')
+            ->assertSee('Payment History')
+            ->assertSee('Complete Payment');
         $response->assertSee('Order type', false);
         $response->assertSee('aria-pressed="true"', false);
         $response->assertSee('100dvh', false);
         $response->assertSee('overscroll-contain', false);
         $response->assertSee('order-1', false);
-        $response->assertSee('lg:grid-cols-[minmax(0,1fr)_minmax(24rem,30rem)]', false);
+        $response->assertSee('.pos-terminal-grid', false);
+        $response->assertSee('grid-template-columns: minmax(0, 2.2fr) minmax(22rem, 0.95fr)', false);
         $response->assertSee('h-auto min-h-0 w-full min-w-0', false);
         $response->assertSee('min-h-[15rem] flex-1 space-y-3 overflow-y-auto', false);
         $response->assertSee('lg:min-h-[15rem]', false);
         $response->assertSee('pos-order-panel', false);
-        $response->assertSee('class="shrink-0 space-y-2 border-b', false);
         $response->assertSee('class="shrink-0 px-3 pb-3', false);
         $response->assertSee('@media (min-width: 1280px) and (max-height: 950px)', false);
+        $response->assertSee('overflow: hidden !important', false);
         $response->assertSee('.pos-order-panel #cart-items', false);
-        $response->assertSee('flex: 0 0 15rem', false);
-        $response->assertSee('max-height: 32vh', false);
+        $response->assertSee('flex: 1 1 0%', false);
+        $response->assertSee('min-height: 8rem', false);
         $response->assertSee('@media (max-width: 1279px)', false);
         $response->assertSee('.pos-shell', false);
+        $response->assertSee('width: 100vw', false);
         $response->assertSee('zoom: 100% !important', false);
         $response->assertSee('.pos-terminal > .grid > .pos-order-panel', false);
         $response->assertSee('.pos-order-panel > .sticky.bottom-0', false);
@@ -1830,8 +2446,8 @@ class PosOrderTest extends TestCase
         $response->assertSee('Assigned person', false);
         $response->assertSee('product-grid-empty', false);
         $response->assertSee('₱12.34');
-        $response->assertSee("Number(addon.price).toFixed(2)", false);
-        $response->assertSee("parseFloat(displayPrice).toFixed(2)", false);
+        $response->assertSee('Number(addon.price).toFixed(2)', false);
+        $response->assertSee('parseFloat(displayPrice).toFixed(2)', false);
         $response->assertSee("escapeHtml(addon.name.replace('Flavor: ', ''))", false);
         $response->assertSee('More ⋮');
         $response->assertSee('+ Add comment');
@@ -1846,7 +2462,7 @@ class PosOrderTest extends TestCase
         $response->assertSee('Matching order items cannot be combined above 999 units.', false);
         $response->assertSee('currentHeldOrderId = null;', false);
         $response->assertSee('clearProductFilters()', false);
-        $response->assertSee("payLaterAmount.textContent = formatCurrency(orderTotal)", false);
+        $response->assertSee('payLaterAmount.textContent = formatCurrency(orderTotal)', false);
         $response->assertSee('!Number.isInteger(parsed)', false);
         $response->assertSee('char => `%${char.charCodeAt(0).toString(16)}`', false);
         $response->assertDontSee('Sales today');
@@ -1860,6 +2476,17 @@ class PosOrderTest extends TestCase
         $response->assertDontSee('pm-bank', false);
         $response->assertDontSee('pm-gcash', false);
         $response->assertDontSee('GCash, Maya, QR, Transfer');
+    }
+
+    public function test_shift_in_modal_displays_cashier_name_and_role_in_sentence_case(): void
+    {
+        $owner = User::factory()->create(['role' => 'owner', 'name' => 'Admin Owner']);
+
+        $this->actingAs($owner)->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('class="text-[10px] tracking-wider font-bold text-gray-400 mb-0.5">Cashier</p>', false)
+            ->assertSee('id="si-cashier-name">Admin Owner</p>', false)
+            ->assertSee('id="si-cashier-role">Owner</p>', false);
     }
 
     public function test_pos_product_cards_show_stock_status_and_disable_unavailable_products(): void
@@ -2237,7 +2864,6 @@ class PosOrderTest extends TestCase
 
         $this->assertDatabaseCount('cashier_shifts', 1);
     }
-
 
     public function test_thermal_receipt_renders_pure_receipt_data_and_print_isolation(): void
     {

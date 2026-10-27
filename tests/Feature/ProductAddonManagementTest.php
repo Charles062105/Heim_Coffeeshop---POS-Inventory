@@ -2,9 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\ProductAddon;
-use App\Models\AddonIngredient;
 use App\Models\Ingredient;
+use App\Models\ProductAddon;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

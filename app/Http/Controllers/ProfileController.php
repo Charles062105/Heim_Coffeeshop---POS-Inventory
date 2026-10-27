@@ -34,4 +34,3 @@ class ProfileController extends Controller
         return back()->with('error', 'Self-service account deletion is disabled. Please contact your system administrator.');
     }
 }
-
